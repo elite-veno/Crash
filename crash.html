@@ -2,6 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NEON CASINO</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Major+Mono+Display&family=JetBrains+Mono:wght@300;400;700&display=swap');
@@ -2256,6 +2257,8 @@ function saveState() {
     const data = {
       balance: state.balance,
       pending: pendingStakes(),
+      pendingPayout: pendingPayouts(),
+      bjHand: pendingBlackjackHand(),
       history: state.history,
       gameStats,
       lastBets,
@@ -2274,18 +2277,34 @@ function saveState() {
   bkRefreshButtons();
 }
 
-// Money that is currently locked in an unfinished round (all modes). Saved with the
-// state so that a reload mid-round refunds it instead of silently losing it.
+// Money locked in a round whose outcome is NOT decided yet. Saved with the state so a
+// reload refunds it. Rounds whose outcome is already drawn are never refunded (that would
+// be a free roll once the result is visible): see pendingPayouts().
 function pendingStakes() {
   let p = 0;
   if (state.hasBet && !state.cashedOut && state.phase !== 'crashed') p += state.betAmount;
-  p += rlTotal();
+  if (!RL.spinning) p += rlTotal();
   if (TW.active) p += TW.bet;
   if (MN.active) p += MN.bet;
-  for (const b of PK.balls) if (!b.done) p += b.bet;
-  if (BJ.phase === 'player' || BJ.phase === 'dealer') p += BJ.bet;
-  p += hrTotal();
+  if (!HR.racing) p += hrTotal();
   return round2(p);
+}
+
+// Payouts already determined but not yet credited because an animation is running
+// (roulette spin, horse race, plinko balls, blackjack dealer reveal). Credited on load.
+function pendingPayouts() {
+  let p = 0;
+  if (RL.spinning) p += RL.pendingPayout;
+  if (HR.racing) p += HR.pendingPayout;
+  for (const b of PK.balls) if (!b.done) p += floor2(b.bet * b.mult);
+  if (BJ.phase === 'dealer') p += BJ.pendingPayout;
+  return round2(p);
+}
+
+// An open blackjack hand (player still deciding) is persisted and settled as a stand on load.
+function pendingBlackjackHand() {
+  if (BJ.phase !== 'player') return null;
+  return { player: BJ.player, dealer: BJ.dealer, bet: BJ.bet };
 }
 
 // =================== SHARED STATE ===================
@@ -2322,6 +2341,8 @@ const state = {
 let currentRoute = 'home';
 const refundedStake = saved && Number(saved.pending) > 0 ? round2(Number(saved.pending)) : 0;
 if (refundedStake > 0) state.balance = round2(state.balance + refundedStake);
+const owedPayout = saved && Number(saved.pendingPayout) > 0 ? round2(Number(saved.pendingPayout)) : 0;
+if (owedPayout > 0) state.balance = round2(state.balance + owedPayout);
 
 function renderBalance() {
   document.querySelectorAll('.js-balance').forEach(el => el.textContent = fmt(state.balance));
@@ -2410,8 +2431,7 @@ function takeBet(amt, hostId) {
   if (!(amt >= MIN_BET)) { flash(`MINIMALE INZET $${fmt(MIN_BET)}`, 'red', hostId); return 0; }
   if (amt > state.balance + 1e-9) { flash('ONVOLDOENDE SALDO', 'red', hostId); return 0; }
   adjustBalance(-amt);
-  saveState();
-  return amt;
+  return amt; // callers save state once the round is marked active, so pendingStakes() includes it
 }
 
 // Abort every unfinished round without paying anything out (used by reset).
@@ -2421,14 +2441,15 @@ function abortAllRounds() {
   RL.bets = {};
   RL.lastBets = {};
   RL.generation += 1; // a running spin animation will see a stale generation and stop paying out
-  RL.spinning = false;
+  RL.spinning = false; RL.pendingPayout = 0;
   TW.active = false; TW.rows = []; TW.picks = []; TW.level = 0;
   MN.active = false; MN.grid = []; MN.revealed = []; MN.hit = -1;
   PK.balls = []; PK.results = []; PK.lastHit = null;
   clearTimeout(BJ.timer);
-  BJ.phase = 'idle'; BJ.player = []; BJ.dealer = []; BJ.bet = 0;
+  BJ.phase = 'idle'; BJ.player = []; BJ.dealer = []; BJ.bet = 0; BJ.pendingPayout = 0;
   HR.generation += 1;
-  HR.racing = false; HR.bets = {}; HR.horses = []; HR.results = [];
+  HR.racing = false; HR.lastPodium = []; HR.pendingPayout = 0;
+  hrNewField();
   rlRenderBets(); rlDraw();
   twRender(); mnRender(); pkRender(); bjRender(); bjMessage('PLAATS EEN INZET EN DEEL');
   hrRender();
@@ -2990,7 +3011,7 @@ $('autoMultiplier').addEventListener('change', e => { e.target.value = fmt(state
 
 // =================== ROULETTE ===================
 const RL = {
-  bets: {}, lastBets: {}, chip: 10, spinning: false, generation: 0,
+  bets: {}, lastBets: {}, chip: 10, spinning: false, generation: 0, pendingPayout: 0,
   history: Array.isArray(saved?.rouletteHistory) ? saved.rouletteHistory : [],
   angle: 0, ballAngle: -Math.PI / 2, ballR: 0.93, lastResult: null,
 };
@@ -3044,6 +3065,7 @@ function rlPlace(key) {
   if (!amt) return;
   RL.bets[key] = round2((RL.bets[key] || 0) + amt);
   rlRenderBets();
+  saveState();
 }
 
 function rlClear() {
@@ -3078,6 +3100,10 @@ function rlSpin() {
   $('rlResult').textContent = '…';
 
   const result = randInt(37);
+  let settled = 0;
+  for (const k in RL.bets) settled += RL.bets[k] * ODDS.roulettePayout(k, result);
+  RL.pendingPayout = round2(settled); // outcome is fixed now; the wheel only shows it
+  saveState();
   const gen = RL.generation;
   const idx = ODDS.ROULETTE_ORDER.indexOf(result);
   const step = (Math.PI * 2) / 37;
@@ -3106,9 +3132,8 @@ function rlSpin() {
 
 function rlResolve(n, total) {
   RL.angle = ((RL.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  let ret = 0;
-  for (const k in RL.bets) ret += RL.bets[k] * ODDS.roulettePayout(k, n);
-  ret = round2(ret);
+  const ret = RL.pendingPayout;
+  RL.pendingPayout = 0;
   if (ret > 0) adjustBalance(ret);
   recordRound('roulette', total, ret, ret > 0 ? round2(ret / total) : 0);
 
@@ -3287,6 +3312,7 @@ function twStart() {
   TW.picks = [];
   TW.active = true;
   twRender();
+  saveState();
 }
 
 function twPick(t) {
@@ -3394,6 +3420,7 @@ function mnStart() {
   MN.hit = -1;
   MN.active = true;
   mnRender();
+  saveState();
 }
 
 function mnPick(i) {
@@ -3476,6 +3503,7 @@ function pkDrop() {
   const table = ODDS.plinkoTable(rows, risk);
   PK.balls.push({ bet: amt, rows, risk, path, bucket, mult: table[bucket], t0: performance.now(), done: false });
   bkRefreshButtons();
+  saveState();
 }
 
 function pkUpdate() {
@@ -3569,7 +3597,7 @@ $('pkRiskSeg').querySelectorAll('button').forEach(b => b.addEventListener('click
 $('pkDropBtn').addEventListener('click', pkDrop);
 
 // =================== BLACKJACK ===================
-const BJ = { shoe: [], player: [], dealer: [], bet: 0, phase: 'idle', timer: null };
+const BJ = { shoe: [], player: [], dealer: [], bet: 0, phase: 'idle', timer: null, pendingPayout: 0, finalDealer: [] };
 const getBjBet = bindBet('blackjack');
 
 function bjDraw() {
@@ -3634,6 +3662,7 @@ function bjDeal() {
   BJ.phase = 'player';
   bjMessage('HIT, STAND OF DOUBLE?');
   bjRender();
+  saveState();
   if (ODDS.bjIsBlackjack(BJ.player) || ODDS.bjIsBlackjack(BJ.dealer)) bjFinish();
 }
 
@@ -3653,6 +3682,7 @@ function bjDouble() {
   BJ.bet = round2(BJ.bet + extra);
   BJ.player.push(bjDraw());
   bjRender();
+  saveState();
   if (ODDS.bjValue(BJ.player).total > 21) bjFinish();
   else bjStand();
 }
@@ -3660,10 +3690,14 @@ function bjDouble() {
 function bjStand() {
   if (BJ.phase !== 'player') return;
   BJ.phase = 'dealer';
+  // The dealer's whole hand and the settlement are decided right now; the timer only reveals it.
+  BJ.finalDealer = ODDS.bjDealerPlay([...BJ.dealer], bjDraw);
+  BJ.pendingPayout = floor2(BJ.bet * ODDS.bjSettle(BJ.player, BJ.finalDealer));
   bjRender();
+  saveState();
   const stepDealer = () => {
-    if (ODDS.bjValue(BJ.dealer).total < 17) {
-      BJ.dealer.push(bjDraw());
+    if (BJ.dealer.length < BJ.finalDealer.length) {
+      BJ.dealer.push(BJ.finalDealer[BJ.dealer.length]);
       bjRender();
       BJ.timer = setTimeout(stepDealer, 550);
     } else bjFinish();
@@ -3674,6 +3708,7 @@ function bjStand() {
 function bjFinish() {
   clearTimeout(BJ.timer);
   BJ.phase = 'done';
+  BJ.pendingPayout = 0;
   const mult = ODDS.bjSettle(BJ.player, BJ.dealer);
   const ret = floor2(BJ.bet * mult);
   if (ret > 0) adjustBalance(ret);
@@ -3702,7 +3737,7 @@ $('bjStandBtn').addEventListener('click', bjStand);
 $('bjDoubleBtn').addEventListener('click', bjDouble);
 
 // =================== PAARDENRACE ===================
-const HR = { horses: [], bets: {}, racing: false, generation: 0, order: [], finish: [], t0: 0, lastPodium: [], history: [] };
+const HR = { horses: [], bets: {}, racing: false, generation: 0, order: [], finish: [], t0: 0, lastPodium: [], history: [], pendingPayout: 0 };
 const getHorseBet = bindBet('horse');
 const HR_BASE_TIME = 6.0;
 
@@ -3761,6 +3796,7 @@ function hrPlace(i) {
   if (!amt) return;
   HR.bets[i] = round2((HR.bets[i] || 0) + amt);
   hrRender();
+  saveState();
 }
 
 function hrClear() {
@@ -3782,11 +3818,14 @@ function hrStart() {
   let t = HR_BASE_TIME + Math.random() * 0.8;
   HR.order.forEach((i, rank) => { if (rank > 0) t += 0.12 + Math.random() * 0.45; HR.finish[i] = t; });
   for (const h of HR.horses) h.progress = 0;
+  const w = HR.horses[HR.order[0]];
+  HR.pendingPayout = HR.bets[w.i] ? floor2(HR.bets[w.i] * w.mult) : 0; // outcome fixed now
   HR.racing = true;
   HR.lastPodium = [];
   HR.t0 = performance.now();
   const gen = HR.generation;
   hrRender();
+  saveState();
   const frame = now => {
     if (gen !== HR.generation) return; // aborted by reset
     const t = (now - HR.t0) / 1000;
@@ -3808,7 +3847,8 @@ function hrStart() {
 function hrResolve(total) {
   const winner = HR.order[0];
   const h = HR.horses[winner];
-  const ret = HR.bets[winner] ? floor2(HR.bets[winner] * h.mult) : 0;
+  const ret = HR.pendingPayout;
+  HR.pendingPayout = 0;
   if (ret > 0) adjustBalance(ret);
   recordRound('horse', total, ret, ret > 0 ? h.mult : 0);
   HR.lastPodium = HR.order.slice(0, 3).map(i => ({ name: HR.horses[i].name, color: HR.horses[i].color }));
@@ -3960,8 +4000,11 @@ function lbSeed() {
 
 function lbLoad(savedPlayers) {
   const ok = Array.isArray(savedPlayers) && savedPlayers.length === LB_NAMES.length &&
-    savedPlayers.every(p => p && typeof p.name === 'string' && Number.isFinite(p.balance) && Number.isFinite(p.won) && Number.isFinite(p.lost));
-  LB.players = ok ? savedPlayers.map(p => ({ name: p.name, balance: round2(p.balance), won: p.won, lost: p.lost })) : lbSeed();
+    savedPlayers.every(p => p && Number.isFinite(p.balance) && Number.isFinite(p.won) && Number.isFinite(p.lost));
+  // Names always come from the fixed list and numbers are clamped, so tampered storage cannot inject markup.
+  LB.players = ok
+    ? savedPlayers.map((p, i) => ({ name: LB_NAMES[i], balance: Math.max(0, round2(p.balance)), won: Math.max(0, Math.floor(p.won)), lost: Math.max(0, Math.floor(p.lost)) }))
+    : lbSeed();
 }
 
 function lbRatio(p) { return p.won / Math.max(1, p.lost); }
@@ -4045,9 +4088,27 @@ hrRender();
 lbRender();
 startWaiting();
 tick();
-if (refundedStake > 0) {
+let settledHandMsg = '';
+{
+  const h = saved?.bjHand;
+  const isCard = c => c && typeof c.r === 'string' && typeof c.s === 'string' && ['♠', '♥', '♦', '♣'].includes(c.s) && ['A','2','3','4','5','6','7','8','9','10','J','Q','K'].includes(c.r);
+  if (h && Array.isArray(h.player) && Array.isArray(h.dealer) && h.player.length >= 2 && h.dealer.length === 2 &&
+      h.player.every(isCard) && h.dealer.every(isCard) && Number(h.bet) >= MIN_BET) {
+    const bet = round2(Number(h.bet));
+    BJ.shoe = ODDS.bjNewShoe(6);
+    const dealer = ODDS.bjDealerPlay([...h.dealer], bjDraw);
+    const ret = floor2(bet * ODDS.bjSettle(h.player, dealer));
+    if (ret > 0) state.balance = round2(state.balance + ret);
+    recordRound('blackjack', bet, ret, ret > bet ? round2(ret / bet) : 0);
+    settledHandMsg = `BLACKJACK-HAND UITGESPEELD (STAND): ${ret > bet ? '+$' + fmt(ret - bet) : ret === bet ? 'PUSH' : '-$' + fmt(bet)}`;
+    renderBalance();
+  }
+}
+if (refundedStake > 0 || owedPayout > 0 || settledHandMsg) {
   saveState();
-  flash(`ONAFGEMAAKTE INZET TERUGBETAALD: $${fmt(refundedStake)}`, 'gold', 'homeToasts');
+  if (refundedStake > 0) flash(`ONAFGEMAAKTE INZET TERUGBETAALD: $${fmt(refundedStake)}`, 'gold', 'homeToasts');
+  if (owedPayout > 0) flash(`UITBETALING VAN AFGEBROKEN RONDE: +$${fmt(owedPayout)}`, 'green', 'homeToasts');
+  if (settledHandMsg) flash(settledHandMsg, 'gold', 'homeToasts');
 }
 </script>
 
