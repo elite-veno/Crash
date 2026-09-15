@@ -570,6 +570,13 @@
     background: var(--neon);
     box-shadow: 0 0 8px var(--neon-glow);
   }
+  @media (pointer: coarse) {
+    .switch { width: 48px; height: 26px; }
+    .switch::after { width: 20px; height: 20px; }
+    .switch.on::after { left: 25px; }
+    .hr-row button { min-height: 44px; }
+    .hr-row { padding: 8px; }
+  }
   .toggle-row label {
     font-size: 11px;
     letter-spacing: 1px;
@@ -1140,9 +1147,10 @@
     border: 1px solid rgba(0,255,102,0.35);
     color: var(--neon);
     font-family: inherit;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 1px;
-    padding: 5px 8px;
+    padding: 9px 12px;
+    min-height: 34px;
     border-radius: 2px;
     cursor: pointer;
   }
@@ -1191,8 +1199,15 @@
   .bj-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 
   @media (max-width: 900px) {
-    .game-view.active { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow-y: auto; height: auto; min-height: 100vh; }
+    .content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .game-view.active { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow: visible; height: auto; min-height: 100vh; }
+    aside.game-aside { overflow: visible; }
     .game-main { overflow: visible; min-width: 0; }
+    nav.sidebar { position: fixed; left: 0; top: 0; height: 100%; z-index: 500; }
+    nav.sidebar.open { box-shadow: 0 0 40px #000; }
+    .content { margin-left: 64px; }
+    .players-section { max-height: none; }
+    .players-list { max-height: 180px; }
     .board { flex: none; min-height: auto; overflow: visible; overflow-x: auto; align-items: flex-start; }
     main.crash-main { grid-template-rows: auto 320px auto; overflow: visible; }
     .game-area { min-height: 320px; }
@@ -2491,6 +2506,7 @@ function navigate(route) {
   const nav = document.querySelector(`.nav-item[data-route="${route}"]`);
   if (nav) nav.classList.add('active');
   currentRoute = route;
+  if (window.innerWidth <= 900) document.getElementById('sidebar').classList.remove('open');
   renderBalance();
   if (route === 'home') lbRender();
   requestAnimationFrame(() => {
@@ -3002,7 +3018,7 @@ $('actionBtn').addEventListener('click', () => {
   else if (state.phase === 'flying' && state.hasBet && !state.cashedOut) cashOut();
 });
 
-$('autoSwitch').addEventListener('click', () => {
+document.querySelector('.toggle-row').addEventListener('click', () => {
   state.autoEnabled = !state.autoEnabled;
   $('autoSwitch').classList.toggle('on', state.autoEnabled);
   $('autoField').style.opacity = state.autoEnabled ? '1' : '0.4';
@@ -3570,8 +3586,11 @@ function pkDraw() {
     c.fillStyle = '#000';
     c.font = `bold ${Math.max(7, Math.min(11, g.spacingX * 0.32))}px JetBrains Mono, monospace`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    const label = table[b] >= 100 ? Math.round(table[b]) + 'x' : (table[b] >= 10 ? table[b].toFixed(0) + 'x' : table[b].toFixed(1) + 'x');
-    c.fillText(label, x, g.bucketY + yOff + g.bucketH / 2);
+    let label = table[b] >= 100 ? Math.round(table[b]) + 'x' : (table[b] >= 10 ? table[b].toFixed(0) + 'x' : table[b].toFixed(1) + 'x');
+    if (c.measureText(label).width > bw - 2) label = label.replace(/x$/, '');
+    // narrow buckets (phones, 16 rows): alternate the label height so neighbours do not overlap
+    const stagger = c.measureText(label).width > bw - 2 ? (b % 2 ? 7 : -6) : 0;
+    c.fillText(label, x, g.bucketY + yOff + g.bucketH / 2 + stagger);
   }
 
   // balls (only those dropped on the current board configuration are drawn on this geometry)
@@ -3878,26 +3897,30 @@ function hrDraw() {
   if (!fit) return;
   const { ctx: c, W: w, H: h } = fit;
   const n = HR.horses.length || 6;
-  const laneH = h / n;
-  const x0 = 90, x1 = w - 60;
+  const top = 26; // band reserved for the leader banner
+  const laneH = (h - top) / n;
+  const emojiPx = Math.max(16, Math.min(48, laneH * 0.62));
+  const x0 = 90 + emojiPx * 0.6, x1 = w - 60;
   c.clearRect(0, 0, w, h);
+  c.fillStyle = '#2f5a1a';
+  c.fillRect(0, 0, w, top);
   for (let i = 0; i < n; i++) {
     c.fillStyle = i % 2 ? '#4f8f2a' : '#579a2f';
-    c.fillRect(0, i * laneH, w, laneH);
+    c.fillRect(0, top + i * laneH, w, laneH);
     c.strokeStyle = 'rgba(255,255,255,0.35)';
     c.lineWidth = 1;
-    c.beginPath(); c.moveTo(0, i * laneH + 0.5); c.lineTo(w, i * laneH + 0.5); c.stroke();
+    c.beginPath(); c.moveTo(0, top + i * laneH + 0.5); c.lineTo(w, top + i * laneH + 0.5); c.stroke();
   }
   // start and finish
   c.fillStyle = 'rgba(255,255,255,0.6)';
-  c.fillRect(x0 - 2, 0, 2, h);
+  c.fillRect(x0 - 2, top, 2, h - top);
   const sq = Math.max(6, laneH / 4);
-  for (let y = 0; y < h; y += sq) for (let k = 0; k < 2; k++) {
-    c.fillStyle = ((y / sq + k) % 2) ? '#111' : '#fff';
-    c.fillRect(x1 + k * sq, y, sq, sq);
+  for (let y = top; y < h; y += sq) for (let k = 0; k < 2; k++) {
+    c.fillStyle = (((y - top) / sq + k) % 2) ? '#111' : '#fff';
+    c.fillRect(x1 + k * sq, y, sq, Math.min(sq, h - y));
   }
   for (const hs of HR.horses) {
-    const y = hs.i * laneH + laneH / 2;
+    const y = top + hs.i * laneH + laneH / 2;
     const x = x0 + (x1 - x0) * hs.progress;
     // lane label
     c.fillStyle = 'rgba(0,0,0,0.55)';
@@ -3907,25 +3930,24 @@ function hrDraw() {
     c.textAlign = 'left'; c.textBaseline = 'middle';
     c.fillText(hs.name, 10, y);
     // horse
-    c.font = `${Math.max(16, laneH * 0.62)}px serif`;
+    c.font = `${emojiPx}px serif`;
     c.textAlign = 'center';
     c.fillStyle = '#000';
     c.fillText('🏇', x, y + laneH * 0.05);
-    c.beginPath(); c.arc(x - laneH * 0.32, y - laneH * 0.28, Math.max(5, laneH * 0.14), 0, Math.PI * 2);
+    const badgeR = Math.max(5, emojiPx * 0.22);
+    c.beginPath(); c.arc(x - emojiPx * 0.5, y - emojiPx * 0.45, badgeR, 0, Math.PI * 2);
     c.fillStyle = hs.color; c.fill();
     c.strokeStyle = '#000'; c.lineWidth = 1.5; c.stroke();
     c.fillStyle = '#000';
-    c.font = `bold ${Math.max(8, laneH * 0.18)}px JetBrains Mono, monospace`;
-    c.fillText(hs.i + 1, x - laneH * 0.32, y - laneH * 0.28);
+    c.font = `bold ${Math.max(8, badgeR * 1.3)}px JetBrains Mono, monospace`;
+    c.fillText(hs.i + 1, x - emojiPx * 0.5, y - emojiPx * 0.45);
   }
   if (HR.racing) {
     const lead = [...HR.horses].sort((a, b) => b.progress - a.progress)[0];
-    c.fillStyle = 'rgba(0,0,0,0.6)';
-    c.fillRect(w / 2 - 90, 6, 180, 20);
     c.fillStyle = lead.color;
     c.font = 'bold 11px JetBrains Mono, monospace';
-    c.textAlign = 'center';
-    c.fillText(`AAN KOP: ${lead.name}`, w / 2, 16);
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(`AAN KOP: ${lead.name}`, w / 2, top / 2);
   }
 }
 
