@@ -2620,10 +2620,10 @@ function pendingStakes() {
 // Persisted so a reload credits the payout and records the round.
 function pendingRounds() {
   const r = [];
-  if (RL.spinning) r.push({ game: 'roulette', wager: rlTotal(), payout: RL.pendingPayout });
-  if (HR.racing) r.push({ game: 'horse', wager: hrTotal(), payout: HR.pendingPayout });
+  if (RL.spinning) r.push({ game: 'roulette', wager: rlTotal(), payout: RL.pendingPayout, straight: RL.lastStraight });
+  if (HR.racing) r.push({ game: 'horse', wager: hrTotal(), payout: HR.pendingPayout, mult: HR.pendingMult || 0 });
   for (const b of PK.balls) if (!b.done) r.push({ game: 'plinko', wager: b.bet, payout: floor2(b.bet * b.mult), mult: b.mult });
-  if (BJ.phase === 'dealer') r.push({ game: 'blackjack', wager: BJ.bet, payout: BJ.pendingPayout });
+  if (BJ.phase === 'dealer') r.push({ game: 'blackjack', wager: BJ.bet, payout: BJ.pendingPayout, natural: ODDS.bjIsBlackjack(BJ.player), doubled: BJ.doubled });
   return r;
 }
 
@@ -2671,7 +2671,8 @@ const refundedStake = saved && Number(saved.pending) > 0 ? round2(Number(saved.p
 if (refundedStake > 0) state.balance = round2(state.balance + refundedStake);
 const settledRounds = (Array.isArray(saved?.pendingRounds) ? saved.pendingRounds : [])
   .filter(r => r && GAMES.includes(r.game) && Number(r.wager) >= MIN_BET && Number(r.payout) >= 0)
-  .map(r => ({ game: r.game, wager: round2(Number(r.wager)), payout: round2(Number(r.payout)), mult: Number(r.mult) || 0 }));
+  .map(r => ({ game: r.game, wager: round2(Number(r.wager)), payout: round2(Number(r.payout)), mult: Number(r.mult) || 0,
+               straight: !!r.straight, natural: !!r.natural, doubled: !!r.doubled }));
 const owedPayout = round2(settledRounds.reduce((a, r) => a + r.payout, 0));
 if (owedPayout > 0) state.balance = round2(state.balance + owedPayout);
 // Money credited during this boot that no snapshot knows about yet. A server row that
@@ -2705,7 +2706,7 @@ function renderStats(game) {
 }
 
 // Record a finished round: wager is what the player put in, payout what came back (0 if lost).
-function recordRound(game, wager, payout, mult) {
+function recordRound(game, wager, payout, mult, meta) {
   const s = gameStats[game];
   s.rounds += 1;
   if (payout > wager + 1e-9) s.won += 1;
@@ -2713,17 +2714,20 @@ function recordRound(game, wager, payout, mult) {
   s.profit = round2(s.profit + payout - wager);
   if (mult && mult > s.highest) s.highest = mult;
   renderStats(game);
-  saveState();
   if (payout > wager) postWin(game, payout, mult || round2(payout / wager));
-  achCheck(roundContext(game, wager, payout, mult));
+  achCheck(roundContext(game, wager, payout, mult, meta));
+  saveState();
   if (currentRoute === 'home') lbRender();
 }
 
 // Extra facts about the round that just ended, read from the live game state.
-function roundContext(game, wager, payout, mult) {
+function roundContext(game, wager, payout, mult, meta) {
+  // A round replayed on load carries its own facts; a live round reads them off the table.
+  if (meta) return Object.assign({ game, wager, payout, mult }, meta);
   const c = { game, wager, payout, mult };
   if (game === 'mines') {
     c.mines = MN.mines;
+    c.cleared = MN.revealed.length;
     c.perfect = MN.revealed.length >= ODDS.MINES_TILES - MN.mines;
   } else if (game === 'tower') {
     c.diff = TW.diff;
@@ -2817,6 +2821,7 @@ function resetEverything() {
   state.balance = 1000;
   state.history = [];
   state.recentWins = [];
+  Object.assign(ACH.extra, freshExtra());
   for (const g of GAMES) Object.assign(gameStats[g], freshStats());
   RL.history = [];
   renderBalance();
@@ -3151,13 +3156,13 @@ function crash() {
   state.multiplier = state.crashAt;
   for (const p of state.players) if (!p.cashedOut) p.lost = true;
 
+  if (state.hasBet) state.stats.rounds += 1;
   if (state.hasBet && !state.cashedOut) {
     state.stats.lost += 1;
     state.stats.profit = round2(state.stats.profit - state.betAmount);
     flash(`VERLOREN $${fmt(state.betAmount)} @ ${fmt(state.crashAt)}×`, 'red');
     achCheck({ game: 'crash', wager: state.betAmount, payout: 0, mult: 0 });
   }
-  if (state.hasBet) state.stats.rounds += 1;
   if (state.crashAt > state.stats.highest) state.stats.highest = state.crashAt;
   renderStats('crash');
 
@@ -4186,6 +4191,7 @@ function hrStart() {
   for (const h of HR.horses) h.progress = 0;
   const w = HR.horses[HR.order[0]];
   HR.pendingPayout = HR.bets[w.i] ? floor2(HR.bets[w.i] * w.mult) : 0; // outcome fixed now
+  HR.pendingMult = HR.bets[w.i] ? w.mult : 0;
   HR.racing = true;
   HR.lastPodium = [];
   HR.t0 = performance.now();
@@ -4478,6 +4484,7 @@ function profileRow() {
     rounds, won, lost, profit: round2(profit),
     stats: gameStats,
     achievements: ACH.unlocked,
+    ach_extra: ACH.extra,
     updated_at: new Date().toISOString(),
   };
 }
@@ -4531,6 +4538,9 @@ async function profilePull() {
     for (const g of GAMES) Object.assign(gameStats[g], freshStats(), st[g] || {});
     state.stats = gameStats.crash;
     if (row.achievements && typeof row.achievements === 'object') ACH.unlocked = row.achievements;
+    if (row.ach_extra && typeof row.ach_extra === 'object' && Object.keys(row.ach_extra).length) {
+      Object.assign(ACH.extra, freshExtra(), row.ach_extra);
+    }
     renderBalance();
     for (const g of GAMES) renderStats(g);
   }
@@ -4608,7 +4618,7 @@ function lbApplyStatus() {
 async function lbPull() {
   if (!online()) return;
   try {
-    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,updated_at&order=balance.desc&limit=200', { auth: false });
+    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,last_seen,updated_at&order=balance.desc&limit=200', { auth: false });
     LB.rows = (Array.isArray(rows) ? rows : []).map(r => ({
       username: String(r.username || '?').slice(0, 16),
       balance: Math.max(0, round2(Number(r.balance) || 0)),
@@ -4616,7 +4626,7 @@ async function lbPull() {
       lost: Math.max(0, Math.floor(Number(r.lost) || 0)),
       title: r.title ? String(r.title).slice(0, 24) : '',
       achievements: Math.max(0, Math.floor(Number(r.achievements) || 0)),
-      seenAt: Date.parse(r.updated_at || 0) || 0,
+      seenAt: Date.parse(r.last_seen || r.updated_at || 0) || 0,
     }));
     lbSetStatus(true);
   } catch (e) { lbSetStatus(false, e.message); }
@@ -4687,7 +4697,8 @@ function lbRender() {
     const gap = round2(target.balance - me.balance + 0.01);
     const b = document.createElement('b');
     b.textContent = '$' + fmt(gap);
-    next.append('Nog ', b, ` naar plek ${myMoney} (${RANKS[Math.min(myMoney, RANKS.length) - 1].name}).`);
+    const named = myMoney <= RANKS.length ? RANKS[myMoney - 1] : null;
+    next.append('Nog ', b, ` naar plek ${myMoney}${named ? ' (' + named.name + ')' : ''}.`);
   }
   money.appendChild(next);
 
@@ -4719,7 +4730,6 @@ function liveStart() {
   if (!online()) { lbRender(); renderRecentWins(); return; }
   lbPull();
   feedPull();
-  seasonClose();
   seasonPull();
   LB.timer = setInterval(() => { if (currentRoute === 'home' && !document.hidden) lbPull(); }, 6000);
   FEED.timer = setInterval(() => { if (!document.hidden) feedPull(); }, 8000);
@@ -4971,7 +4981,7 @@ function achCheck(ctx) {
       }
       if (ctx.game === 'mines') {
         e.minesMines = Math.max(e.minesMines, ctx.mines || 0);
-        if (ctx.perfect && (ctx.mines || 0) >= 5) e.minesPerfect = true;
+        if (ctx.perfect && (ctx.mines || 0) >= 5 && (ctx.cleared || 0) >= 5) e.minesPerfect = true;
       }
       if (ctx.game === 'blackjack') {
         if (ctx.natural) e.bjNatural = true;
@@ -5041,11 +5051,13 @@ function achRender() {
 // ---------- seizoen ----------
 const SEASON = { awards: [], closed: false };
 
+// Awaited during boot: any bonus and title it hands out must be on the server row before
+// the client is allowed to write its own balance again, or the payout is overwritten.
 async function seasonClose() {
-  if (!online() || SEASON.closed) return;
+  if (!online() || SEASON.closed) return 0;
   SEASON.closed = true;
-  try { await api('/rest/v1/rpc/close_seasons', { method: 'POST', body: {} }); } catch {}
-  seasonPull();
+  try { return Number(await api('/rest/v1/rpc/close_seasons', { method: 'POST', body: {} })) || 0; }
+  catch { return 0; }
 }
 
 async function seasonPull() {
@@ -5064,7 +5076,13 @@ function myRank(board) {
 
 function seasonRender() {
   const strip = $('seasonStrip');
-  if (strip) {
+  if (strip && !online()) {
+    strip.innerHTML = '';
+    const note = document.createElement('div');
+    note.className = 'odds-note';
+    note.textContent = 'Seizoenen, titels en bonussen gelden voor online accounts. Log in om mee te doen.';
+    strip.appendChild(note);
+  } else if (strip) {
     strip.innerHTML = '';
     const left = document.createElement('div');
     left.className = 'season-now';
@@ -5197,7 +5215,8 @@ function bootGame() {
     authMsg('Account synchroniseren…');
     refreshToken()
       .then(r => {
-        if (r === true) return profilePull().then(() => { AUTH.profileAt = Date.now(); });
+        // Close first, pull second: the pull then already carries the season bonus.
+        if (r === true) return seasonClose().then(profilePull).then(() => { AUTH.profileAt = Date.now(); });
         if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard'); return; }
         return Promise.reject(new Error('rejected'));
       })
@@ -5238,7 +5257,10 @@ let settledHandMsg = '';
     renderBalance();
   }
 }
-for (const r of settledRounds) recordRound(r.game, r.wager, r.payout, r.mult || (r.payout > r.wager ? round2(r.payout / r.wager) : 0));
+for (const r of settledRounds) {
+  recordRound(r.game, r.wager, r.payout, r.mult || (r.payout > r.wager ? round2(r.payout / r.wager) : 0),
+    { straight: r.straight, natural: r.natural, doubled: r.doubled });
+}
 if (refundedStake > 0 || owedPayout > 0 || settledRounds.length || settledHandMsg) {
   saveState();
   if (refundedStake > 0) flash(`ONAFGEMAAKTE INZET TERUGBETAALD: $${fmt(refundedStake)}`, 'gold', 'homeToasts');
