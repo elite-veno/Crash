@@ -4569,6 +4569,14 @@ const LB = { rows: [], timer: null, ok: true, readOk: true, writeOk: true, error
 
 function lbRatio(p) { return p.won / Math.max(1, p.lost); }
 
+const PRESENCE_MS = 3 * 60 * 1000;
+function lbOnlineNow() {
+  const cut = Date.now() - PRESENCE_MS;
+  const names = LB.rows.filter(p => p.seenAt > cut).map(p => p.username);
+  if (AUTH.session && !names.includes(AUTH.session.username)) names.unshift(AUTH.session.username);
+  return names;
+}
+
 function lbMineRow() {
   let won = 0, lost = 0;
   for (const g of GAMES) { won += gameStats[g].won; lost += gameStats[g].lost; }
@@ -4600,7 +4608,7 @@ function lbApplyStatus() {
 async function lbPull() {
   if (!online()) return;
   try {
-    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements&order=balance.desc&limit=200', { auth: false });
+    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,updated_at&order=balance.desc&limit=200', { auth: false });
     LB.rows = (Array.isArray(rows) ? rows : []).map(r => ({
       username: String(r.username || '?').slice(0, 16),
       balance: Math.max(0, round2(Number(r.balance) || 0)),
@@ -4608,6 +4616,7 @@ async function lbPull() {
       lost: Math.max(0, Math.floor(Number(r.lost) || 0)),
       title: r.title ? String(r.title).slice(0, 24) : '',
       achievements: Math.max(0, Math.floor(Number(r.achievements) || 0)),
+      seenAt: Date.parse(r.updated_at || 0) || 0,
     }));
     lbSetStatus(true);
   } catch (e) { lbSetStatus(false, e.message); }
@@ -4690,9 +4699,17 @@ function lbRender() {
   else if (myRatio < 0) ratio.appendChild(lbRowEl(me, null, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L · nog ' + Math.max(0, 10 - me.won - me.lost) + ' rondes'));
 
   if (note) {
+    const now = lbOnlineNow();
     note.textContent = LB.ok
-      ? 'Echte accounts, live van de server. Geen bots. ' + LB.rows.length + ' spelers geregistreerd.'
+      ? `Echte accounts, live van de server. Geen bots. ${LB.rows.length} spelers geregistreerd, ${now.length} nu actief${now.length ? ': ' + now.slice(0, 6).join(', ') + (now.length > 6 ? '…' : '') : ''}.`
       : 'Verbinding met de server mislukt: ' + LB.error;
+  }
+  const live = $('lbLive');
+  if (live) {
+    const dot = live.querySelector('.live-dot');
+    live.textContent = '';
+    if (dot) live.appendChild(dot);
+    live.append(online() ? lbOnlineNow().length + ' ACTIEF' : 'OFFLINE');
   }
 }
 
