@@ -2364,8 +2364,18 @@ const BACKEND = {
   anonKey: '',
   emailDomain: 'neoncasino.example',
 };
-// https only, so credentials are never sent in the clear (localhost stays allowed for development).
-const BACKEND_READY = /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)\S*$/.test(BACKEND.url) && BACKEND.anonKey.length > 20;
+// https only, so credentials are never sent in the clear; plain http is allowed for
+// local development only. The URL is parsed, so a host like localhost.evil.example
+// or a userinfo prefix cannot pass as trusted.
+const BACKEND_READY = (() => {
+  if (!BACKEND.anonKey || BACKEND.anonKey.length <= 20) return false;
+  try {
+    const u = new URL(BACKEND.url);
+    if (u.username || u.password) return false;
+    if (u.protocol === 'https:') return true;
+    return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
+  } catch { return false; }
+})();
 
 const SESSION_KEY = 'neon_casino_session';
 
@@ -2379,17 +2389,27 @@ function loadSession() {
 
 function storeSession(v) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(v)); } catch {} }
 
-const AUTH = { session: loadSession(), profileAt: 0 };
+const AUTH = { session: loadSession(), profileAt: 0, expired: false };
 
 // Every account keeps its own local snapshot, so two accounts on one device never mix.
 const STORAGE_KEY = AUTH.session ? 'neon_casino_v4:' + AUTH.session.userId : 'neon_casino_v4:guest';
 const LEGACY_KEY = 'crash_game_v3';
 const LEGACY_V4 = 'neon_casino_v4';
+const LEGACY_TAKEN = 'neon_casino_legacy_taken';
 
 function loadState() {
   try {
-    // A first account on this device adopts the old single-player save.
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_V4) || localStorage.getItem(LEGACY_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    // The old single-player save is handed to the first account on this device and then
+    // retired, so later accounts never inherit someone else's balance or statistics.
+    // Only a real account adopts it, never the pre-login guest load.
+    if (!raw && AUTH.session && !localStorage.getItem(LEGACY_TAKEN)) {
+      raw = localStorage.getItem(LEGACY_V4) || localStorage.getItem(LEGACY_KEY);
+      localStorage.setItem(LEGACY_TAKEN, '1');
+      localStorage.removeItem(LEGACY_V4);
+      localStorage.removeItem(LEGACY_KEY);
+      if (raw) localStorage.setItem(STORAGE_KEY, raw);
+    }
     if (!raw) return null;
     return JSON.parse(raw);
   } catch { return null; }
@@ -2493,6 +2513,9 @@ const settledRounds = (Array.isArray(saved?.pendingRounds) ? saved.pendingRounds
   .map(r => ({ game: r.game, wager: round2(Number(r.wager)), payout: round2(Number(r.payout)), mult: Number(r.mult) || 0 }));
 const owedPayout = round2(settledRounds.reduce((a, r) => a + r.payout, 0));
 if (owedPayout > 0) state.balance = round2(state.balance + owedPayout);
+// Money credited during this boot that no snapshot knows about yet. A server row that
+// wins the last-write-wins comparison must be topped up with it instead of erasing it.
+const bootCredit = round2(refundedStake + owedPayout);
 
 function renderBalance() {
   document.querySelectorAll('.js-balance').forEach(el => el.textContent = fmt(state.balance));
@@ -4144,7 +4167,20 @@ $('brokeModal').addEventListener('click', e => { if (e.target === e.currentTarge
 // exposes only username, balance and win/loss counts.
 const NET = { token: null, refresh: null, busy: false };
 
-function online() { return !!(BACKEND_READY && AUTH.session && !AUTH.session.offline); }
+function online() { return !!(BACKEND_READY && AUTH.session && !AUTH.session.offline && !AUTH.expired); }
+
+// A session the server no longer accepts is a logged-out session: say so and ask for a
+// new login, rather than running on while nothing is ever saved.
+function authExpire(reason) {
+  if (AUTH.expired) return;
+  AUTH.expired = true;
+  clearInterval(LB.timer);
+  clearInterval(FEED.timer);
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  lbRender();
+  authShow();
+  authMsg(reason || 'Je sessie is verlopen. Log opnieuw in om verder te spelen.', 'error');
+}
 
 async function api(path, { method = 'GET', body, auth = true, headers = {}, retry = true } = {}) {
   const h = Object.assign({ apikey: BACKEND.anonKey, 'Content-Type': 'application/json' }, headers);
@@ -4168,6 +4204,7 @@ async function api(path, { method = 'GET', body, auth = true, headers = {}, retr
 }
 
 async function refreshToken() {
+  if (!NET.refresh) return false;
   try {
     const d = await api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: NET.refresh }, auth: false, retry: false });
     applyTokens(d);
@@ -4261,10 +4298,9 @@ async function profilePull() {
   const serverAt = Date.parse(row.updated_at || 0) || 0;
   const localAt = Number(saved?.updatedAt) || 0;
   if (serverAt > localAt) {
-    state.balance = Math.max(0, round2(Number(row.balance) || 0));
-    if (row.stats && typeof row.stats === 'object') {
-      for (const g of GAMES) if (row.stats[g]) Object.assign(gameStats[g], freshStats(), row.stats[g]);
-    }
+    state.balance = Math.max(0, round2((Number(row.balance) || 0) + bootCredit));
+    const st = row.stats && typeof row.stats === 'object' ? row.stats : {};
+    for (const g of GAMES) Object.assign(gameStats[g], freshStats(), st[g] || {});
     state.stats = gameStats.crash;
     renderBalance();
     for (const g of GAMES) renderStats(g);
@@ -4456,9 +4492,27 @@ function authOffline() {
   location.reload();
 }
 
-function authLogout() {
+async function authLogout() {
   if (!confirm('Uitloggen? Je voortgang staat veilig op je account.')) return;
-  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  const wasOnline = online();
+  if (wasOnline) {
+    clearTimeout(pushTimer);
+    // Flush the last round, then make the refresh token unusable server-side.
+    try {
+      await api('/rest/v1/profiles', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: profileRow(),
+      });
+    } catch {}
+    try { await api('/auth/v1/logout', { method: 'POST' }); } catch {}
+  }
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    // The account's progression lives on the server, so the local copy must not stay
+    // behind on a shared device. An offline account has no other copy, so it is kept.
+    if (wasOnline) localStorage.removeItem(STORAGE_KEY);
+  } catch {}
   location.reload();
 }
 
@@ -4508,16 +4562,18 @@ function bootGame() {
     NET.refresh = AUTH.session.refresh || null;
     refreshToken()
       .then(ok => ok ? profilePull() : Promise.reject(new Error('sessie verlopen')))
-      .then(() => { AUTH.profileAt = Date.now(); profilePush(); })
-      .catch(() => { lbSetStatus(false, 'sessie verlopen, log opnieuw in'); })
-      .finally(liveStart);
+      .then(() => { AUTH.profileAt = Date.now(); })
+      .catch(() => authExpire())
+      // Interrupted rounds are settled after the pull, so their payouts and statistics
+      // are not overwritten by the server snapshot.
+      .finally(() => { if (!AUTH.expired) { settleInterruptedRounds(); profilePush(); liveStart(); } });
   } else {
+    settleInterruptedRounds();
     liveStart();
   }
   lbRender();
   startWaiting();
   tick();
-  settleInterruptedRounds();
 }
 
 function settleInterruptedRounds() {

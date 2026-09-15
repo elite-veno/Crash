@@ -112,10 +112,27 @@ create policy "eigen profiel lezen"    on public.profiles for select using (auth
 create policy "eigen profiel aanmaken" on public.profiles for insert with check (auth.uid() = id);
 create policy "eigen profiel wijzigen" on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 
--- Naam ligt vast na registratie en het saldo kan niet in één klap absurd stijgen.
-create or replace function public.guard_profile_update() returns trigger
+-- De server bepaalt de startwaarden en de naam; de client kan ze niet kiezen.
+-- Bij een nieuwe rij worden saldo en statistieken vastgezet op de beginstand en wordt de
+-- gebruikersnaam overgenomen uit het account zelf, zodat niemand een naam van een ander
+-- kan claimen. Bij een wijziging liggen id en naam vast en wordt een absurde saldosprong
+-- geweigerd.
+create or replace function public.guard_profile_write() returns trigger
 language plpgsql security definer set search_path = public as $$
+declare claimed text;
 begin
+  if tg_op = 'INSERT' then
+    select u.raw_user_meta_data->>'username' into claimed from auth.users u where u.id = new.id;
+    new.username := coalesce(claimed, new.username);
+    new.balance := 1000;
+    new.rounds := 0;
+    new.won := 0;
+    new.lost := 0;
+    new.profit := 0;
+    new.stats := '{}'::jsonb;
+    new.updated_at := now();
+    return new;
+  end if;
   if new.id <> old.id or new.username <> old.username then
     raise exception 'id en gebruikersnaam liggen vast';
   end if;
@@ -127,8 +144,9 @@ begin
 end $$;
 
 drop trigger if exists profiles_guard on public.profiles;
-create trigger profiles_guard before update on public.profiles
-  for each row execute function public.guard_profile_update();
+drop function if exists public.guard_profile_update();
+create trigger profiles_guard before insert or update on public.profiles
+  for each row execute function public.guard_profile_write();
 
 -- De leaderboard leest alleen deze kolommen; de rest van het profiel blijft privé.
 create or replace view public.public_leaderboard as
@@ -220,13 +238,14 @@ inlogscherm live op https://elite-veno.github.io/Crash/.
 | Gegeven | Waar | Beveiliging |
 | --- | --- | --- |
 | Wachtwoord | Supabase Auth | bcrypt-hash, verlaat je apparaat nooit leesbaar, staat niet in de browseropslag |
-| Saldo, statistieken per spel, winst | `profiles`, jouw eigen rij | row level security: alleen jij leest en schrijft die rij |
+| Saldo, statistieken per spel, winst | `profiles`, jouw eigen rij | row level security: alleen jij leest en schrijft die rij; een trigger zet de beginstand vast |
 | Naam, saldo, W/L voor de ranglijst | `public_leaderboard` | alleen deze vier kolommen zijn publiek leesbaar |
 | Winstenfeed | `wins` | iedereen leest, je kunt alleen onder je eigen naam schrijven |
 | Sessietoken | browseropslag | kortlevend, wordt automatisch ververst, verdwijnt bij uitloggen |
 
 Het spel rekent de rondes in de browser uit, dus het saldo dat wordt opgeslagen komt van de
-client. De databaseregels zorgen dat niemand een ander account kan lezen of wijzigen en dat
-het eigen saldo niet in één sprong onrealistisch omhoog kan. Voor een spel met fictief geld
+client. De databaseregels zorgen dat niemand een ander account kan lezen of wijzigen, dat een
+nieuw account altijd op $1000 begint, dat een gebruikersnaam alleen door de eigenaar gebruikt
+kan worden en dat het eigen saldo niet in één sprong onrealistisch omhoog kan. Voor een spel met fictief geld
 is dat het passende niveau; wil je het onvervalsbaar maken, dan moeten de rondes op een
 server worden uitgerekend.
