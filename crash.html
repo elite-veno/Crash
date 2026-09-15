@@ -274,7 +274,7 @@
   }
   .home-balance-card .balance-value {
     font-family: var(--font-num);
-    font-family: var(--font-ui);
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 36px;
     color: var(--neon);
@@ -484,7 +484,7 @@
   }
   .balance-amount {
     font-family: var(--font-num);
-    font-family: var(--font-ui);
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 30px;
     color: var(--neon);
@@ -692,11 +692,11 @@
 
   .multiplier-display {
     font-family: var(--font-num);
+    font-variant-numeric: tabular-nums;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-family: var(--font-ui);
     font-weight: 600;
     font-size: 96px;
     font-weight: 700;
@@ -722,6 +722,9 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, calc(-50% + 70px));
+    background: rgba(10, 30, 60, 0.72);
+    padding: 5px 12px;
+    border-radius: 12px;
     font-size: 13px;
     letter-spacing: 1px;
     color: white;
@@ -747,7 +750,7 @@
   }
   .countdown-num {
     font-family: var(--font-num);
-    font-family: var(--font-ui);
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 80px;
     color: white;
@@ -935,7 +938,7 @@
   .rl-wheel-wrap canvas { width: 100%; height: 100%; display: block; }
   .rl-result {
     font-family: var(--font-num);
-    font-family: var(--font-ui);
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 54px;
     width: 110px;
@@ -1073,17 +1076,19 @@
     padding: 12px 14px;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: rgba(0,0,0,0.35);
-    opacity: 0.55;
+    background: rgba(0,0,0,0.2);
+    border-color: rgba(42,50,61,0.7);
   }
-  .ach-card.done { opacity: 1; background: var(--panel-light); }
+  .ach-card .ach-icon { opacity: 0.5; }
+  .ach-card.done { background: var(--panel-light); border-color: var(--border); }
+  .ach-card.done .ach-icon { opacity: 1; }
   .ach-card.done.goud { border-color: rgba(224,181,85,0.55); }
   .ach-card.done.zilver { border-color: rgba(200,208,220,0.45); }
   .ach-card.done.brons { border-color: rgba(62,207,142,0.4); }
   .ach-icon { font-size: 24px; text-align: center; }
   .ach-title { font-weight: 600; font-size: 13px; }
   .ach-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
-  .ach-tier { font-size: 9px; letter-spacing: 0.8px; color: var(--muted); text-transform: uppercase; }
+  .ach-tier { font-size: 11px; letter-spacing: 0.8px; color: var(--muted); text-transform: uppercase; }
   .ach-card.done.goud .ach-tier { color: var(--gold); }
 
   .season-strip {
@@ -1121,7 +1126,7 @@
   .rank-row .rank-no { color: var(--gold); font-family: var(--font-num); }
   .rank-row .rank-name { font-weight: 600; }
   .rank-row .rank-perk { color: var(--muted); font-size: 11px; }
-  .lb-title { color: var(--gold); font-size: 9px; margin-left: 6px; }
+  .lb-title { color: var(--gold); font-size: 11px; margin-left: 6px; white-space: nowrap; }
   .lb-next { font-size: 11px; color: var(--muted); padding: 8px 4px 0; }
   .lb-next b { color: var(--neon); font-weight: 600; }
   @media (max-width: 900px) { .rank-row { grid-template-columns: 58px 1fr; } .rank-row .rank-perk { grid-column: 1 / 3; } }
@@ -1200,7 +1205,7 @@
   @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 
   /* Leaderboard */
-  .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 50px; }
+  .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 50px; align-items: start; }
   .lb-panel .panel-title { font-size: 11px; display: flex; justify-content: space-between; }
   .lb-panel .panel-title .sub { color: var(--muted); font-size: 11px; }
   .lb-row {
@@ -1220,6 +1225,8 @@
   .lb-row.self { background: rgba(62,207,142,0.10); border-left: 2px solid var(--neon); }
   .lb-row.self .name { color: var(--neon); font-weight: 700; }
   .lb-row .meta, .player-row .meta { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .lb-count { color: var(--gold); font-size: 11px; margin-left: 6px; white-space: nowrap; }
+  .lb-row.top5 .name { border-bottom: 1px solid var(--gold); padding-bottom: 1px; }
   .lb-row.changed { animation: lbFlash 0.8s; }
   @keyframes lbFlash { 0% { background: rgba(255,216,77,0.25); } 100% { background: transparent; } }
   .lb-note { font-size: 11px; color: var(--muted); letter-spacing: 1px; margin-top: -40px; margin-bottom: 50px; }
@@ -1830,7 +1837,7 @@
       <div class="home-subtitle">► VERDIEN ZE DOOR TE SPELEN · ZE STAAN BIJ JE NAAM OP DE RANGLIJST</div>
     </div>
 
-    <div class="season-strip" id="seasonStripTwo" hidden></div>
+    <div class="season-strip" id="seasonStripTwo"></div>
 
     <div class="lb-grid">
       <div class="panel lb-panel">
@@ -4635,15 +4642,21 @@ async function lbPull() {
 
 function lbRowEl(p, rank, value, meta) {
   const row = document.createElement('div');
-  row.className = 'lb-row' + (p.self ? ' self' : '');
+  row.className = 'lb-row' + (p.self ? ' self' : '') + (rank && rank <= 5 ? ' top5' : '');
   const r = document.createElement('span');
   r.className = 'rank';
   const tier = rank && rank <= RANKS.length ? RANKS[rank - 1] : null;
   r.textContent = rank === null ? '—' : (tier ? tier.icon + ' #' + rank : '#' + rank);
   if (tier) r.title = tier.name + ' · ' + tier.perk;
   const wrap = document.createElement('span');
-  const extra = (p.achievements ? p.achievements + '🏅 · ' : '') + (meta || '');
-  wrap.appendChild(nameSpan(p.username, p.self, (tier ? tier.name + ' · ' : '') + extra, p.self ? ' (JIJ)' : ''));
+  wrap.appendChild(nameSpan(p.username, p.self, (tier ? tier.name : '') + (meta ? (tier ? ' · ' : '') + meta : ''), p.self ? ' (JIJ)' : ''));
+  if (p.achievements) {
+    const c = document.createElement('span');
+    c.className = 'lb-count';
+    c.textContent = p.achievements + '\u2060🏅';
+    c.title = p.achievements + ' prestaties';
+    wrap.appendChild(c);
+  }
   if (p.title) {
     const t = document.createElement('span');
     t.className = 'lb-title';
@@ -5074,45 +5087,48 @@ function myRank(board) {
   return i < 0 ? null : i + 1;
 }
 
-function seasonRender() {
-  const strip = $('seasonStrip');
-  if (strip && !online()) {
-    strip.innerHTML = '';
+// One strip, rendered into every host that wants it (lobby and achievements page).
+function renderSeasonStrip(strip) {
+  if (!strip) return;
+  strip.hidden = false;
+  strip.innerHTML = '';
+  if (!online()) {
     const note = document.createElement('div');
     note.className = 'odds-note';
     note.textContent = 'Seizoenen, titels en bonussen gelden voor online accounts. Log in om mee te doen.';
     strip.appendChild(note);
-  } else if (strip) {
-    strip.innerHTML = '';
-    const left = document.createElement('div');
-    left.className = 'season-now';
-    left.innerHTML = '';
-    const t1 = document.createElement('div');
-    t1.className = 'season-label';
-    t1.textContent = 'SEIZOEN ' + seasonId();
-    const t2 = document.createElement('div');
-    t2.className = 'season-time';
-    t2.textContent = seasonCountdown();
-    const t3 = document.createElement('div');
-    t3.className = 'season-sub';
-    t3.textContent = 'tot de uitslag · top 3 krijgt een titel en een bonus';
-    left.appendChild(t1); left.appendChild(t2); left.appendChild(t3);
-    strip.appendChild(left);
-
-    const prizes = document.createElement('div');
-    prizes.className = 'season-prizes';
-    SEASON_BONUS.forEach((b, i) => {
-      const d = document.createElement('div');
-      d.className = 'season-prize';
-      d.innerHTML = '';
-      const ic = document.createElement('span'); ic.textContent = RANKS[i].icon;
-      const nm = document.createElement('b'); nm.textContent = RANKS[i].name;
-      const am = document.createElement('span'); am.className = 'amount'; am.textContent = '$' + b.toLocaleString('nl-NL');
-      d.appendChild(ic); d.appendChild(nm); d.appendChild(am);
-      prizes.appendChild(d);
-    });
-    strip.appendChild(prizes);
+    return;
   }
+  const left = document.createElement('div');
+  left.className = 'season-now';
+  const t1 = document.createElement('div');
+  t1.className = 'season-label';
+  t1.textContent = 'SEIZOEN ' + seasonId();
+  const t2 = document.createElement('div');
+  t2.className = 'season-time';
+  t2.textContent = seasonCountdown();
+  const t3 = document.createElement('div');
+  t3.className = 'season-sub';
+  t3.textContent = 'tot de uitslag · top 3 krijgt een titel en een bonus';
+  left.appendChild(t1); left.appendChild(t2); left.appendChild(t3);
+  strip.appendChild(left);
+
+  const prizes = document.createElement('div');
+  prizes.className = 'season-prizes';
+  SEASON_BONUS.forEach((b, i) => {
+    const d = document.createElement('div');
+    d.className = 'season-prize';
+    const ic = document.createElement('span'); ic.textContent = RANKS[i].icon;
+    const nm = document.createElement('b'); nm.textContent = RANKS[i].name;
+    const am = document.createElement('span'); am.className = 'amount'; am.textContent = '$' + b.toLocaleString('nl-NL');
+    d.appendChild(ic); d.appendChild(nm); d.appendChild(am);
+    prizes.appendChild(d);
+  });
+  strip.appendChild(prizes);
+}
+
+function seasonRender() {
+  for (const id of ['seasonStrip', 'seasonStripTwo']) renderSeasonStrip($(id));
 
   const last = $('seasonLast');
   if (last) {
