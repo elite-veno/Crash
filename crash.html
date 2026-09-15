@@ -2360,7 +2360,7 @@ const ODDS = {
 // See SETUP.md in this repository for the 3-minute Supabase setup (SQL included).
 // The anon key is meant to be public: row level security decides what it may touch.
 const BACKEND = {
-  url: 'https://pqswfsvritbxrdtjtfrf.supabase.co/rest/v1/',
+  url: 'https://pqswfsvritbxrdtjtfrf.supabase.co',
   anonKey: 'sb_publishable_Ur_YCoq-zy0hRpIwwVdKRg_OheFNBQ9',
   emailDomain: 'neoncasino.example',
 };
@@ -2376,6 +2376,10 @@ const BACKEND_READY = (() => {
     return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
   } catch { return false; }
 })();
+
+// Only the origin is used, so pasting the REST endpoint instead of the project URL
+// (a common mix-up) does not produce paths like /rest/v1/rest/v1/profiles.
+const BACKEND_BASE = (() => { try { return new URL(BACKEND.url).origin; } catch { return ''; } })();
 
 const SESSION_KEY = 'neon_casino_session';
 
@@ -4185,7 +4189,7 @@ function authExpire(reason) {
 async function api(path, { method = 'GET', body, auth = true, headers = {}, retry = true } = {}) {
   const h = Object.assign({ apikey: BACKEND.anonKey, 'Content-Type': 'application/json' }, headers);
   if (auth && NET.token) h.Authorization = 'Bearer ' + NET.token;
-  const res = await fetch(BACKEND.url.replace(/\/$/, '') + path, {
+  const res = await fetch(BACKEND_BASE + path, {
     method, headers: h, body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (res.status === 401 && auth && retry && NET.refresh) {
