@@ -2594,6 +2594,7 @@ function saveState() {
       autoEnabled: state.autoEnabled,
       autoMultiplier: state.autoMultiplier,
       rouletteHistory: RL.history,
+      awardsClaimed,
       achievements: ACH.unlocked,
       achExtra: ACH.extra,
       title: profileTitle,
@@ -3163,7 +3164,7 @@ function crash() {
   state.multiplier = state.crashAt;
   for (const p of state.players) if (!p.cashedOut) p.lost = true;
 
-  if (state.hasBet) state.stats.rounds += 1;
+  if (state.hasBet && !state.cashedOut) state.stats.rounds += 1;
   if (state.hasBet && !state.cashedOut) {
     state.stats.lost += 1;
     state.stats.profit = round2(state.stats.profit - state.betAmount);
@@ -3202,6 +3203,7 @@ function cashOut(at) {
   const m = Math.floor((at ?? state.multiplier) * 100) / 100;
   state.cashedOut = true;
   state.cashOutAt = m;
+  state.stats.rounds += 1;
   const winnings = floor2(state.betAmount * m);
   adjustBalance(winnings);
   state.stats.won += 1;
@@ -4492,6 +4494,7 @@ function profileRow() {
     stats: gameStats,
     achievements: ACH.unlocked,
     ach_extra: ACH.extra,
+    awards_claimed: awardsClaimed,
     updated_at: new Date().toISOString(),
   };
 }
@@ -4533,6 +4536,10 @@ async function profilePull() {
     return true;
   }
   profileTitle = row.title || '';
+  if (row.awards_claimed && typeof row.awards_claimed === 'object') {
+    // A claim recorded on either side counts, so a bonus is never handed out twice.
+    awardsClaimed = Object.assign({}, row.awards_claimed, awardsClaimed);
+  }
   const serverAt = Date.parse(row.updated_at || 0) || 0;
   const localAt = Number(saved?.updatedAt) || 0;
   // A freshly registered row still holds the starting values; a save adopted from the
@@ -4619,7 +4626,15 @@ function lbSetWriteStatus(ok, error) {
 
 function lbApplyStatus() {
   LB.ok = LB.readOk && LB.writeOk;
-  document.querySelectorAll('.live-dot').forEach(d => d.classList.toggle('off', !LB.ok || !online()));
+  const live = online() && LB.ok;
+  document.querySelectorAll('.live-dot').forEach(d => d.classList.toggle('off', !live));
+  const chip = $('lbLive');
+  if (chip) {
+    const dot = chip.querySelector('.live-dot');
+    chip.textContent = '';
+    if (dot) chip.appendChild(dot);
+    chip.append(!online() ? 'OFFLINE' : (LB.ok ? lbOnlineNow().length + ' ACTIEF' : 'GEEN VERBINDING'));
+  }
 }
 
 async function lbPull() {
@@ -4728,13 +4743,7 @@ function lbRender() {
       ? `Echte accounts, live van de server. Geen bots. ${LB.rows.length} spelers geregistreerd, ${now.length} nu actief${now.length ? ': ' + now.slice(0, 6).join(', ') + (now.length > 6 ? '…' : '') : ''}.`
       : 'Verbinding met de server mislukt: ' + LB.error;
   }
-  const live = $('lbLive');
-  if (live) {
-    const dot = live.querySelector('.live-dot');
-    live.textContent = '';
-    if (dot) live.appendChild(dot);
-    live.append(online() ? lbOnlineNow().length + ' ACTIEF' : 'OFFLINE');
-  }
+  lbApplyStatus();
 }
 
 function liveStart() {
@@ -5063,6 +5072,47 @@ function achRender() {
 
 // ---------- seizoen ----------
 const SEASON = { awards: [], closed: false };
+// Seasons whose bonus is already added to this account's balance.
+let awardsClaimed = (saved && saved.awardsClaimed && typeof saved.awardsClaimed === 'object') ? saved.awardsClaimed : {};
+
+// The server decides who won and how much; the balance itself only ever moves through the
+// client, so an award can never overwrite rounds that were not pushed yet.
+async function claimAwards() {
+  if (!online()) return 0;
+  let rows = [];
+  try {
+    rows = await api('/rest/v1/season_awards?select=season,rank,bonus,gain&username=eq.' +
+      encodeURIComponent(AUTH.session.username) + '&order=season.desc&limit=20', { auth: false });
+  } catch { return 0; }
+  const fresh = (Array.isArray(rows) ? rows : []).filter(a => !awardsClaimed[String(a.season)] && round2(Number(a.bonus) || 0) > 0);
+  if (!fresh.length) return 0;
+
+  const balanceBefore = state.balance;
+  const marksBefore = Object.assign({}, awardsClaimed);
+  let claimed = 0;
+  for (const a of fresh) {
+    const bonus = round2(Number(a.bonus) || 0);
+    awardsClaimed[String(a.season)] = bonus;
+    adjustBalance(bonus);
+    claimed = round2(claimed + bonus);
+  }
+  try {
+    // The mark and the money land in the same write; a reload in between would otherwise
+    // leave the bonus marked as paid without it ever reaching the balance.
+    await profileWrite();
+  } catch {
+    state.balance = balanceBefore;
+    awardsClaimed = marksBefore;
+    renderBalance();
+    return 0;
+  }
+  for (const a of fresh) {
+    flash(`SEIZOEN ${a.season}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
+  }
+  renderBalance();
+  saveState();
+  return claimed;
+}
 
 // Awaited during boot: any bonus and title it hands out must be on the server row before
 // the client is allowed to write its own balance again, or the payout is overwritten.
@@ -5232,7 +5282,7 @@ function bootGame() {
     refreshToken()
       .then(r => {
         // Close first, pull second: the pull then already carries the season bonus.
-        if (r === true) return seasonClose().then(profilePull).then(() => { AUTH.profileAt = Date.now(); });
+        if (r === true) return seasonClose().then(profilePull).then(claimAwards).then(() => { AUTH.profileAt = Date.now(); });
         if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard'); return; }
         return Promise.reject(new Error('rejected'));
       })
