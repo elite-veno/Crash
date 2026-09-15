@@ -1205,7 +1205,7 @@
   @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 
   /* Leaderboard */
-  .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 50px; align-items: start; }
+  .lb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 50px; align-items: start; }
   .lb-panel .panel-title { font-size: 11px; display: flex; justify-content: space-between; }
   .lb-panel .panel-title .sub { color: var(--muted); font-size: 11px; }
   .lb-row {
@@ -1386,6 +1386,21 @@
     .players-section { max-height: none; }
     .players-list { max-height: 180px; }
     .board { flex: none; min-height: auto; overflow: visible; overflow-x: auto; align-items: flex-start; }
+    /* the table before the chips: otherwise the board sits below the fold while you play */
+    .game-main { order: -1; }
+    aside.game-aside { order: 0; }
+    /* and the one button that matters stays within thumb reach while you watch */
+    .game-view.active .btn-primary {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+      margin: 0;
+      z-index: 60;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+    }
+    .game-view.active { padding-bottom: 86px; }
     main.crash-main { grid-template-rows: auto 320px auto; overflow: visible; }
     .game-area { min-height: 320px; }
     #homeView { padding: 24px 16px; }
@@ -1805,6 +1820,10 @@
       <div class="panel lb-panel">
         <div class="panel-title"><span>► WIN / LOSS RATIO</span><span class="sub">TOP 10 · MIN. 10 RONDES</span></div>
         <div id="lbRatio"></div>
+      </div>
+      <div class="panel lb-panel">
+        <div class="panel-title"><span>► SEIZOENWINST</span><span class="sub">HIER GAAT DE BONUS HEEN</span></div>
+        <div id="lbSeason"></div>
       </div>
     </div>
     <div class="lb-note" id="lbNote">Echte accounts, live opgehaald van de server. Geen bots.</div>
@@ -3171,7 +3190,7 @@ function crash() {
     flash(`VERLOREN $${fmt(state.betAmount)} @ ${fmt(state.crashAt)}×`, 'red');
     achCheck({ game: 'crash', wager: state.betAmount, payout: 0, mult: 0 });
   }
-  if (state.crashAt > state.stats.highest) state.stats.highest = state.crashAt;
+  if (state.hasBet && state.cashedOut && state.cashOutAt > state.stats.highest) state.stats.highest = state.cashOutAt;
   renderStats('crash');
 
   state.history.unshift(state.crashAt);
@@ -3206,12 +3225,15 @@ function cashOut(at) {
   state.stats.rounds += 1;
   const winnings = floor2(state.betAmount * m);
   adjustBalance(winnings);
-  state.stats.won += 1;
+  // Cashing out at 1.00x returns the stake; that is not a win and is not worth announcing.
+  const realWin = winnings > state.betAmount + 1e-9;
+  if (realWin) state.stats.won += 1;
+  else if (winnings < state.betAmount - 1e-9) state.stats.lost += 1;
   state.stats.profit = round2(state.stats.profit + winnings - state.betAmount);
   renderStats('crash');
   updateButton();
   renderPlayers();
-  postWin('crash', winnings, m);
+  if (realWin) postWin('crash', winnings, m);
   flash(`+$${fmt(winnings)} @ ${fmt(m)}×`, 'green');
   achCheck({ game: 'crash', wager: state.betAmount, payout: winnings, mult: m });
   saveState();
@@ -3935,8 +3957,9 @@ function pkDraw() {
     c.fillStyle = '#000';
     c.font = `bold ${Math.max(7, Math.min(11, g.spacingX * 0.32))}px Inter, system-ui, sans-serif`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    let label = table[b] >= 100 ? Math.round(table[b]) + 'x' : (table[b] >= 10 ? table[b].toFixed(0) + 'x' : table[b].toFixed(1) + 'x');
+    let label = fmt(table[b]) + 'x';
     if (c.measureText(label).width > bw - 2) label = label.replace(/x$/, '');
+    if (c.measureText(label).width > bw - 2 && table[b] >= 10) label = String(Math.round(table[b]));
     // narrow buckets (phones, 16 rows): alternate the label height so neighbours do not overlap
     const stagger = c.measureText(label).width > bw - 2 ? (b % 2 ? 7 : -6) : 0;
     c.fillText(label, x, g.bucketY + yOff + g.bucketH / 2 + stagger);
@@ -4536,10 +4559,7 @@ async function profilePull() {
     return true;
   }
   profileTitle = row.title || '';
-  if (row.awards_claimed && typeof row.awards_claimed === 'object') {
-    // A claim recorded on either side counts, so a bonus is never handed out twice.
-    awardsClaimed = Object.assign({}, row.awards_claimed, awardsClaimed);
-  }
+  const pulledClaims = row.awards_claimed && typeof row.awards_claimed === 'object' ? row.awards_claimed : null;
   const serverAt = Date.parse(row.updated_at || 0) || 0;
   const localAt = Number(saved?.updatedAt) || 0;
   // A freshly registered row still holds the starting values; a save adopted from the
@@ -4548,6 +4568,8 @@ async function profilePull() {
   if (adoptedLegacy && untouched) return true;
   if (serverAt > localAt) {
     state.balance = Math.max(0, round2((Number(row.balance) || 0) + bootCredit));
+    // The marks belong to the balance they were paid into, so they travel together.
+    if (pulledClaims) awardsClaimed = Object.assign({}, pulledClaims);
     const st = row.stats && typeof row.stats === 'object' ? row.stats : {};
     for (const g of GAMES) Object.assign(gameStats[g], freshStats(), st[g] || {});
     state.stats = gameStats.crash;
@@ -4576,15 +4598,19 @@ async function postWin(game, amount, mult) {
   } catch {}
 }
 
+function feedSetDot(ok) {
+  const d = $('feedDot');
+  if (d) d.classList.toggle('off', !ok);
+}
+
 async function feedPull() {
-  if (!online()) { lbApplyStatus(); return; }
+  if (!online()) { feedSetDot(false); lbApplyStatus(); return; }
   try {
     const rows = await api('/rest/v1/wins?select=username,game,amount,mult,created_at&order=created_at.desc&limit=10', { auth: false });
     FEED.rows = Array.isArray(rows) ? rows : [];
     FEED.ok = true;
   } catch { FEED.ok = false; }
-  const dot = $('feedDot');
-  if (dot) dot.classList.toggle('off', !FEED.ok);
+  feedSetDot(FEED.ok);
   renderRecentWins();
 }
 
@@ -4592,6 +4618,8 @@ async function feedPull() {
 const LB = { rows: [], timer: null, ok: true, readOk: true, writeOk: true, error: '' };
 
 function lbRatio(p) { return p.won / Math.max(1, p.lost); }
+
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
 const PRESENCE_MS = 3 * 60 * 1000;
 function lbOnlineNow() {
@@ -4627,7 +4655,7 @@ function lbSetWriteStatus(ok, error) {
 function lbApplyStatus() {
   LB.ok = LB.readOk && LB.writeOk;
   const live = online() && LB.ok;
-  document.querySelectorAll('.live-dot').forEach(d => d.classList.toggle('off', !live));
+  document.querySelectorAll('#lbLive .live-dot').forEach(d => d.classList.toggle('off', !live));
   const chip = $('lbLive');
   if (chip) {
     const dot = chip.querySelector('.live-dot');
@@ -4735,12 +4763,12 @@ function lbRender() {
   byRatio.slice(0, 10).forEach((p, i) => ratio.appendChild(lbRowEl(p, i + 1, lbRatio(p).toFixed(2), p.won + 'W · ' + p.lost + 'L')));
   const myRatio = byRatio.findIndex(p => p.self);
   if (myRatio >= 10) ratio.appendChild(lbRowEl(me, myRatio + 1, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L'));
-  else if (myRatio < 0) ratio.appendChild(lbRowEl(me, null, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L · nog ' + Math.max(0, 10 - me.won - me.lost) + ' rondes'));
+  else if (myRatio < 0) ratio.appendChild(lbRowEl(me, null, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L · nog ' + plural(Math.max(0, 10 - me.won - me.lost), 'ronde', 'rondes')));
 
   if (note) {
     const now = lbOnlineNow();
     note.textContent = LB.ok
-      ? `Echte accounts, live van de server. Geen bots. ${LB.rows.length} spelers geregistreerd, ${now.length} nu actief${now.length ? ': ' + now.slice(0, 6).join(', ') + (now.length > 6 ? '…' : '') : ''}.`
+      ? `Echte accounts, live van de server. Geen bots. ${plural(LB.rows.length, 'speler', 'spelers')} geregistreerd, ${now.length} nu actief${now.length ? ': ' + now.slice(0, 6).join(', ') + (now.length > 6 ? '…' : '') : ''}.`
       : 'Verbinding met de server mislukt: ' + LB.error;
   }
   lbApplyStatus();
@@ -4753,7 +4781,7 @@ function liveStart() {
   lbPull();
   feedPull();
   seasonPull();
-  LB.timer = setInterval(() => { if (currentRoute === 'home' && !document.hidden) lbPull(); }, 6000);
+  LB.timer = setInterval(() => { if (currentRoute === 'home' && !document.hidden) { lbPull(); seasonScoresPull().then(seasonBoardRender); } }, 6000);
   FEED.timer = setInterval(() => { if (!document.hidden) feedPull(); }, 8000);
 }
 
@@ -4905,9 +4933,9 @@ $('authResume').addEventListener('click', authResume);
 // Elke plek op de ranglijst heeft een naam en iets om naar te streven; de top drie krijgt
 // aan het eind van elk seizoen van drie dagen een titel en een bonus van de server.
 const RANKS = [
-  { icon: '👑', name: 'Huisbaas',      perk: 'Seizoenbonus $2.500 en de titel Kampioen' },
-  { icon: '🥈', name: 'Uitdager',      perk: 'Seizoenbonus $1.500 en de titel Tweede' },
-  { icon: '🥉', name: 'Podium',        perk: 'Seizoenbonus $1.000 en de titel Derde' },
+  { icon: '👑', name: 'Huisbaas',      perk: 'De hoogste stand van het hele casino' },
+  { icon: '🥈', name: 'Uitdager',      perk: 'Tweede in de lobby, binnen bereik van de top' },
+  { icon: '🥉', name: 'Podium',        perk: 'Derde in de lobby' },
   { icon: '🔥', name: 'Scherpschutter', perk: 'Gouden rand om je naam in de lobby' },
   { icon: '🔥', name: 'Stormjager',    perk: 'Gouden rand om je naam in de lobby' },
   { icon: '⭐', name: 'Gelukzoeker',   perk: 'Je naam staat in de top tien' },
@@ -5071,7 +5099,7 @@ function achRender() {
 }
 
 // ---------- seizoen ----------
-const SEASON = { awards: [], closed: false };
+const SEASON = { awards: [], closed: false, error: '', scores: [] };
 // Seasons whose bonus is already added to this account's balance.
 let awardsClaimed = (saved && saved.awardsClaimed && typeof saved.awardsClaimed === 'object') ? saved.awardsClaimed : {};
 
@@ -5081,8 +5109,8 @@ async function claimAwards() {
   if (!online()) return 0;
   let rows = [];
   try {
-    rows = await api('/rest/v1/season_awards?select=season,rank,bonus,gain&username=eq.' +
-      encodeURIComponent(AUTH.session.username) + '&order=season.desc&limit=20', { auth: false });
+    rows = await api('/rest/v1/season_awards?select=season,rank,bonus,gain&player=eq.' +
+      encodeURIComponent(AUTH.session.userId) + '&order=season.desc&limit=20', { auth: false });
   } catch { return 0; }
   const fresh = (Array.isArray(rows) ? rows : []).filter(a => !awardsClaimed[String(a.season)] && round2(Number(a.bonus) || 0) > 0);
   if (!fresh.length) return 0;
@@ -5110,6 +5138,7 @@ async function claimAwards() {
     flash(`SEIZOEN ${a.season}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
   }
   renderBalance();
+  achCheck(null);
   saveState();
   return claimed;
 }
@@ -5123,12 +5152,55 @@ async function seasonClose() {
   catch { return 0; }
 }
 
+// What each player earned this season: the ranking the bonus is actually decided on.
+async function seasonScoresPull() {
+  if (!online()) { SEASON.scores = []; return; }
+  try {
+    const rows = await api('/rest/v1/season_scores?select=username,start_balance,end_balance,start_rounds,end_rounds&season=eq.' +
+      seasonId() + '&limit=200', { auth: false });
+    SEASON.scores = (Array.isArray(rows) ? rows : [])
+      .filter(r => Number(r.end_rounds) > Number(r.start_rounds))
+      .map(r => ({ username: String(r.username || '?').slice(0, 16), gain: round2(Number(r.end_balance) - Number(r.start_balance)) }))
+      .sort((a, b) => b.gain - a.gain);
+  } catch { SEASON.scores = []; }
+}
+
+function seasonBoardRender() {
+  const el = $('lbSeason');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!online()) {
+    const d = document.createElement('div');
+    d.className = 'odds-note';
+    d.textContent = 'De seizoenstand telt alleen voor online accounts.';
+    el.appendChild(d);
+    return;
+  }
+  const mine = AUTH.session ? AUTH.session.username : null;
+  const rows = SEASON.scores.map(r => Object.assign({}, r, { self: r.username === mine }));
+  if (!rows.length) {
+    const d = document.createElement('div');
+    d.className = 'odds-note';
+    d.textContent = 'Nog niemand heeft dit seizoen gespeeld. De eerste ronde zet je bovenaan.';
+    el.appendChild(d);
+    return;
+  }
+  rows.slice(0, 10).forEach((p, i) => {
+    const bonus = i < SEASON_BONUS.length ? '+$' + fmt(SEASON_BONUS[i]) : '';
+    el.appendChild(lbRowEl(p, i + 1, (p.gain >= 0 ? '+$' : '-$') + fmt(Math.abs(p.gain)), bonus ? 'bonus ' + bonus : ''));
+  });
+  const me = rows.findIndex(p => p.self);
+  if (me >= 10) el.appendChild(lbRowEl(rows[me], me + 1, (rows[me].gain >= 0 ? '+$' : '-$') + fmt(Math.abs(rows[me].gain)), ''));
+}
+
 async function seasonPull() {
   if (!online()) { seasonRender(); return; }
   try {
-    const rows = await api('/rest/v1/season_awards?select=season,rank,username,balance,bonus&order=season.desc,rank.asc&limit=9', { auth: false });
+    const rows = await api('/rest/v1/season_awards?select=season,rank,username,gain,bonus&order=season.desc,rank.asc&limit=9', { auth: false });
     SEASON.awards = Array.isArray(rows) ? rows : [];
-  } catch { SEASON.awards = []; }
+    SEASON.error = '';
+  } catch (e) { SEASON.awards = []; SEASON.error = e.message; }
+  await seasonScoresPull();
   seasonRender();
 }
 
@@ -5159,7 +5231,7 @@ function renderSeasonStrip(strip) {
   t2.textContent = seasonCountdown();
   const t3 = document.createElement('div');
   t3.className = 'season-sub';
-  t3.textContent = 'tot de uitslag · top 3 krijgt een titel en een bonus';
+  t3.textContent = 'tot de uitslag · de bonus gaat naar wie dit seizoen het meeste wint';
   left.appendChild(t1); left.appendChild(t2); left.appendChild(t3);
   strip.appendChild(left);
 
@@ -5170,7 +5242,7 @@ function renderSeasonStrip(strip) {
     d.className = 'season-prize';
     const ic = document.createElement('span'); ic.textContent = RANKS[i].icon;
     const nm = document.createElement('b'); nm.textContent = RANKS[i].name;
-    const am = document.createElement('span'); am.className = 'amount'; am.textContent = '$' + b.toLocaleString('nl-NL');
+    const am = document.createElement('span'); am.className = 'amount'; am.textContent = '$' + fmt(b);
     d.appendChild(ic); d.appendChild(nm); d.appendChild(am);
     prizes.appendChild(d);
   });
@@ -5179,6 +5251,7 @@ function renderSeasonStrip(strip) {
 
 function seasonRender() {
   for (const id of ['seasonStrip', 'seasonStripTwo']) renderSeasonStrip($(id));
+  seasonBoardRender();
 
   const last = $('seasonLast');
   if (last) {
@@ -5186,9 +5259,10 @@ function seasonRender() {
     if (!SEASON.awards.length) {
       const p = document.createElement('div');
       p.className = 'odds-note';
-      p.textContent = online()
-        ? 'Nog geen seizoen afgerond. De eerste uitslag verschijnt zodra dit seizoen voorbij is.'
-        : 'Seizoenen en beloningen gelden alleen voor online accounts.';
+      p.textContent = !online()
+        ? 'Seizoenen en beloningen gelden alleen voor online accounts.'
+        : (SEASON.error ? 'De uitslag kon niet worden opgehaald: ' + SEASON.error
+                        : 'Nog geen seizoen afgerond. De eerste uitslag verschijnt zodra dit seizoen voorbij is.');
       last.appendChild(p);
     } else {
       const season = SEASON.awards[0].season;
@@ -5281,12 +5355,19 @@ function bootGame() {
     authMsg('Account synchroniseren…');
     refreshToken()
       .then(r => {
-        // Close first, pull second: the pull then already carries the season bonus.
-        if (r === true) return seasonClose().then(profilePull).then(claimAwards).then(() => { AUTH.profileAt = Date.now(); });
+        // The server refused this session: that is a logout, not a hiccup.
+        if (r === false) { authExpire(); return; }
+        // Could not reach the server at all: keep playing on the local snapshot.
         if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard'); return; }
-        return Promise.reject(new Error('rejected'));
+        // Close first, pull second: the pull then already carries the season bonus.
+        return seasonClose().then(profilePull).then(claimAwards).then(() => { AUTH.profileAt = Date.now(); });
       })
-      .catch(() => authExpire())
+      .catch(() => {
+        // api() already expires on a genuine 401/403; anything else is a connection problem.
+        if (AUTH.expired) return;
+        AUTH.disconnected = true;
+        lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard');
+      })
       // Interrupted rounds are settled after the pull, so their payouts and statistics
       // are not overwritten by the server snapshot.
       .finally(() => {
