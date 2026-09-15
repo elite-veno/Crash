@@ -1351,6 +1351,7 @@
 
     <button class="btn-primary btn-bet" id="authSubmit">INLOGGEN</button>
     <div class="auth-msg" id="authMsg"></div>
+    <button class="btn-secondary auth-offline-btn" id="authResume" hidden></button>
     <button class="btn-secondary auth-offline-btn" id="authOffline">OFFLINE SPELEN (GEEN LEADERBOARD)</button>
     <div class="auth-note" id="authNote"></div>
   </div>
@@ -1477,7 +1478,7 @@
           <div class="balance-label">JOUW SALDO</div>
           <div class="balance-value js-balance" id="homeBalance">1000.00</div>
           <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-          <div class="account-bar"><span>INGELOGD ALS <span class="who" id="acctName">—</span></span><span class="logout" id="acctLogout">UITLOGGEN ↪</span></div>
+          <div class="account-bar"><span>INGELOGD ALS <span class="who js-acct-name">—</span></span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
         </div>
       </div>
     </div>
@@ -1756,6 +1757,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -1831,6 +1833,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -1892,6 +1895,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -1953,6 +1957,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -2015,6 +2020,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -2081,6 +2087,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -2144,6 +2151,7 @@
         <div class="balance-amount js-balance">1000.00</div>
         <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
 
       <div class="panel">
@@ -2415,6 +2423,7 @@ const BACKEND_READY = (() => {
 const BACKEND_BASE = (() => { try { return new URL(BACKEND.url).origin; } catch { return ''; } })();
 
 const SESSION_KEY = 'neon_casino_session';
+const LAST_OFFLINE_KEY = 'neon_casino_last_offline';
 
 function loadSession() {
   try {
@@ -4527,6 +4536,11 @@ function authMsg(text, kind) {
 
 function authShow() {
   $('authView').hidden = false;
+  const prev = lastOffline();
+  const resume = $('authResume');
+  resume.hidden = !prev;
+  if (prev) resume.textContent = 'VERDER OFFLINE ALS ' + prev.username;
+  $('authOffline').textContent = prev ? 'NIEUW OFFLINE PROFIEL' : 'OFFLINE SPELEN (GEEN LEADERBOARD)';
   $('authNote').innerHTML = BACKEND_READY
     ? 'Je wachtwoord wordt versleuteld opgeslagen door de server en verlaat je apparaat nooit in leesbare vorm. Je saldo en statistieken horen bij je account en zijn alleen door jou te wijzigen.'
     : '⚠ De server is nog niet ingesteld, dus online accounts werken nog niet. Je kunt intussen offline spelen.';
@@ -4569,14 +4583,60 @@ async function authSubmit() {
   }
 }
 
+function lastOffline() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_OFFLINE_KEY));
+    if (v && typeof v.username === 'string' && typeof v.userId === 'string') return v;
+  } catch {}
+  return null;
+}
+
 function authOffline() {
-  const name = ($('authUser').value.trim() || 'GAST').slice(0, 16);
-  storeSession({ userId: 'offline-' + name.toLowerCase(), username: name, offline: true });
+  const typed = $('authUser').value.trim();
+  const prev = lastOffline();
+  const name = (typed || (prev && prev.username) || 'GAST').slice(0, 16);
+  const session = { userId: 'offline-' + name.toLowerCase(), username: name, offline: true };
+  try { localStorage.setItem(LAST_OFFLINE_KEY, JSON.stringify({ userId: session.userId, username: session.username })); } catch {}
+  storeSession(session);
   location.reload();
 }
 
-async function authLogout() {
-  if (!confirm('Uitloggen? Je voortgang staat veilig op je account.')) return;
+function authResume() {
+  const prev = lastOffline();
+  if (!prev) return;
+  storeSession({ userId: prev.userId, username: prev.username, offline: true });
+  location.reload();
+}
+
+// Leaves the offline profile on this device and returns to the login screen, so the
+// player can sign in or register without losing their offline progress.
+function switchToOnline() {
+  if (!confirm('Naar een online account? Je offline voortgang blijft op dit apparaat staan, los van je online account.')) return;
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  location.reload();
+}
+
+function renderAccountBar() {
+  const offline = !!(AUTH.session && AUTH.session.offline);
+  document.querySelectorAll('.js-acct-name').forEach(el => {
+    el.textContent = AUTH.session ? AUTH.session.username + (offline ? ' (OFFLINE)' : '') : '—';
+  });
+  document.querySelectorAll('.js-acct-switch').forEach(el => {
+    el.textContent = offline ? 'ONLINE SPELEN ↪' : 'OFFLINE SPELEN ↪';
+    el.hidden = !AUTH.session;
+  });
+  document.querySelectorAll('.js-acct-logout').forEach(el => {
+    el.textContent = offline ? 'ANDERE NAAM ↪' : 'UITLOGGEN ↪';
+    el.hidden = !AUTH.session;
+  });
+}
+
+async function authLogout(question) {
+  const offline = !!(AUTH.session && AUTH.session.offline);
+  const ask = question || (offline
+    ? 'Onder een andere naam spelen? Je huidige offline voortgang blijft op dit apparaat bewaard.'
+    : 'Uitloggen? Je voortgang staat veilig op je account.');
+  if (!confirm(ask)) return;
   const wasOnline = online();
   let flushed = false;
   if (wasOnline) {
@@ -4601,7 +4661,12 @@ async function authLogout() {
 $('authTabs').querySelectorAll('button').forEach(b => b.addEventListener('click', () => authSetMode(b.dataset.mode)));
 $('authSubmit').addEventListener('click', authSubmit);
 $('authOffline').addEventListener('click', authOffline);
-$('acctLogout').addEventListener('click', authLogout);
+document.querySelectorAll('.js-acct-logout').forEach(el => el.addEventListener('click', () => authLogout()));
+document.querySelectorAll('.js-acct-switch').forEach(el => el.addEventListener('click', () => {
+  if (AUTH.session && AUTH.session.offline) switchToOnline();
+  else authLogout('Offline verder spelen? Je wordt uitgelogd, je online voortgang wordt eerst opgeslagen, en je offline profiel staat los van je account.');
+}));
+$('authResume').addEventListener('click', authResume);
 [$('authUser'), $('authPass')].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') authSubmit(); }));
 
 // =================== MAIN LOOP ===================
@@ -4639,8 +4704,7 @@ hrRender();
 function bootGame() {
   $('authView').hidden = true;
   $('authSubmit').disabled = false;
-  const who = $('acctName');
-  if (who) who.textContent = AUTH.session.username + (AUTH.session.offline ? ' (OFFLINE)' : '');
+  renderAccountBar();
   if (online()) {
     NET.refresh = AUTH.session.refresh || null;
     // The gate stays up until the account is synced, so a round played in the meantime
