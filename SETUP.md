@@ -122,6 +122,11 @@ language plpgsql security definer set search_path = public as $$
 declare claimed text;
 begin
   if tg_op = 'INSERT' then
+    -- Een upsert op een bestaande rij komt eerst hier langs; die laten we door naar de
+    -- update-tak, anders zou elke opslag het account terugzetten op de beginstand.
+    if exists (select 1 from public.profiles p where p.id = new.id) then
+      return new;
+    end if;
     select u.raw_user_meta_data->>'username' into claimed from auth.users u where u.id = new.id;
     new.username := coalesce(claimed, new.username);
     new.balance := 1000;

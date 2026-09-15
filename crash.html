@@ -1039,17 +1039,18 @@
     position: fixed;
     inset: 0;
     z-index: 3000;
+    /* margin centring keeps both edges scrollable when the keyboard shrinks the viewport */
     background:
       radial-gradient(ellipse at top left, #002211 0%, transparent 50%),
       radial-gradient(ellipse at bottom right, #001a08 0%, transparent 50%),
       var(--bg);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     padding: 20px;
     overflow-y: auto;
   }
-  .auth-panel { width: min(400px, 100%); padding: 28px; }
+  .auth-panel { width: min(400px, 100%); padding: 28px; margin: auto; }
   .auth-logo {
     font-family: 'Major Mono Display', monospace;
     font-size: 28px;
@@ -1066,7 +1067,7 @@
     border: 1px solid var(--border);
     color: var(--text);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 15px;
+    font-size: 16px; /* below 16px iOS Safari zooms in on focus */
     padding: 11px 12px;
     border-radius: 3px;
     outline: none;
@@ -1125,7 +1126,7 @@
   .lb-row .val { color: var(--gold); font-weight: 700; font-family: monospace; }
   .lb-row.self { background: rgba(0,255,102,0.08); border-left: 2px solid var(--neon); }
   .lb-row.self .name { color: var(--neon); font-weight: 700; }
-  .lb-row .meta { color: var(--muted); font-size: 9px; margin-left: 6px; }
+  .lb-row .meta, .player-row .meta { color: var(--muted); font-size: 9px; margin-left: 6px; }
   .lb-row.changed { animation: lbFlash 0.8s; }
   @keyframes lbFlash { 0% { background: rgba(255,216,77,0.25); } 100% { background: transparent; } }
   .lb-note { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-top: -40px; margin-bottom: 50px; }
@@ -2393,7 +2394,8 @@ function loadSession() {
 
 function storeSession(v) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(v)); } catch {} }
 
-const AUTH = { session: loadSession(), profileAt: 0, expired: false };
+const AUTH = { session: loadSession(), profileAt: 0, expired: false, disconnected: false };
+let adoptedLegacy = false;
 
 // Every account keeps its own local snapshot, so two accounts on one device never mix.
 const STORAGE_KEY = AUTH.session ? 'neon_casino_v4:' + AUTH.session.userId : 'neon_casino_v4:guest';
@@ -2412,7 +2414,7 @@ function loadState() {
       localStorage.setItem(LEGACY_TAKEN, '1');
       localStorage.removeItem(LEGACY_V4);
       localStorage.removeItem(LEGACY_KEY);
-      if (raw) localStorage.setItem(STORAGE_KEY, raw);
+      if (raw) { localStorage.setItem(STORAGE_KEY, raw); adoptedLegacy = true; }
     }
     if (!raw) return null;
     return JSON.parse(raw);
@@ -3049,6 +3051,13 @@ function renderPlayers() {
     });
   }
   $('playerCount').textContent = all.length;
+  if (!all.length) {
+    const empty = document.createElement('div');
+    empty.className = 'odds-note';
+    empty.textContent = 'Nog geen inzet deze ronde. Plaats een inzet om hier te verschijnen.';
+    list.appendChild(empty);
+    return;
+  }
   for (const p of all) {
     const row = document.createElement('div');
     row.className = 'player-row';
@@ -3095,11 +3104,11 @@ function renderRecentWins() {
 }
 
 // Player-supplied text always goes in as text, never as markup.
-function nameSpan(name, self, meta) {
+function nameSpan(name, self, meta, suffix) {
   const el = document.createElement('span');
   el.className = 'name';
   if (self) { el.style.color = 'var(--neon)'; el.style.fontWeight = '700'; }
-  el.textContent = String(name || '?').slice(0, 16);
+  el.textContent = String(name || '?').slice(0, 16) + (suffix || '');
   if (meta) {
     const m = document.createElement('span');
     m.className = 'meta';
@@ -4195,6 +4204,10 @@ async function api(path, { method = 'GET', body, auth = true, headers = {}, retr
   if (res.status === 401 && auth && retry && NET.refresh) {
     if (await refreshToken()) return api(path, { method, body, auth, headers, retry: false });
   }
+  if ((res.status === 401 || res.status === 403) && auth) {
+    // The server rejects this session even after a refresh: it is logged out.
+    setTimeout(() => authExpire(), 0);
+  }
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -4207,15 +4220,17 @@ async function api(path, { method = 'GET', body, auth = true, headers = {}, retr
   return data;
 }
 
+// Returns true, 'offline' when the server could not be reached at all, or false when the
+// server actually rejected the session. Only the last one means logged out.
 async function refreshToken() {
   if (!NET.refresh) return false;
   try {
     const d = await api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: NET.refresh }, auth: false, retry: false });
     applyTokens(d);
     return true;
-  } catch {
+  } catch (e) {
     NET.token = null;
-    return false;
+    return e.status ? false : 'offline';
   }
 }
 
@@ -4283,24 +4298,42 @@ function profilePush() {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(async () => {
     try {
-      await api('/rest/v1/profiles', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: profileRow(),
-      });
-      lbSetStatus(true);
-    } catch (e) { lbSetStatus(false, e.message); }
+      await profileWrite();
+      lbSetWriteStatus(true);
+    } catch (e) { lbSetWriteStatus(false, e.message); }
   }, 1200);
+}
+
+// An update, never an upsert: a row that already exists must not go through the
+// insert branch of the database guard, which resets an account to its starting values.
+async function profileWrite() {
+  const row = profileRow();
+  delete row.id;
+  delete row.username;
+  return api('/rest/v1/profiles?id=eq.' + encodeURIComponent(AUTH.session.userId), {
+    method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: row,
+  });
 }
 
 // The server holds the account's progression; the local snapshot is only a cache.
 // Whichever side was written last wins, so an interrupted round is not lost.
 async function profilePull() {
-  const rows = await api('/rest/v1/profiles?select=*&id=eq.' + encodeURIComponent(AUTH.session.userId) + '&limit=1');
-  const row = Array.isArray(rows) ? rows[0] : null;
-  if (!row) return false;
+  let rows = await api('/rest/v1/profiles?select=*&id=eq.' + encodeURIComponent(AUTH.session.userId) + '&limit=1');
+  let row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) {
+    // No row yet (interrupted registration): create it, then keep the local snapshot.
+    await api('/rest/v1/profiles', {
+      method: 'POST', headers: { Prefer: 'return=minimal' },
+      body: { id: AUTH.session.userId, username: AUTH.session.username },
+    });
+    return true;
+  }
   const serverAt = Date.parse(row.updated_at || 0) || 0;
   const localAt = Number(saved?.updatedAt) || 0;
+  // A freshly registered row still holds the starting values; a save adopted from the
+  // old single-player game must not be thrown away for it.
+  const untouched = Number(row.rounds) === 0 && Number(row.balance) === 1000;
+  if (adoptedLegacy && untouched) return true;
   if (serverAt > localAt) {
     state.balance = Math.max(0, round2((Number(row.balance) || 0) + bootCredit));
     const st = row.stats && typeof row.stats === 'object' ? row.stats : {};
@@ -4328,7 +4361,7 @@ async function postWin(game, amount, mult) {
 }
 
 async function feedPull() {
-  if (!online()) return;
+  if (!online()) { lbApplyStatus(); return; }
   try {
     const rows = await api('/rest/v1/wins?select=username,game,amount,mult,created_at&order=created_at.desc&limit=10', { auth: false });
     FEED.rows = Array.isArray(rows) ? rows : [];
@@ -4340,7 +4373,7 @@ async function feedPull() {
 }
 
 // =================== LIVE LEADERBOARD (real accounts only) ===================
-const LB = { rows: [], timer: null, ok: true, error: '' };
+const LB = { rows: [], timer: null, ok: true, readOk: true, writeOk: true, error: '' };
 
 function lbRatio(p) { return p.won / Math.max(1, p.lost); }
 
@@ -4351,9 +4384,21 @@ function lbMineRow() {
 }
 
 function lbSetStatus(ok, error) {
-  LB.ok = ok;
-  LB.error = error || '';
-  document.querySelectorAll('#lbLive .live-dot').forEach(d => d.classList.toggle('off', !ok));
+  LB.readOk = ok;
+  if (!ok) LB.error = error || '';
+  lbApplyStatus();
+}
+
+// A failed write must not be masked by a successful anonymous read a moment later.
+function lbSetWriteStatus(ok, error) {
+  LB.writeOk = ok;
+  if (!ok) LB.error = error || '';
+  lbApplyStatus();
+}
+
+function lbApplyStatus() {
+  LB.ok = LB.readOk && LB.writeOk;
+  document.querySelectorAll('.live-dot').forEach(d => d.classList.toggle('off', !LB.ok || !online()));
 }
 
 async function lbPull() {
@@ -4378,7 +4423,7 @@ function lbRowEl(p, rank, value, meta) {
   r.className = 'rank';
   r.textContent = rank === null ? '—' : '#' + rank;
   const wrap = document.createElement('span');
-  wrap.appendChild(nameSpan(p.self ? p.username + ' (JIJ)' : p.username, p.self, meta));
+  wrap.appendChild(nameSpan(p.username, p.self, meta, p.self ? ' (JIJ)' : ''));
   const v = document.createElement('span');
   v.className = 'val';
   v.textContent = value;
@@ -4463,7 +4508,8 @@ function authSetMode(mode) {
   $('authTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   $('authSubmit').textContent = mode === 'login' ? 'INLOGGEN' : 'ACCOUNT AANMAKEN';
   $('authPass').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
-  authMsg('');
+  if (!BACKEND_READY) authMsg('Online accounts zijn nog niet geconfigureerd.', 'error');
+  else authMsg('');
 }
 
 async function authSubmit() {
@@ -4483,6 +4529,7 @@ async function authSubmit() {
   } catch (e) {
     const m = /Invalid login/i.test(e.message) ? 'Onbekende gebruikersnaam of verkeerd wachtwoord.'
       : /already registered|User already/i.test(e.message) ? 'Die gebruikersnaam bestaat al.'
+      : /failed to fetch|networkerror|load failed|network ?request/i.test(e.message) ? 'Geen verbinding met de server. Probeer het opnieuw, of kies OFFLINE SPELEN.'
       : e.message;
     authMsg(m, 'error');
     AUTHUI.busy = false;
@@ -4499,23 +4546,22 @@ function authOffline() {
 async function authLogout() {
   if (!confirm('Uitloggen? Je voortgang staat veilig op je account.')) return;
   const wasOnline = online();
+  let flushed = false;
   if (wasOnline) {
     clearTimeout(pushTimer);
-    // Flush the last round, then make the refresh token unusable server-side.
-    try {
-      await api('/rest/v1/profiles', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: profileRow(),
-      });
-    } catch {}
+    // Flush the last rounds, then make the refresh token unusable server-side.
+    try { await profileWrite(); flushed = true; } catch {}
     try { await api('/auth/v1/logout', { method: 'POST' }); } catch {}
+  }
+  const settled = !roundInProgress();
+  if (wasOnline && !flushed) {
+    alert('De laatste rondes konden niet worden opgeslagen. Je voortgang blijft op dit apparaat staan tot je weer inlogt.');
   }
   try {
     localStorage.removeItem(SESSION_KEY);
-    // The account's progression lives on the server, so the local copy must not stay
-    // behind on a shared device. An offline account has no other copy, so it is kept.
-    if (wasOnline) localStorage.removeItem(STORAGE_KEY);
+    // The local copy only goes away once the server really has everything; otherwise it
+    // is the only remaining record. An offline account never has another copy.
+    if (wasOnline && flushed && settled) localStorage.removeItem(STORAGE_KEY);
   } catch {}
   location.reload();
 }
@@ -4560,17 +4606,32 @@ hrRender();
 // The casino only starts once an account is active; the gate stays up otherwise.
 function bootGame() {
   $('authView').hidden = true;
+  $('authSubmit').disabled = false;
   const who = $('acctName');
   if (who) who.textContent = AUTH.session.username + (AUTH.session.offline ? ' (OFFLINE)' : '');
   if (online()) {
     NET.refresh = AUTH.session.refresh || null;
+    // The gate stays up until the account is synced, so a round played in the meantime
+    // cannot be erased by the arriving server snapshot.
+    $('authView').hidden = false;
+    authMsg('Account synchroniseren…');
     refreshToken()
-      .then(ok => ok ? profilePull() : Promise.reject(new Error('sessie verlopen')))
-      .then(() => { AUTH.profileAt = Date.now(); })
+      .then(r => {
+        if (r === true) return profilePull().then(() => { AUTH.profileAt = Date.now(); });
+        if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard'); return; }
+        return Promise.reject(new Error('rejected'));
+      })
       .catch(() => authExpire())
       // Interrupted rounds are settled after the pull, so their payouts and statistics
       // are not overwritten by the server snapshot.
-      .finally(() => { if (!AUTH.expired) { settleInterruptedRounds(); profilePush(); liveStart(); } });
+      .finally(() => {
+        if (AUTH.expired) return;
+        $('authView').hidden = true;
+        authMsg('');
+        settleInterruptedRounds();
+        if (AUTH.profileAt) profilePush();
+        liveStart();
+      });
   } else {
     settleInterruptedRounds();
     liveStart();
