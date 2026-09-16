@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -2760,7 +2760,7 @@
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">Every horse has its own win chance, shown as a percentage. Payout = <b>0.97 / win chance</b>, dus RTP <b>97%</b> on every horse, favourite or longshot. The result is drawn before the start; the race just plays it out.</div>
+        <div class="odds-note">Every horse has its own win chance, shown as a percentage. Payout = <b>0.97 / win chance</b>, so RTP <b>97%</b> on every horse, favourite or longshot. The result is drawn before the start; the race just plays it out.</div>
       </div>
     </aside>
 
@@ -3413,7 +3413,8 @@ function takeBet(amt, hostId) {
 function navigate(route) {
   // De VIP-spellen zijn alleen bereikbaar zolang de zone open is; anders kom je uit bij
   // de zone zelf, die uitlegt hoe je er binnenkomt.
-  if (VIP_ROUTES[route] && !vipActive()) route = 'vip';
+  // Een rit die al loopt mag je altijd uitspelen, ook als de pas net verlopen is.
+  if (VIP_ROUTES[route] && !vipActive() && !(route === 'bus' && BU.active)) route = 'vip';
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const view = $(route + 'View');
@@ -3805,7 +3806,7 @@ function renderPlayers() {
   const all = [...state.players];
   if (state.hasBet) {
     all.unshift({
-      name: 'JIJ',
+      name: 'YOU',
       bet: state.betAmount,
       cashedOut: state.cashedOut,
       cashoutAt: state.cashOutAt,
@@ -3853,7 +3854,7 @@ function renderRecentWins() {
     const row = document.createElement('div');
     row.className = 'player-row cashed';
     const self = w.self || (AUTH.session && w.username === AUTH.session.username);
-    row.appendChild(nameSpan(self ? 'JIJ' : (w.username || w.name), self, GAME_LABEL[w.game] || ''));
+    row.appendChild(nameSpan(self ? 'YOU' : (w.username || w.name), self, GAME_LABEL[w.game] || ''));
     const bet = document.createElement('span');
     bet.className = 'bet';
     bet.textContent = '$' + fmt(Number(w.amount) || 0);
@@ -3978,7 +3979,7 @@ function rlBuildBoard() {
   }
   [['1-12', 'd1'], ['13-24', 'd2'], ['25-36', 'd3']].forEach(([l, k], i) =>
     cell(l, k, 'outside', `grid-row:4;grid-column:${2 + i * 4}/${6 + i * 4}`));
-  [['1-18', 'low'], ['EVEN', 'even'], ['ROOD', 'red'], ['ZWART', 'black'], ['ONEVEN', 'odd'], ['19-36', 'high']].forEach(([l, k], i) =>
+  [['1-18', 'low'], ['EVEN', 'even'], ['RED', 'red'], ['BLACK', 'black'], ['ODD', 'odd'], ['19-36', 'high']].forEach(([l, k], i) =>
     cell(l, k, 'outside ' + (k === 'red' || k === 'black' ? k : ''), `grid-row:5;grid-column:${2 + i * 2}/${4 + i * 2}`));
 }
 
@@ -4094,8 +4095,8 @@ function rlResolve(n, total) {
   const net = round2(ret - total);
   $('rlLastWin').textContent = (net >= 0 ? '+$' : '-$') + fmt(Math.abs(net));
   $('rlLastWin').style.color = net >= 0 ? 'var(--neon)' : 'var(--red)';
-  if (ret > 0) flash(`${n} ${color === 'red' ? 'ROOD' : color === 'black' ? 'ZWART' : 'GROEN'} · +$${fmt(ret)}`, net >= 0 ? 'green' : 'gold', 'rouletteToasts');
-  else flash(`${n} ${color === 'red' ? 'ROOD' : color === 'black' ? 'ZWART' : 'GROEN'} · -$${fmt(total)}`, 'red', 'rouletteToasts');
+  if (ret > 0) flash(`${n} ${color === 'red' ? 'RED' : color === 'black' ? 'BLACK' : 'GREEN'} · +$${fmt(ret)}`, net >= 0 ? 'green' : 'gold', 'rouletteToasts');
+  else flash(`${n} ${color === 'red' ? 'RED' : color === 'black' ? 'BLACK' : 'GREEN'} · -$${fmt(total)}`, 'red', 'rouletteToasts');
 
   RL.bets = {};
   RL.spinning = false;
@@ -4269,7 +4270,7 @@ function twPick(t) {
   } else {
     TW.active = false;
     recordRound('tower', TW.bet, 0);
-    flash(`DRAKENEI! -$${fmt(TW.bet)}`, 'red', 'towerToasts');
+    flash(`DRAGON EGG! -$${fmt(TW.bet)}`, 'red', 'towerToasts');
     twRender();
   }
 }
@@ -4372,7 +4373,7 @@ function mnPick(i) {
     MN.hit = i;
     MN.active = false;
     recordRound('mines', MN.bet, 0);
-    flash(`BOEM! -$${fmt(MN.bet)}`, 'red', 'minesToasts');
+    flash(`BOOM! -$${fmt(MN.bet)}`, 'red', 'minesToasts');
     mnRender();
     return;
   }
@@ -4608,7 +4609,7 @@ function bjDeal() {
   BJ.player = [bjDraw(), bjDraw()];
   BJ.dealer = [bjDraw(), bjDraw()];
   BJ.phase = 'player';
-  bjMessage('HIT, STAND OF DOUBLE?');
+  bjMessage('HIT, STAND OR DOUBLE?');
   bjRender();
   saveState();
   if (ODDS.bjIsBlackjack(BJ.player) || ODDS.bjIsBlackjack(BJ.dealer)) bjFinish();
@@ -4668,7 +4669,7 @@ function bjFinish() {
   const p = ODDS.bjValue(BJ.player).total, d = ODDS.bjValue(BJ.dealer).total;
   const pBJ = ODDS.bjIsBlackjack(BJ.player), dBJ = ODDS.bjIsBlackjack(BJ.dealer);
   let msg, cls;
-  if (pBJ && dBJ) { msg = 'BEIDE BLACKJACK · PUSH'; cls = 'push'; }
+  if (pBJ && dBJ) { msg = 'BOTH BLACKJACK · PUSH'; cls = 'push'; }
   else if (pBJ) { msg = `BLACKJACK! +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
   else if (dBJ) { msg = 'DEALER BLACKJACK'; cls = 'lose'; }
   else if (p > 21) { msg = 'BUST'; cls = 'lose'; }
@@ -4716,14 +4717,14 @@ function hrRender() {
     row.innerHTML = `<span class="dot" style="background:${h.color}"></span>
       <span><span class="name">${h.name}</span><br><span style="color:var(--muted);font-size:9px">${(h.p * 100).toFixed(0)}% · </span><span class="mult">${fmt(h.mult)}×</span></span>
       <span class="stake">${HR.bets[h.i] ? '$' + fmt(HR.bets[h.i]) : ''}</span>
-      <button data-i="${h.i}" ${HR.racing ? 'disabled' : ''}>ZET IN</button>`;
+      <button data-i="${h.i}" ${HR.racing ? 'disabled' : ''}>BACK</button>`;
     row.querySelector('button').addEventListener('click', () => hrPlace(h.i));
     list.appendChild(row);
   }
   $('hrTotal').textContent = '$' + fmt(hrTotal());
   bkRefreshButtons();
   $('hrStartBtn').disabled = HR.racing;
-  $('hrStartBtn').textContent = HR.racing ? 'RACE BEZIG…' : 'START RACE';
+  $('hrStartBtn').textContent = HR.racing ? 'RACE RUNNING…' : 'START THE RACE';
   $('hrClearBtn').disabled = HR.racing || hrTotal() === 0;
   $('hrNewBtn').disabled = HR.racing || hrTotal() > 0;
   $('horseBet').disabled = HR.racing;
@@ -4808,8 +4809,8 @@ function hrResolve(total) {
   HR.history.unshift({ name: h.name, color: h.color, mult: h.mult });
   if (HR.history.length > 10) HR.history.pop();
   const net = round2(ret - total);
-  if (ret > 0) flash(`${h.name} WINT · +$${fmt(ret)}`, net >= 0 ? 'green' : 'gold', 'horseToasts');
-  else flash(`${h.name} WINT · -$${fmt(total)}`, 'red', 'horseToasts');
+  if (ret > 0) flash(`${h.name} WINS · +$${fmt(ret)}`, net >= 0 ? 'green' : 'gold', 'horseToasts');
+  else flash(`${h.name} WINS · -$${fmt(total)}`, 'red', 'horseToasts');
   HR.racing = false;
   const lastOrder = HR.order;
   hrNewField();
@@ -5133,7 +5134,7 @@ function slSettle(gen) {
 
 $('slSpinBtn').addEventListener('click', slSpin);
 
-// =================== RAD VAN FORTUIN (VIP) ===================
+// =================== WHEEL OF FORTUNE ===================
 const WH = { spinning: false, gen: 0, bet: 0, index: 0, payout: 0, mult: 0, angle: 0, history: [] };
 const getWheelBet = bindBet('wheel');
 
@@ -5266,7 +5267,7 @@ $('whSpinBtn').addEventListener('click', whSpin);
 // One shuffled deck, four calls. The multiplier is 0.97 divided by the chance of having
 // got this far, so stopping after any call pays back 97% however well the player calls.
 // A ride in progress is an undecided round: a reload refunds the stake.
-const BU = { active: false, bet: 0, deck: [], shown: [], prob: 1, step: 0, mult: 0, over: '' };
+const BU = { active: false, lastAt: -1e9, bet: 0, deck: [], shown: [], prob: 1, step: 0, mult: 0, over: '' };
 const getBusBet = bindBet('bus');
 
 const BU_ASK = ['Red or black?', 'Higher or lower than that card?', 'Inside or outside the two?', 'Which suit?'];
@@ -5283,7 +5284,7 @@ function buRender() {
   $('buStartBtn').hidden = BU.active;
   $('buCashBtn').hidden = !(BU.active && BU.step > 0);
   if (BU.active && BU.step > 0) $('buCashBtn').textContent = `CASH OUT $${fmt(floor2(BU.bet * BU.mult))}`;
-  $('buMult').textContent = BU.step > 0 ? fmt(BU.mult) + '×' : '—';
+  $('buMult').textContent = BU.active && BU.step > 0 ? fmt(BU.mult) + '×' : '—';
   $('buStep').textContent = BU.active ? (BU.step + 1) + ' / 4' : '—';
 
   const opts = $('buOptions');
@@ -5320,14 +5321,24 @@ function buStart() {
   BU.mult = 0;
   BU.over = '';
   BU.active = true;
+  BU.lastAt = -1e9; // de drempel geldt binnen één rit, niet tussen twee ritten
   buRender();
   saveState();
 }
 
 function buCall(choice) {
+  // De knoppenrij wordt na elke call opnieuw opgebouwd, dus de tweede klik van een
+  // dubbelklik landt op de knop van de VOLGENDE call. Die tweede klik is nooit gewild.
   if (!BU.active || BU.step >= 4) return;
+  const now = performance.now();
+  if (now - BU.lastAt < 350) return;
   const p = ODDS.busChance(BU.deck, BU.step, choice, BU.shown);
   if (p <= 0) return;
+  BU.lastAt = now;
+  buResolve(choice, p);
+}
+
+function buResolve(choice, p) {
   BU.prob *= p;
   const card = BU.deck.pop();
   const hit = ODDS.busHit(card, BU.step, choice, BU.shown);
@@ -5597,7 +5608,7 @@ function lbMineRow() {
   let won = 0, lost = 0;
   for (const g of GAMES) { won += gameStats[g].won; lost += gameStats[g].lost; }
   return {
-    username: AUTH.session ? AUTH.session.username : 'JIJ',
+    username: AUTH.session ? AUTH.session.username : 'YOU',
     balance: state.balance, won, lost, self: true,
     title: profileTitle || '', achievements: achCount(),
   };
@@ -5656,18 +5667,18 @@ function lbRowEl(p, rank, value, meta) {
   r.textContent = rank === null ? '—' : (tier ? tier.icon + ' #' + rank : '#' + rank);
   if (tier) r.title = tier.name + ' · ' + tier.perk;
   const wrap = document.createElement('span');
-  wrap.appendChild(nameSpan(p.username, p.self, (tier ? tier.name : '') + (meta ? (tier ? ' · ' : '') + meta : ''), p.self ? ' (JIJ)' : ''));
+  wrap.appendChild(nameSpan(p.username, p.self, (tier ? tier.name : '') + (meta ? (tier ? ' · ' : '') + meta : ''), p.self ? ' (YOU)' : ''));
   if (p.achievements) {
     const c = document.createElement('span');
     c.className = 'lb-count';
     c.textContent = p.achievements + '\u2060🏅';
-    c.title = p.achievements + ' achievements';
+    c.title = plural(p.achievements, 'achievement', 'achievements');
     wrap.appendChild(c);
   }
   if (p.title) {
     const t = document.createElement('span');
     t.className = 'lb-title';
-    t.textContent = '🏆 ' + p.title;
+    t.textContent = '🏆 ' + titleLabel(p.title);
     wrap.appendChild(t);
   }
   const v = document.createElement('span');
@@ -5779,7 +5790,7 @@ function authShow() {
 function authSetMode(mode) {
   AUTHUI.mode = mode;
   $('authTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
-  $('authSubmit').textContent = mode === 'login' ? 'INLOGGEN' : 'ACCOUNT AANMAKEN';
+  $('authSubmit').textContent = mode === 'login' ? 'LOG IN' : 'CREATE ACCOUNT';
   $('authPass').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
   if (!BACKEND_READY) authMsg('Online accounts are not configured yet.', 'error');
   else authMsg('');
@@ -5793,11 +5804,11 @@ async function authSubmit() {
   if (password.length < 6) { authMsg('Password must be at least 6 characters.', 'error'); return; }
   AUTHUI.busy = true;
   $('authSubmit').disabled = true;
-  authMsg(AUTHUI.mode === 'login' ? 'Inloggen…' : 'Account aanmaken…');
+  authMsg(AUTHUI.mode === 'login' ? 'Signing in…' : 'Creating your account…');
   try {
     const session = AUTHUI.mode === 'login' ? await authLogin(username, password) : await authRegister(username, password);
     storeSession(session);
-    authMsg('Gelukt. Laden…', 'ok');
+    authMsg('Done. Loading…', 'ok');
     location.reload();
   } catch (e) {
     const m = /Invalid login/i.test(e.message) ? 'Unknown username or wrong password.'
@@ -5921,15 +5932,37 @@ const SPRINT_SECONDS = 3 * 24 * 3600;
 const SEASON_SECONDS = 12 * 24 * 3600;
 const SPRINT_BONUS = [2500, 1500, 1000];
 
-function sprintId(ms) { return Math.floor(((ms || Date.now()) / 1000) / SPRINT_SECONDS); }
+function sprintId(ms) { return Math.floor((((ms == null ? Date.now() : ms)) / 1000) / SPRINT_SECONDS); }
 function sprintEndsAt(id) { return ((id + 1) * SPRINT_SECONDS) * 1000; }
-function seasonId(ms) { return Math.floor(((ms || Date.now()) / 1000) / SEASON_SECONDS); }
+function seasonId(ms) { return Math.floor((((ms == null ? Date.now() : ms)) / 1000) / SEASON_SECONDS); }
 function seasonEndsAt(id) { return ((id + 1) * SEASON_SECONDS) * 1000; }
 // Winning a sprint opens the zone the moment that sprint ends, and it stays open until the
 // season holding that moment runs out. Win the last sprint of a season and the pass covers
 // the season that is starting, never one that is already over.
 function vipSeasonFor(sprint) { return seasonId((sprint + 1) * SPRINT_SECONDS * 1000); }
 function sprintsLeft() { return 4 - (sprintId() - seasonId() * 4); }
+
+// The clock blocks are numbered from the epoch, which makes them huge. Players get the
+// count since the casino opened instead: season 1, sprint 1 of 4.
+const OPENING_DAY = Date.UTC(2026, 8, 16);
+const FIRST_SEASON = Math.floor((OPENING_DAY / 1000) / SEASON_SECONDS);
+function seasonNoOf(sprint) { return Math.floor(sprint / 4) - FIRST_SEASON + 1; }
+function sprintNoOf(sprint) { return sprint - Math.floor(sprint / 4) * 4 + 1; }
+function seasonNo() { return seasonId() - FIRST_SEASON + 1; }
+function sprintNo() { return sprintNoOf(sprintId()); }
+function sprintLabel(sprint) {
+  // Results from before the casino opened would otherwise read as season 0 or lower.
+  const se = seasonNoOf(sprint);
+  return (se >= 1 ? 'SEASON ' + se : 'PRESEASON') + ' · SPRINT ' + sprintNoOf(sprint);
+}
+
+// Titles are written by the database as 'Kampioen S<sprint>'. Translate them for display
+// and give them the same readable numbering, without touching what is already stored.
+const TITLE_RANK = { Kampioen: 'Champion', Tweede: 'Runner-up', Derde: 'Third' };
+function titleLabel(t) {
+  const m = /^(Kampioen|Tweede|Derde) S(-?\d+)$/.exec(String(t || ''));
+  return m ? TITLE_RANK[m[1]] + ' · ' + sprintLabel(Number(m[2])) : String(t || '');
+}
 
 function countdown(until) {
   const left = Math.max(0, until - Date.now());
@@ -5945,7 +5978,13 @@ function seasonCountdown() { return countdown(seasonEndsAt(seasonId())); }
 // Wie een seizoen wint, mag het seizoen daarna (drie dagen) in de VIP-zone. Dat oordeel
 // komt van de uitslagtabel op de server; de client leest hem alleen uit.
 // Let op: een opgeslagen null zou via Number() een 0 worden, en 0 is een geldig seizoen.
-const VIP = { season: typeof saved?.vipSeason === 'number' && Number.isFinite(saved.vipSeason) ? saved.vipSeason : null, timer: null };
+// De vorige versie bewaarde hier het sprintnummer van de gewonnen sprint; nu staat er het
+// seizoen waarvoor de pas geldt. Een te grote waarde komt dus uit die oude vorm.
+const VIP = { season: (() => {
+  const v = saved?.vipSeason;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  return v > seasonId() + 1 ? vipSeasonFor(v) : v;
+})(), timer: null };
 const VIP_ROUTES = { slots: true, bus: true };
 const VIP_PERKS = [
   ['🎰', '777', 'Three reels. Three sevens pay 40x. Nowhere else in the casino.'],
@@ -6224,7 +6263,7 @@ async function claimAwards() {
     return 0;
   }
   for (const a of fresh) {
-    flash(`SPRINT ${a.season}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
+    flash(`${sprintLabel(Number(a.season))}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
   }
   renderBalance();
   achCheck(null);
@@ -6316,7 +6355,7 @@ function renderSeasonStrip(strip) {
   left.className = 'season-now';
   const t1 = document.createElement('div');
   t1.className = 'season-label';
-  t1.textContent = 'SPRINT ' + sprintId();
+  t1.textContent = 'SPRINT ' + sprintNo() + ' OF 4';
   const t2 = document.createElement('div');
   t2.className = 'season-time';
   t2.textContent = sprintCountdown();
@@ -6326,8 +6365,8 @@ function renderSeasonStrip(strip) {
   const t4 = document.createElement('div');
   t4.className = 'season-sub';
   const n = sprintsLeft();
-  t4.textContent = 'SEASON ' + seasonId() + ' ends in ' + seasonCountdown() + ' · ' +
-    n + (n === 1 ? ' sprint' : ' sprints') + ' left to earn a pass · a pass lasts the whole season';
+  t4.textContent = 'SEASON ' + seasonNo() + ' ends in ' + seasonCountdown() + ' · ' +
+    n + (n === 1 ? ' sprint' : ' sprints') + ' left to earn a pass · a pass runs until the season ends';
   left.appendChild(t1); left.appendChild(t2); left.appendChild(t3); left.appendChild(t4);
   strip.appendChild(left);
 
@@ -6364,7 +6403,7 @@ function seasonRender() {
       const season = SEASON.awards[0].season;
       const head = document.createElement('div');
       head.className = 'panel-title';
-      head.textContent = '► SPRINT ' + season;
+      head.textContent = '► ' + sprintLabel(Number(season));
       last.appendChild(head);
       for (const a of SEASON.awards.filter(x => x.season === season)) {
         const row = document.createElement('div');
@@ -6453,7 +6492,7 @@ function bootGame() {
     // The gate stays up until the account is synced, so a round played in the meantime
     // cannot be erased by the arriving server snapshot.
     $('authView').hidden = false;
-    authMsg('Account synchroniseren…');
+    authMsg('Syncing your account…');
     refreshToken()
       .then(r => {
         // The server refused this session: that is a logout, not a hiccup.
