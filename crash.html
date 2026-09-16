@@ -1144,6 +1144,11 @@
   .prof-slot .nm { font-size: 12px; font-weight: 600; }
   .prof-slot:not(.filled) .nm { font-weight: 400; }
   .prof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 8px; }
+  .prof-titles { display: flex; flex-wrap: wrap; gap: 6px; }
+  .prof-title-chip {
+    font-size: 11px; padding: 4px 9px; border-radius: 10px;
+    border: 1px solid rgba(224,181,85,0.45); color: var(--gold); background: rgba(224,181,85,0.08);
+  }
   .ach-card.pickable { cursor: pointer; }
   .ach-card.pickable:hover { border-color: var(--neon); }
   .ach-card.shown { box-shadow: inset 0 0 0 1px var(--gold); }
@@ -6810,7 +6815,9 @@ function seasonRender() {
         wrap.appendChild(nameSpan(a.username, AUTH.session && a.username === AUTH.session.username, RANKS[a.rank - 1].name));
         const v = document.createElement('span');
         v.className = 'val';
-        v.textContent = '+$' + fmt(Number(a.bonus) || 0);
+        // Een plek levert geen geld meer op; wat je eraan overhoudt is de titel, en voor
+        // de winnaar de pas naar de VIP-zone.
+        v.textContent = Number(a.rank) === 1 ? 'VIP PASS' : 'TITLE';
         row.appendChild(r); row.appendChild(wrap); row.appendChild(v);
         last.appendChild(row);
       }
@@ -6860,7 +6867,6 @@ function profLocal() {
     lost: GAMES.reduce((a, g) => a + gameStats[g].lost, 0),
     profit: round2(profit),
     title: profileTitle || null,
-    titles: [],
     stats: gameStats,
     achievements: ACH.unlocked,
     featured: ACH.featured,
@@ -6953,6 +6959,25 @@ function profRender() {
     show.appendChild(slot);
   }
   host.appendChild(show);
+
+  // ---------- de erelijst ----------
+  const heldTitles = Array.isArray(d.titles) ? d.titles : [];
+  if (heldTitles.length) {
+    const hall = document.createElement('div');
+    hall.className = 'panel';
+    const hh = document.createElement('div'); hh.className = 'panel-title'; hh.textContent = '► TITLES WON';
+    hall.appendChild(hh);
+    const list = document.createElement('div');
+    list.className = 'prof-titles';
+    for (const t of heldTitles.slice(-12).reverse()) {
+      const e = document.createElement('span');
+      e.className = 'prof-title-chip';
+      e.textContent = '🏆 ' + titleLabel(String(t));
+      list.appendChild(e);
+    }
+    hall.appendChild(list);
+    host.appendChild(hall);
+  }
 
   // ---------- de cijfers ----------
   const grid = document.createElement('div');
