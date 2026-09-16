@@ -5401,19 +5401,25 @@ const MP = {
   paid: 0,
 };
 
-const MP_RATE = 0.103995; // m = e^(RATE * seconds), the same curve as the solo flight
+const MP_RATE = 0.103995;  // m = e^(RATE * seconds), the same curve as the solo flight
+const MP_PAUSE_MS = 3100;  // the server refuses a new round until this long after the crash
 function mpNow() { return Date.now() + MP.offset; }
 function mpMultAt(ms) { return Math.exp(MP_RATE * Math.max(0, ms) / 1000); }
 
 async function mpTick() {
   if (MP.ticking) return;
   MP.ticking = true;
-  try { await api('/rest/v1/rpc/crash_tick', { method: 'POST', body: {} }); }
-  catch { /* iemand anders is ons voor, of de tabel bestaat nog niet */ }
+  try {
+    await api('/rest/v1/rpc/crash_tick', { method: 'POST', body: {} });
+    MP.ticking = false;
+    // Meteen ophalen: anders staat de tafel nog een pollronde lang op CRASHED.
+    await mpPull();
+  } catch { /* iemand anders was eerder, of de tabellen bestaan nog niet */ }
   finally { MP.ticking = false; }
 }
 
 async function mpPull() {
+  MP.pulls = (MP.pulls || 0) + 1;
   if (!online()) { if (MP.on) mpStop(); return; }
   try {
     const rows = await api('/rest/v1/crash_live?select=*&order=id.desc&limit=1', { auth: false });
@@ -5440,7 +5446,7 @@ async function mpPull() {
     MP.bets = Array.isArray(bets) ? bets : [];
     if (currentRoute === 'crash') { renderPlayers(); mpFairRender(); }
     // De volgende ronde komt er niet vanzelf: wie als eerste merkt dat deze klaar is, vraagt hem aan.
-    if (mpNow() >= MP.round.endsAt + 5200) mpTick();
+    if (mpNow() >= MP.round.endsAt + MP_PAUSE_MS) mpTick();
   } catch (e) {
     MP.error = e.message || 'geen verbinding';
     // Zonder gedeelde rondes speelt de crash-tafel gewoon weer solo verder.
@@ -5470,12 +5476,35 @@ function mpStop() {
   startWaiting();
 }
 
-function mpStart() {
-  clearInterval(MP.timer);
-  if (!online()) return;
-  mpPull();
-  MP.timer = setInterval(() => { if (!document.hidden) mpPull(); }, 2000);
+// Tussen twee rondes wordt er vaker gekeken: daar wacht de speler op. Tijdens een vlucht
+// rekent de browser zelf mee en is twee seconden ruim genoeg.
+function mpSchedule() {
+  clearTimeout(MP.timer);
+  const r = MP.round;
+  const between = !r || mpNow() >= r.endsAt;
+  MP.timer = setTimeout(mpLoop, between ? 600 : 2000);
 }
+
+async function mpLoop() {
+  try { if (!document.hidden) await mpPull(); }
+  catch (e) { MP.error = e && e.message ? e.message : 'geen verbinding'; }
+  mpSchedule();   // altijd opnieuw inplannen, ook na een fout
+}
+
+function mpStart() {
+  clearTimeout(MP.timer);
+  if (!online()) return;
+  mpLoop();
+}
+
+// Een tabblad op de achtergrond krijgt van de browser bijna geen frames, en dan slaan we
+// het ophalen ook over. Bij terugkomst meteen bijwerken, anders lijkt de tafel te hangen
+// tot de speler zelf iets aanklikt.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !MP.on) return;
+  mpPull();
+  mpSchedule();
+});
 
 // Elke ronde loopt af op de klok van de server; dit zet de tafel op dat moment.
 function mpFrame() {
@@ -5521,8 +5550,12 @@ function mpSettle() {
     renderHistory();
   }
   if (state.hasBet && !state.cashedOut) {
-    flash(`LOST $${fmt(state.betAmount)} @ ${fmt(r.crashAt != null ? r.crashAt : state.multiplier)}x`, 'red');
-    recordRound('crash', state.betAmount, 0, 0);
+    const bet = state.betAmount;
+    flash(`LOST $${fmt(bet)} @ ${fmt(r.crashAt != null ? r.crashAt : state.multiplier)}x`, 'red');
+    // De statistieken mogen de tafel niet ophouden: gaat het opslaan mis, dan loopt de
+    // ronde gewoon door en is alleen de telling van deze ronde kwijt.
+    try { recordRound('crash', bet, 0, 0); }
+    catch (e) { console.error('ronde niet geteld:', e); }
   }
   updateButton();
   renderPlayers();
@@ -5651,7 +5684,7 @@ function authExpire(reason) {
   clearInterval(LB.timer);
   clearInterval(FEED.timer);
   clearInterval(VIP.timer);
-  clearInterval(MP.timer);
+  clearTimeout(MP.timer);
   mpStop();
   try { localStorage.removeItem(SESSION_KEY); } catch {}
   lbRender();
@@ -6017,7 +6050,7 @@ function liveStart() {
   clearInterval(LB.timer);
   clearInterval(FEED.timer);
   clearInterval(VIP.timer);
-  clearInterval(MP.timer);
+  clearTimeout(MP.timer);
   if (!online()) { mpStop(); lbRender(); renderRecentWins(); vipRender(); return; }
   mpStart();
   lbPull();
@@ -6710,10 +6743,18 @@ function seasonRender() {
 }
 
 // =================== MAIN LOOP ===================
+// De lus moet altijd blijven lopen. Eén mislukt frame mag het spel niet bevriezen: zonder
+// deze vangnet stopt requestAnimationFrame voorgoed en beweegt er niets meer tot de speler
+// zelf iets aanklikt.
+let tickFails = 0;
 function tick() {
-  crashTick();
-  pkUpdate();
-  if (currentRoute === 'plinko' && (PK.balls.length || (PK.lastHit && performance.now() - PK.lastHit.at < 600))) pkDraw();
+  try {
+    crashTick();
+    pkUpdate();
+    if (currentRoute === 'plinko' && (PK.balls.length || (PK.lastHit && performance.now() - PK.lastHit.at < 600))) pkDraw();
+  } catch (e) {
+    if (tickFails++ < 3) console.error('frame overgeslagen:', e);
+  }
   requestAnimationFrame(tick);
 }
 
