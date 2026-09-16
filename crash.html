@@ -1500,7 +1500,8 @@
     #homeView { padding: 24px 16px; }
     .odds-wrap { overflow-x: auto; }
     .odds-table { min-width: 560px; }
-    #vipView, #achievementsView { padding: 28px 16px !important; }
+    #vipView, #achievementsView, #profileView { padding: 28px 16px !important; }
+    #profName { font-size: 28px !important; word-break: break-word; }
     .vip-perks { grid-template-columns: 1fr; }
     .slot-reel { width: 64px; height: 78px; font-size: 32px; }
     .scratch-grid { max-width: 100%; }
@@ -3489,7 +3490,7 @@ function navigate(route) {
     if (route === 'wheel') whRender();
     if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
-    if (route === 'profile') { if (!PROF.user) profOpen(profMine()); else profRender(); }
+    if (route === 'profile') { if (PROF.user === null) profOpen(profMine()); else profRender(); }
     if (route === 'home') seasonRender();
   });
 }
@@ -5764,7 +5765,12 @@ function mpPlayers() {
 // only a bcrypt hash. Progression (balance + per-game stats) lives in the player's own
 // row, which row level security locks to that account; the leaderboard reads a view that
 // exposes only username, balance and win/loss counts.
-const NET = { token: null, refresh: null, busy: false };
+// Blok 4 voegt de kolom `featured` toe. Zolang die er niet is, mag het spel er niet op
+// stukgaan: elke opslag en de ranglijst zouden dan falen. De eerste keer dat de server hem
+// niet kent, gaat deze vlag uit en werkt alles verder als voorheen.
+const NET = { token: null, refresh: null, busy: false, hasFeatured: true };
+const missingFeatured = e => /featured/i.test(String(e && e.message || '')) &&
+  /does not exist|column|schema cache|42703|PGRST204|PGRST100/i.test(String(e && e.message || ''));
 
 function online() { return !!(BACKEND_READY && AUTH.session && !AUTH.session.offline && !AUTH.expired); }
 
@@ -5915,9 +5921,41 @@ async function profileWrite() {
   const row = profileRow();
   delete row.id;
   delete row.username;
-  return api('/rest/v1/profiles?id=eq.' + encodeURIComponent(AUTH.session.userId), {
-    method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: row,
-  });
+  if (!NET.hasFeatured) delete row.featured;
+  let back;
+  try {
+    // De server schrijft terug wat er werkelijk is opgeslagen. Dat is nodig omdat hij een
+    // afgelopen seizoen zelf mag afrekenen; zonder het antwoord zou de volgende opslag het
+    // oude saldo er weer overheen zetten.
+    back = await api('/rest/v1/profiles?id=eq.' + encodeURIComponent(AUTH.session.userId), {
+      method: 'PATCH', headers: { Prefer: 'return=representation' }, body: row,
+    });
+  } catch (e) {
+    if (!NET.hasFeatured || !missingFeatured(e)) throw e;
+    NET.hasFeatured = false;
+    delete row.featured;
+    back = await api('/rest/v1/profiles?id=eq.' + encodeURIComponent(AUTH.session.userId), {
+      method: 'PATCH', headers: { Prefer: 'return=representation' }, body: row,
+    });
+  }
+  adoptServerRow(Array.isArray(back) ? back[0] : back);
+  return back;
+}
+
+// Wat de server terugschrijft is leidend zodra hij het seizoen heeft afgerekend.
+let knownResetSeason = null;
+function adoptServerRow(row) {
+  if (!row) return;
+  const rs = Number(row.reset_season);
+  const bal = Number(row.balance);
+  if (!Number.isFinite(rs) || !Number.isFinite(bal)) return;
+  if (knownResetSeason !== null && rs > knownResetSeason && Math.abs(bal - state.balance) > 0.005) {
+    const before = state.balance;
+    state.balance = round2(bal);
+    renderBalance();
+    flash(`NEW SEASON · $${fmt(before)} → $${fmt(state.balance)} (you keep 10% above $1000)`, 'gold', toastHost());
+  }
+  knownResetSeason = rs;
 }
 
 // The server holds the account's progression; the local snapshot is only a cache.
@@ -5953,6 +5991,9 @@ async function profilePull() {
     renderBalance();
     for (const g of GAMES) renderStats(g);
   }
+  // Onthouden voor welk seizoen de server al heeft afgerekend, zodat een latere afrekening
+  // herkend wordt in plaats van teruggeschreven.
+  if (row.reset_season != null && Number.isFinite(Number(row.reset_season))) knownResetSeason = Number(row.reset_season);
   return true;
 }
 
@@ -6041,7 +6082,14 @@ function lbApplyStatus() {
 async function lbPull() {
   if (!online()) return;
   try {
-    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,featured,last_seen,updated_at&order=balance.desc&limit=200', { auth: false });
+    const cols = 'username,balance,won,lost,title,achievements' + (NET.hasFeatured ? ',featured' : '') + ',last_seen,updated_at';
+    let rows;
+    try { rows = await api('/rest/v1/public_leaderboard?select=' + cols + '&order=balance.desc&limit=200', { auth: false }); }
+    catch (e) {
+      if (!NET.hasFeatured || !missingFeatured(e)) throw e;
+      NET.hasFeatured = false;
+      rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,last_seen,updated_at&order=balance.desc&limit=200', { auth: false });
+    }
     LB.rows = (Array.isArray(rows) ? rows : []).map(r => ({
       username: String(r.username || '?').slice(0, 16),
       balance: Math.max(0, round2(Number(r.balance) || 0)),
@@ -6849,7 +6897,7 @@ function seasonRender() {
 // Every account is public: its badges, its statistics and the three badges it chose to put
 // up front. You reach one by clicking a name on the leaderboard; your own also lets you
 // pick which three badges everyone else sees.
-const PROF = { user: null, data: null, loading: false, error: '' };
+const PROF = { user: null, data: null, loading: false, error: '', seq: 0 };
 
 function profMine() { return AUTH.session ? AUTH.session.username : null; }
 function profIsMine(name) { return !!name && name === profMine(); }
@@ -6875,27 +6923,40 @@ function profLocal() {
 }
 
 async function profPull(username) {
+  // Twee keer snel achter elkaar een profiel openen: alleen het laatste verzoek mag nog
+  // tekenen, anders verschijnt de ene speler onder de naam van de andere.
+  const token = ++PROF.seq;
   PROF.loading = true;
   PROF.error = '';
   profRender();
   try {
     if (!online()) { PROF.data = profIsMine(username) ? profLocal() : null; if (!PROF.data) PROF.error = 'Sign in to look at other players.'; }
     else {
+      // public_profiles komt pas met blok 4; daarvoor valt een eigen profiel terug op
+      // wat deze browser weet, en dat van een ander is er simpelweg nog niet.
       const rows = await api('/rest/v1/public_profiles?select=*&username=eq.' + encodeURIComponent(username) + '&limit=1', { auth: false });
       PROF.data = Array.isArray(rows) && rows[0] ? rows[0] : null;
       if (!PROF.data) PROF.error = 'No player by that name.';
       // Van jezelf telt wat deze browser weet: dat is verser dan de laatste opslag.
       else if (profIsMine(username)) PROF.data = Object.assign(PROF.data, profLocal());
     }
-  } catch (e) { PROF.data = null; PROF.error = e.message || 'Could not load that profile.'; }
+  } catch (e) {
+    PROF.data = profIsMine(username) ? profLocal() : null;
+    PROF.error = PROF.data ? '' : 'Profiles need the latest database update. Ask the owner to run it.';
+  }
+  if (token !== PROF.seq) return;   // er is intussen een ander profiel geopend
   PROF.loading = false;
   profRender();
 }
 
 function profOpen(username) {
-  PROF.user = username || profMine();
+  const who = username || profMine();
+  // Zonder account valt er geen profiel te tonen; dan alleen de uitleg, en geen tweede
+  // poging vanuit de routering.
+  PROF.user = who || '';
   navigate('profile');
-  profPull(PROF.user);
+  if (who) profPull(who);
+  else { PROF.data = null; PROF.error = 'Sign in to have a profile.'; profRender(); }
 }
 
 function profStatRow(label, value, cls) {
