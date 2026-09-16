@@ -1114,6 +1114,21 @@
     border: 1px solid; background: rgba(0,0,0,0.4); animation: tilePop 0.25s;
   }
 
+
+  /* Ride the Bus */
+  .bus-table { width: 100%; max-width: 640px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .bu-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; width: 100%; }
+  .bu-option {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 12px 10px; border-radius: 6px; cursor: pointer;
+    background: var(--panel-light); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--font-ui); transition: border-color 0.15s, transform 0.15s;
+  }
+  .bu-option:hover:not(:disabled) { border-color: var(--neon); transform: translateY(-2px); }
+  .bu-option .lb { font-size: 14px; font-weight: 600; letter-spacing: 0.4px; }
+  .bu-option .mu { font-family: var(--font-num); font-size: 11px; color: var(--muted); }
+  .bu-option.dead { opacity: 0.4; cursor: not-allowed; }
+
   /* Prestaties, rangen en seizoenen */
   .ach-head { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
   .ach-progress { flex: 1; min-width: 160px; height: 8px; border-radius: 4px; background: rgba(0,0,0,0.5); border: 1px solid var(--border); overflow: hidden; }
@@ -1133,14 +1148,14 @@
   .ach-card .ach-icon { opacity: 0.5; }
   .ach-card.done { background: var(--panel-light); border-color: var(--border); }
   .ach-card.done .ach-icon { opacity: 1; }
-  .ach-card.done.goud { border-color: rgba(224,181,85,0.55); }
-  .ach-card.done.zilver { border-color: rgba(200,208,220,0.45); }
-  .ach-card.done.brons { border-color: rgba(62,207,142,0.4); }
+  .ach-card.done.gold { border-color: rgba(224,181,85,0.55); }
+  .ach-card.done.silver { border-color: rgba(200,208,220,0.45); }
+  .ach-card.done.bronze { border-color: rgba(62,207,142,0.4); }
   .ach-icon { font-size: 24px; text-align: center; }
   .ach-title { font-weight: 600; font-size: 13px; }
   .ach-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
   .ach-tier { font-size: 11px; letter-spacing: 0.8px; color: var(--muted); text-transform: uppercase; }
-  .ach-card.done.goud .ach-tier { color: var(--gold); }
+  .ach-card.done.gold .ach-tier { color: var(--gold); }
 
   .season-strip {
     display: flex;
@@ -1477,26 +1492,26 @@
 <div class="auth-gate" id="authView">
   <div class="panel auth-panel">
     <div class="auth-logo">NEON CASINO</div>
-    <div class="auth-sub">► MAAK EEN ACCOUNT OM TE SPELEN</div>
+    <div class="auth-sub">► CREATE AN ACCOUNT TO PLAY</div>
 
     <div class="seg auth-tabs" id="authTabs">
-      <button data-mode="login" class="on">INLOGGEN</button>
-      <button data-mode="register">REGISTREREN</button>
+      <button data-mode="login" class="on">LOG IN</button>
+      <button data-mode="register">REGISTER</button>
     </div>
 
     <div class="field-group">
-      <div class="field-label"><span>GEBRUIKERSNAAM</span><span class="hint">3-16 TEKENS</span></div>
+      <div class="field-label"><span>USERNAME</span><span class="hint">3-16 CHARACTERS</span></div>
       <input type="text" id="authUser" autocomplete="username" maxlength="16" spellcheck="false">
     </div>
     <div class="field-group">
-      <div class="field-label"><span>WACHTWOORD</span><span class="hint">MIN. 6</span></div>
+      <div class="field-label"><span>PASSWORD</span><span class="hint">MIN. 6</span></div>
       <input type="password" id="authPass" autocomplete="current-password">
     </div>
 
-    <button class="btn-primary btn-bet" id="authSubmit">INLOGGEN</button>
+    <button class="btn-primary btn-bet" id="authSubmit">LOG IN</button>
     <div class="auth-msg" id="authMsg"></div>
     <button class="btn-secondary auth-offline-btn" id="authResume" hidden></button>
-    <button class="btn-secondary auth-offline-btn" id="authOffline">OFFLINE SPELEN (GEEN LEADERBOARD)</button>
+    <button class="btn-secondary auth-offline-btn" id="authOffline">PLAY OFFLINE (NO LEADERBOARD)</button>
     <div class="auth-note" id="authNote"></div>
   </div>
 </div>
@@ -1508,7 +1523,7 @@
     <div class="sidebar-brand">NEON CASINO</div>
   </div>
 
-  <div class="nav-section-label">SPELEN</div>
+  <div class="nav-section-label">PLAY</div>
 
   <div class="nav-item active" data-route="home">
     <div class="nav-icon">
@@ -1603,7 +1618,18 @@
         <path d="M11 11l2 2M13 11l-2 2"/>
       </svg>
     </div>
-    <div class="nav-label">KRASLOTEN</div>
+    <div class="nav-label">SCRATCH CARDS</div>
+    <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
+  </div>
+
+  <div class="nav-item" data-route="wheel">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="13" r="8"/>
+        <path d="M12 5v16M4 13h16M6.3 7.3l11.4 11.4M17.7 7.3L6.3 18.7"/>
+      </svg>
+    </div>
+    <div class="nav-label">WHEEL</div>
     <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
   </div>
 
@@ -1624,7 +1650,7 @@
         <path d="M6 6H3v2a4 4 0 0 0 4 4M18 6h3v2a4 4 0 0 1-4 4"/>
       </svg>
     </div>
-    <div class="nav-label">PRESTATIES</div>
+    <div class="nav-label">ACHIEVEMENTS</div>
   </div>
 
   <div class="nav-item" data-route="horse">
@@ -1633,7 +1659,7 @@
         <path d="M4 20l3-8 4-2 3-5 3 1 3 4-2 1-2-2-1 3 2 4-2 1-3-5-4 2-2 6z"/>
       </svg>
     </div>
-    <div class="nav-label">PAARDENRACE</div>
+    <div class="nav-label">HORSE RACE</div>
     <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
   </div>
 
@@ -1648,20 +1674,20 @@
     <div class="toast-host" id="homeToasts"></div>
     <div class="home-hero">
       <h1 class="home-title">NEON CASINO</h1>
-      <div class="home-subtitle">► EERLIJKE ODDS · FICTIEF GELD ONLY</div>
+      <div class="home-subtitle">► FAIR ODDS · PLAY MONEY ONLY</div>
       <div class="home-balance-card">
         <div>
-          <div class="balance-label">JOUW SALDO</div>
+          <div class="balance-label">YOUR BALANCE</div>
           <div class="balance-value js-balance" id="homeBalance">1000.00</div>
-          <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-          <div class="account-bar"><span>INGELOGD ALS <span class="who js-acct-name">—</span></span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+          <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+          <div class="account-bar"><span>SIGNED IN AS <span class="who js-acct-name">—</span></span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
         </div>
       </div>
     </div>
 
     <div class="section-heading">
-      <h2>BESCHIKBARE GAMES</h2>
-      <span class="count">8 LIVE</span>
+      <h2>AVAILABLE GAMES</h2>
+      <span class="count">9 LIVE</span>
       <div class="divider"></div>
     </div>
 
@@ -1685,7 +1711,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">CRASH</div>
-          <div class="game-card-desc">Vlieg mee en cash out voor het crasht. Multipliers tot 1000×.</div>
+          <div class="game-card-desc">Ride along and cash out before it crashes. Multipliers up to 1000x.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -1712,7 +1738,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">ROULETTE</div>
-          <div class="game-card-desc">Europese roulette met één groene nul. Rood, zwart, dozijnen of een enkel nummer.</div>
+          <div class="game-card-desc">European roulette with a single green zero. Red, black, dozens or a straight number.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97.3%</span>
             <span class="game-card-arrow">→</span>
@@ -1753,7 +1779,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">DRAGON TOWER</div>
-          <div class="game-card-desc">Klim negen verdiepingen, vermijd de drakeneieren. Cash out wanneer je wilt.</div>
+          <div class="game-card-desc">Climb nine floors, dodge the dragon eggs. Cash out whenever you want.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -1794,7 +1820,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">MINES</div>
-          <div class="game-card-desc">Verzamel diamanten, vermijd de mijnen. Kies zelf hoeveel mijnen er liggen.</div>
+          <div class="game-card-desc">Collect diamonds, dodge the mines. You choose how many mines are buried.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -1826,7 +1852,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">PLINKO</div>
-          <div class="game-card-desc">Laat de bal vallen. Kies 8, 12 of 16 rijen en je risico.</div>
+          <div class="game-card-desc">Drop the ball. Pick 8, 12 or 16 rows and your risk level.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -1851,7 +1877,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">BLACKJACK</div>
-          <div class="game-card-desc">Tegen de dealer, 6 decks, dealer staat op 17. Blackjack betaalt 3:2.</div>
+          <div class="game-card-desc">Against the dealer, 6 decks, dealer stands on 17. Blackjack pays 3:2.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP ~99%</span>
             <span class="game-card-arrow">→</span>
@@ -1873,8 +1899,8 @@
           </svg>
         </div>
         <div class="game-card-body">
-          <div class="game-card-title">PAARDENRACE</div>
-          <div class="game-card-desc">Zes paarden, elke race nieuwe odds. Zet in op de winnaar, favoriet of outsider.</div>
+          <div class="game-card-title">HORSE RACE</div>
+          <div class="game-card-desc">Six horses, new odds every race. Back the winner, favourite or longshot.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -1903,8 +1929,32 @@
           </svg>
         </div>
         <div class="game-card-body">
-          <div class="game-card-title">KRASLOTEN</div>
-          <div class="game-card-desc">Koop een lot, kras negen vakjes open. Drie gelijke symbolen betalen tot 50×.</div>
+          <div class="game-card-title">SCRATCH CARDS</div>
+          <div class="game-card-desc">Buy a card and scratch nine cells. Three matching symbols pay up to 50x.</div>
+          <div class="game-card-footer">
+            <span class="game-card-tag">RTP 97%</span>
+            <span class="game-card-arrow">→</span>
+          </div>
+        </div>
+      </div>
+      <div class="game-card available" data-route="wheel">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #12222a 0%, #16181f 100%);">
+          <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
+            <circle cx="140" cy="88" r="58" fill="#151a21" stroke="#2a323d" stroke-width="2"/>
+            <g stroke="#2a323d" stroke-width="1">
+              <line x1="140" y1="30" x2="140" y2="146"/><line x1="82" y1="88" x2="198" y2="88"/>
+              <line x1="99" y1="47" x2="181" y2="129"/><line x1="181" y1="47" x2="99" y2="129"/>
+            </g>
+            <path d="M 140 88 L 140 30 A 58 58 0 0 1 181 47 Z" fill="#3a2f12" stroke="#e0b555"/>
+            <path d="M 140 88 L 99 129 A 58 58 0 0 0 140 146 Z" fill="#14301f" stroke="#3ecf8e"/>
+            <circle cx="140" cy="88" r="11" fill="#0e1116" stroke="#2a323d"/>
+            <polygon points="131,24 149,24 140,42" fill="#e0b555"/>
+            <text x="163" y="52" fill="#e0b555" font-size="12" font-family="monospace">10×</text>
+          </svg>
+        </div>
+        <div class="game-card-body">
+          <div class="game-card-title">WHEEL OF FORTUNE</div>
+          <div class="game-card-desc">Twenty segments, seven of them pay. One 10x segment for the patient.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -1922,39 +1972,40 @@
     </div>
     <div class="lb-grid">
       <div class="panel lb-panel">
-        <div class="panel-title"><span>► MEESTE GELD</span><span class="sub">TOP 10</span></div>
+        <div class="panel-title"><span>► MOST MONEY</span><span class="sub">TOP 10</span></div>
         <div id="lbMoney"></div>
       </div>
       <div class="panel lb-panel">
-        <div class="panel-title"><span>► WIN / LOSS RATIO</span><span class="sub">TOP 10 · MIN. 10 RONDES</span></div>
+        <div class="panel-title"><span>► WIN / LOSS RATIO</span><span class="sub">TOP 10 · MIN. 10 ROUNDS</span></div>
         <div id="lbRatio"></div>
       </div>
       <div class="panel lb-panel">
-        <div class="panel-title"><span>► SEIZOENWINST</span><span class="sub">HIER GAAT DE BONUS HEEN</span></div>
+        <div class="panel-title"><span>► SPRINT PROFIT</span><span class="sub">PRIZES AND A VIP PASS</span></div>
         <div id="lbSeason"></div>
       </div>
     </div>
-    <div class="lb-note" id="lbNote">Echte accounts, live opgehaald van de server. Geen bots.</div>
+    <div class="lb-note" id="lbNote">Real accounts, pulled live from the server. No bots.</div>
 
     <div class="section-heading">
       <h2>ODDS &amp; FAIRNESS</h2>
-      <span class="count">ELKE MODE GECONTROLEERD</span>
+      <span class="count">EVERY MODE CHECKED</span>
       <div class="divider"></div>
     </div>
     <div class="odds-wrap"><table class="odds-table">
-      <thead><tr><th>GAME</th><th>RTP</th><th>HUIS</th><th>HOE HET WERKT</th></tr></thead>
+      <thead><tr><th>GAME</th><th>RTP</th><th>HOUSE</th><th>HOW IT WORKS</th></tr></thead>
       <tbody>
-        <tr><td>CRASH</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Kans dat de vlucht multiplier M haalt = 0,97 / M. Elke cashout-strategie heeft dezelfde verwachting.</td></tr>
-        <tr><td>ROULETTE</td><td class="rtp">97.3%</td><td>2.7%</td><td class="note">Europees wiel met 37 vakjes. Nummer 35:1, dozijn/kolom 2:1, rood/zwart 1:1.</td></tr>
-        <tr><td>DRAGON TOWER</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Multiplier per verdieping = 0,97 × (tegels / veilige tegels)^niveau.</td></tr>
-        <tr><td>MINES</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Multiplier = 0,97 × kans-inverse dat je k veilige tegels op rij vindt.</td></tr>
-        <tr><td>PLINKO</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Elke rij 50/50 links of rechts. Uitbetaaltabel per risico is genormaliseerd op 97%.</td></tr>
-        <tr><td>KRASLOTEN</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Negen vakjes, drie gelijke betalen 1,25× tot 50×. De uitslag ligt vast bij aankoop; 21,6% van de loten betaalt.</td></tr>
-        <tr><td>NOODFONDS</td><td class="rtp">—</td><td>—</td><td class="note">Geen inzet. Alleen beschikbaar als je blut bent: stop de marker bij het midden en krijg $10 tot $40 om weer te kunnen spelen.</td></tr>
-        <tr><td>PAARDENRACE</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Elk paard heeft een vaste winkans; uitbetaling = 0,97 ÷ winkans. De volgorde wordt vóór de start geloot, de animatie volgt die uitslag.</td></tr>
-        <tr><td>BLACKJACK</td><td class="rtp">~99%</td><td>~1%</td><td class="note">6 decks, continu geschud, dealer staat op alle 17, blackjack 3:2, dubbelen op elke 2 kaarten, geen split.</td></tr>
-        <tr><td>777 <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Drie rollen. Drie gelijke betalen 3× tot 40×, twee kersen 1,5×. 17% van de draaien betaalt.</td></tr>
-        <tr><td>RAD <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Twintig even grote vakken die samen 19,4× betalen: 19,4 ÷ 20 = 0,97.</td></tr>
+        <tr><td>CRASH</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">The chance a flight reaches multiplier M = 0.97 / M. Every cash-out strategy has the same expectation.</td></tr>
+        <tr><td>ROULETTE</td><td class="rtp">97.3%</td><td>2.7%</td><td class="note">European wheel with 37 pockets. Straight 35:1, dozen/column 2:1, red/black 1:1.</td></tr>
+        <tr><td>DRAGON TOWER</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Multiplier per floor = 0.97 x (tiles / safe tiles)^level.</td></tr>
+        <tr><td>MINES</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Multiplier = 0.97 x the inverse chance of finding k safe tiles in a row.</td></tr>
+        <tr><td>PLINKO</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every row is a 50/50 left or right. The payout table per risk level is normalised to 97%.</td></tr>
+        <tr><td>SCRATCH CARDS</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Nine cells, three matching pay 1.25x to 50x. The card is fixed when you buy it; 21.6% of them pay.</td></tr>
+        <tr><td>SAFETY NET</td><td class="rtp">—</td><td>—</td><td class="note">No stake. Only available when you are broke: stop the marker near the middle and get $10 to $40 to play on.</td></tr>
+        <tr><td>HORSE RACE</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every horse has a fixed win chance; payout = 0.97 / that chance. The finishing order is drawn before the start and the animation follows it.</td></tr>
+        <tr><td>BLACKJACK</td><td class="rtp">~99%</td><td>~1%</td><td class="note">6 decks, continuously shuffled, dealer stands on all 17s, blackjack 3:2, double on any two cards, no split.</td></tr>
+        <tr><td>WHEEL</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Twenty equal segments paying 19.4x between them: 19.4 / 20 = 0.97.</td></tr>
+        <tr><td>777 <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Three reels. Three of a kind pay 3x to 40x, two cherries 1.5x. 17% of spins pay.</td></tr>
+        <tr><td>RIDE THE BUS <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every multiplier is 0.97 divided by the chance of getting that far, counted off the cards still in the deck. So stopping after any call returns 97%.</td></tr>
       </tbody>
     </table></div>
   </div>
@@ -1964,19 +2015,19 @@
     <aside class="game-aside">
       <div class="crash-header">
         <button class="back-btn" data-route="home">← LOBBY</button>
-        <div class="crash-header-title">KRASLOTEN</div>
+        <div class="crash-header-title">SCRATCH CARDS</div>
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>PRIJS PER LOT</span><span class="hint">$</span></div>
+          <div class="field-label"><span>PRICE PER CARD</span><span class="hint">$</span></div>
           <input type="number" id="scratchBet" value="10" min="1" step="1">
           <div class="chips" data-for="scratch">
             <button class="chip" data-action="half">½</button>
@@ -1985,24 +2036,24 @@
             <button class="chip" data-action="max">MAX</button>
           </div>
         </div>
-        <div class="payout-line"><span id="scStatusLabel">TE GAAN</span><span class="v" id="scStatus">—</span></div>
-        <button class="btn-primary btn-bet" id="scBuyBtn">KOOP LOT</button>
-        <button class="btn-primary btn-cashout" id="scAllBtn" hidden>KRAS ALLES OPEN</button>
+        <div class="payout-line"><span id="scStatusLabel">TO GO</span><span class="v" id="scStatus">—</span></div>
+        <button class="btn-primary btn-bet" id="scBuyBtn">BUY A CARD</button>
+        <button class="btn-primary btn-cashout" id="scAllBtn" hidden>SCRATCH THEM ALL</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► PRIJZEN</div>
+        <div class="panel-title">► PRIZES</div>
         <div class="sc-legend" id="scLegend"></div>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="scratch"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">Negen vakjes, drie gelijke symbolen betalen. Het lot ligt vast op het moment dat je het koopt: krassen laat alleen zien wat er al is geloot. RTP <b>97%</b>, kans op een prijs <b>21,6%</b>.</div>
+        <div class="odds-note">Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP <b>97%</b>, chance of a prize <b>21.6%</b>.</div>
       </div>
     </aside>
 
@@ -2019,15 +2070,15 @@
     <div class="toast-host" id="vipToasts"></div>
     <div class="home-hero" style="margin-bottom: 26px;">
       <h1 class="home-title" style="font-size: 40px;">VIP ZONE</h1>
-      <div class="home-subtitle">► VAN DE WINNAAR VAN HET VORIGE SEIZOEN · DRIE DAGEN LANG</div>
+      <div class="home-subtitle">► FINISH A SPRINT AT #1 AND THE ZONE IS YOURS FOR THE SEASON</div>
     </div>
 
     <div class="panel vip-gate" id="vipGate"></div>
     <div class="season-strip" id="seasonStripThree"></div>
 
     <div class="section-heading">
-      <h2>EXCLUSIEVE GAMES</h2>
-      <span class="count">ALLEEN HIER</span>
+      <h2>EXCLUSIVE GAMES</h2>
+      <span class="count">NOWHERE ELSE</span>
       <div class="divider"></div>
     </div>
     <div class="games-grid">
@@ -2047,7 +2098,7 @@
         </div>
         <div class="game-card-body">
           <div class="game-card-title">777</div>
-          <div class="game-card-desc">Drie rollen. Drie zevens betalen 40×, twee kersen betalen klein.</div>
+          <div class="game-card-desc">Three reels. Three sevens pay 40x, two cherries pay small.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -2055,24 +2106,23 @@
         </div>
       </div>
 
-      <div class="game-card available vip-card" data-route="wheel">
-        <div class="game-card-preview" style="background: linear-gradient(180deg, #12222a 0%, #16181f 100%);">
+      <div class="game-card available vip-card" data-route="bus">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #16222e 0%, #16181f 100%);">
           <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
-            <circle cx="140" cy="88" r="58" fill="#151a21" stroke="#2a323d" stroke-width="2"/>
-            <g stroke="#2a323d" stroke-width="1">
-              <line x1="140" y1="30" x2="140" y2="146"/><line x1="82" y1="88" x2="198" y2="88"/>
-              <line x1="99" y1="47" x2="181" y2="129"/><line x1="181" y1="47" x2="99" y2="129"/>
+            <g>
+              <rect x="52" y="44" width="52" height="72" rx="5" fill="white" stroke="#aaa" transform="rotate(-9 78 80)"/>
+              <text x="78" y="86" text-anchor="middle" fill="#e0616e" font-size="22" font-weight="bold" transform="rotate(-9 78 80)">7♥</text>
+              <rect x="114" y="44" width="52" height="72" rx="5" fill="white" stroke="#aaa"/>
+              <text x="140" y="86" text-anchor="middle" fill="#1a1a1a" font-size="22" font-weight="bold">K♠</text>
+              <rect x="176" y="44" width="52" height="72" rx="5" fill="#151a21" stroke="#e0b555" transform="rotate(9 202 80)"/>
+              <text x="202" y="88" text-anchor="middle" fill="#e0b555" font-size="26" transform="rotate(9 202 80)">?</text>
             </g>
-            <path d="M 140 88 L 140 30 A 58 58 0 0 1 181 47 Z" fill="#3a2f12" stroke="#e0b555"/>
-            <path d="M 140 88 L 99 129 A 58 58 0 0 0 140 146 Z" fill="#14301f" stroke="#3ecf8e"/>
-            <circle cx="140" cy="88" r="11" fill="#0e1116" stroke="#2a323d"/>
-            <polygon points="131,24 149,24 140,42" fill="#e0b555"/>
-            <text x="163" y="52" fill="#e0b555" font-size="12" font-family="monospace">10×</text>
+            <text x="140" y="140" text-anchor="middle" fill="#8d97a6" font-size="11" font-family="monospace" letter-spacing="2">RED · HIGHER · INSIDE · SUIT</text>
           </svg>
         </div>
         <div class="game-card-body">
-          <div class="game-card-title">RAD VAN FORTUIN</div>
-          <div class="game-card-desc">Twintig vakken, zeven betalen. Eén vak van 10× voor wie geduld heeft.</div>
+          <div class="game-card-title">RIDE THE BUS</div>
+          <div class="game-card-desc">Four calls through a shuffled deck: colour, higher or lower, inside or outside, then the suit. Cash out after any of them.</div>
           <div class="game-card-footer">
             <span class="game-card-tag">RTP 97%</span>
             <span class="game-card-arrow">→</span>
@@ -2091,15 +2141,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="slotsBet" value="10" min="1" step="1">
           <div class="chips" data-for="slots">
             <button class="chip" data-action="half">½</button>
@@ -2108,22 +2158,22 @@
             <button class="chip" data-action="max">MAX</button>
           </div>
         </div>
-        <button class="btn-primary btn-bet" id="slSpinBtn">DRAAI</button>
+        <button class="btn-primary btn-bet" id="slSpinBtn">SPIN</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► UITBETALING</div>
+        <div class="panel-title">► PAYOUTS</div>
         <div class="sc-legend" id="slPaytable"></div>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="slots"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">De uitslag wordt geloot vóór de rollen stoppen; de animatie laat hem alleen zien. RTP <b>97%</b>, kans op een prijs <b>17%</b>.</div>
+        <div class="odds-note">The result is drawn before the reels stop; the animation only shows it. RTP <b>97%</b>, chance of a prize <b>17%</b>.</div>
       </div>
     </aside>
 
@@ -2146,20 +2196,20 @@
   <div class="view game-view" id="wheelView">
     <aside class="game-aside">
       <div class="crash-header">
-        <button class="back-btn" data-route="vip">← VIP ZONE</button>
-        <div class="crash-header-title">RAD VAN FORTUIN</div>
+        <button class="back-btn" data-route="home">← LOBBY</button>
+        <div class="crash-header-title">WHEEL OF FORTUNE</div>
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="wheelBet" value="10" min="1" step="1">
           <div class="chips" data-for="wheel">
             <button class="chip" data-action="half">½</button>
@@ -2168,17 +2218,17 @@
             <button class="chip" data-action="max">MAX</button>
           </div>
         </div>
-        <button class="btn-primary btn-bet" id="whSpinBtn">DRAAI HET RAD</button>
+        <button class="btn-primary btn-bet" id="whSpinBtn">SPIN THE WHEEL</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="wheel"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">Twintig even grote vakken: 1× 10,00×, 2× 2,00×, 2× 1,50×, 2× 1,20× en dertien lege. Samen 19,4 ÷ 20 = RTP <b>97%</b>.</div>
+        <div class="odds-note">Twenty equal segments: one 10.00x, two 2.00x, two 1.50x, two 1.20x and thirteen blanks. Together 19.4 / 20 = RTP <b>97%</b>.</div>
       </div>
     </aside>
 
@@ -2191,29 +2241,84 @@
     </main>
   </div>
 
-  <!-- =================== PRESTATIES VIEW =================== -->
+  <!-- =================== RIDE THE BUS VIEW =================== -->
+  <div class="view game-view" id="busView">
+    <aside class="game-aside">
+      <div class="crash-header">
+        <button class="back-btn" data-route="vip">← VIP ZONE</button>
+        <div class="crash-header-title">RIDE THE BUS</div>
+      </div>
+
+      <div class="panel balance">
+        <div class="balance-label">BALANCE</div>
+        <div class="balance-amount js-balance">1000.00</div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="field-group">
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
+          <input type="number" id="busBet" value="10" min="1" step="1">
+          <div class="chips" data-for="bus">
+            <button class="chip" data-action="half">½</button>
+            <button class="chip" data-action="double">2×</button>
+            <button class="chip" data-action="min">MIN</button>
+            <button class="chip" data-action="max">MAX</button>
+          </div>
+        </div>
+        <div class="payout-line"><span>CALL</span><span class="v" id="buStep">—</span></div>
+        <div class="payout-line"><span>CURRENT WIN</span><span class="v neon" id="buMult">—</span></div>
+        <button class="btn-primary btn-bet" id="buStartBtn">GET ON THE BUS</button>
+        <button class="btn-primary btn-cashout" id="buCashBtn" hidden>CASH OUT</button>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► STATISTICS</div>
+        <div class="stats-grid" data-stats="bus"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">► ODDS</div>
+        <div class="odds-note">One shuffled 52-card deck. Every button shows your chance and what the ride becomes worth: the multiplier is <b>0.97 / the chance of getting that far</b>, counted off the cards still in the deck. So stopping after any call returns <b>97%</b>. A tie always loses.</div>
+      </div>
+    </aside>
+
+    <main class="game-main">
+      <div class="panel board">
+        <div class="toast-host" id="busToasts"></div>
+        <div class="bus-table">
+          <div class="bj-hand" id="buCards"></div>
+          <div class="bj-message" id="buAsk">Place a bet and get on the bus.</div>
+          <div class="bu-options" id="buOptions"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- =================== ACHIEVEMENTS VIEW =================== -->
   <div class="view" id="achievementsView" style="overflow-y: auto; padding: 40px 50px;">
     <div class="toast-host" id="achievementsToasts"></div>
     <div class="home-hero" style="margin-bottom: 30px;">
-      <h1 class="home-title" style="font-size: 40px;">PRESTATIES</h1>
-      <div class="home-subtitle">► VERDIEN ZE DOOR TE SPELEN · ZE STAAN BIJ JE NAAM OP DE RANGLIJST</div>
+      <h1 class="home-title" style="font-size: 40px;">ACHIEVEMENTS</h1>
+      <div class="home-subtitle">► EARN THEM BY PLAYING · THEY SHOW NEXT TO YOUR NAME ON THE BOARD</div>
     </div>
 
     <div class="season-strip" id="seasonStripTwo"></div>
 
     <div class="lb-grid">
       <div class="panel lb-panel">
-        <div class="panel-title"><span>► SEIZOEN</span><span class="sub">ELKE 3 DAGEN</span></div>
+        <div class="panel-title"><span>► LAST SPRINT</span><span class="sub">EVERY 3 DAYS</span></div>
         <div id="seasonLast"></div>
       </div>
       <div class="panel lb-panel">
-        <div class="panel-title"><span>► WAT ELKE PLEK OPLEVERT</span><span class="sub">TOP 10</span></div>
+        <div class="panel-title"><span>► WHAT EACH PLACE IS WORTH</span><span class="sub">TOP 10</span></div>
         <div id="rankLadder"></div>
       </div>
     </div>
 
     <div class="section-heading">
-      <h2>JOUW PRESTATIES</h2>
+      <h2>YOUR ACHIEVEMENTS</h2>
       <span class="count" id="achCount">0 / 0</span>
       <div class="divider"></div>
     </div>
@@ -2233,15 +2338,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="crashBet" value="10" min="1" step="1">
           <div class="chips" data-for="crash">
             <button class="chip" data-action="half">½</button>
@@ -2257,27 +2362,27 @@
         </div>
 
         <div class="field-group" id="autoField" style="opacity: 0.4; pointer-events: none;">
-          <div class="field-label"><span>UITBETAAL BIJ</span><span class="hint">×</span></div>
+          <div class="field-label"><span>CASH OUT AT</span><span class="hint">×</span></div>
           <input type="number" id="autoMultiplier" value="2.00" min="1.01" step="0.1">
         </div>
 
-        <button class="btn-primary btn-bet" id="actionBtn">PLAATS INZET</button>
+        <button class="btn-primary btn-bet" id="actionBtn">PLACE BET</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="crash"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">RTP <b>97%</b>. Kans dat de vlucht M× haalt is 0,97 / M. Ongeveer 3% van de rondes crasht direct bij 1,00×. Auto-cashout betaalt exact op je doel.</div>
+        <div class="odds-note">RTP <b>97%</b>. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x. Auto cash-out pays exactly at your target.</div>
       </div>
     </aside>
 
     <main class="crash-main game-main">
       <div class="history-bar panel" style="padding: 10px 14px;">
-        <span class="history-label">LAATSTE</span>
+        <span class="history-label">RECENT</span>
         <div id="history" style="display: flex; gap: 6px;"></div>
       </div>
 
@@ -2288,11 +2393,11 @@
 
       <div class="players-section">
         <div class="panel players-list">
-          <h3>JOUW RONDE <span class="count" id="playerCount">0</span></h3>
+          <h3>YOUR ROUND <span class="count" id="playerCount">0</span></h3>
           <div id="playersList"></div>
         </div>
         <div class="panel players-list">
-          <h3>LIVE WINSTEN · ALLE SPELERS <span class="count"><span class="live-dot" id="feedDot"></span>LIVE</span></h3>
+          <h3>LIVE WINS · ALL PLAYERS <span class="count"><span class="live-dot" id="feedDot"></span>LIVE</span></h3>
           <div id="recentWins"></div>
         </div>
       </div>
@@ -2308,15 +2413,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>FICHE WAARDE</span><span class="hint">$</span></div>
+          <div class="field-label"><span>CHIP VALUE</span><span class="hint">$</span></div>
           <div class="seg" id="rlChipSeg">
             <button data-v="1">1</button>
             <button data-v="5">5</button>
@@ -2325,23 +2430,23 @@
             <button data-v="100">100</button>
           </div>
         </div>
-        <div class="payout-line"><span>TOTALE INZET</span><span class="v" id="rlTotal">$0.00</span></div>
-        <div class="payout-line"><span>LAATSTE RESULTAAT</span><span class="v neon" id="rlLastWin">—</span></div>
+        <div class="payout-line"><span>TOTAL STAKE</span><span class="v" id="rlTotal">$0.00</span></div>
+        <div class="payout-line"><span>LAST RESULT</span><span class="v neon" id="rlLastWin">—</span></div>
         <button class="btn-primary btn-bet" id="rlSpinBtn">SPIN</button>
         <div class="btn-row">
-          <button class="btn-secondary" id="rlClearBtn">WISSEN</button>
-          <button class="btn-secondary" id="rlRepeatBtn">HERHAAL</button>
+          <button class="btn-secondary" id="rlClearBtn">CLEAR</button>
+          <button class="btn-secondary" id="rlRepeatBtn">REPEAT</button>
         </div>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="roulette"></div>
       </div>
 
       <div class="panel">
-        <div class="panel-title">► UITBETALINGEN</div>
-        <div class="odds-note">Enkel nummer <b>35:1</b> · Dozijn / kolom <b>2:1</b> · Rood / zwart / even / oneven / 1-18 / 19-36 <b>1:1</b>. Één nul, dus RTP <b>97,3%</b> op elke inzet.</div>
+        <div class="panel-title">► PAYOUTS</div>
+        <div class="odds-note">Straight number <b>35:1</b> · Dozen / column <b>2:1</b> · Red / black / even / odd / 1-18 / 19-36 <b>1:1</b>. One zero, so RTP <b>97.3%</b> on every bet.</div>
       </div>
     </aside>
 
@@ -2369,15 +2474,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="towerBet" value="10" min="1" step="1">
           <div class="chips" data-for="tower">
             <button class="chip" data-action="half">½</button>
@@ -2387,7 +2492,7 @@
           </div>
         </div>
         <div class="field-group">
-          <div class="field-label"><span>MOEILIJKHEID</span><span class="hint" id="twDiffHint">2 van 3 veilig</span></div>
+          <div class="field-label"><span>DIFFICULTY</span><span class="hint" id="twDiffHint">2 of 3 safe</span></div>
           <div class="seg" id="twDiffSeg">
             <button data-d="easy">EASY</button>
             <button data-d="medium" class="on">MED</button>
@@ -2396,20 +2501,20 @@
             <button data-d="master">MSTR</button>
           </div>
         </div>
-        <div class="payout-line"><span>HUIDIGE WINST</span><span class="v neon" id="twCurrent">—</span></div>
-        <div class="payout-line"><span>VOLGENDE VERDIEPING</span><span class="v" id="twNext">—</span></div>
-        <button class="btn-primary btn-bet" id="twStartBtn">START KLIM</button>
+        <div class="payout-line"><span>CURRENT WIN</span><span class="v neon" id="twCurrent">—</span></div>
+        <div class="payout-line"><span>NEXT FLOOR</span><span class="v" id="twNext">—</span></div>
+        <button class="btn-primary btn-bet" id="twStartBtn">START THE CLIMB</button>
         <button class="btn-primary btn-cashout" id="twCashBtn" hidden>CASH OUT</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="tower"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">Elke verdieping heeft vaste kansen. Multiplier = <b>0,97 × (tegels / veilig)^verdieping</b>, dus RTP <b>97%</b> op elk moment dat je cash out. De hele toren wordt vóór je eerste klik bepaald.</div>
+        <div class="odds-note">Every floor has fixed odds. Multiplier = <b>0.97 x (tiles / safe)^floor</b>, so RTP <b>97%</b> at every point you cash out. The whole tower is fixed before your first click.</div>
       </div>
     </aside>
 
@@ -2430,15 +2535,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="minesBet" value="10" min="1" step="1">
           <div class="chips" data-for="mines">
             <button class="chip" data-action="half">½</button>
@@ -2448,7 +2553,7 @@
           </div>
         </div>
         <div class="field-group">
-          <div class="field-label"><span>AANTAL MIJNEN</span><span class="hint">1 – 24</span></div>
+          <div class="field-label"><span>NUMBER OF MINES</span><span class="hint">1 – 24</span></div>
           <input type="number" id="minesCount" value="3" min="1" max="24" step="1">
           <div class="seg" id="mnQuickSeg">
             <button data-m="1">1</button>
@@ -2458,20 +2563,20 @@
             <button data-m="24">24</button>
           </div>
         </div>
-        <div class="payout-line"><span>HUIDIGE WINST</span><span class="v neon" id="mnCurrent">—</span></div>
-        <div class="payout-line"><span>VOLGENDE TEGEL</span><span class="v" id="mnNext">—</span></div>
+        <div class="payout-line"><span>CURRENT WIN</span><span class="v neon" id="mnCurrent">—</span></div>
+        <div class="payout-line"><span>NEXT TILE</span><span class="v" id="mnNext">—</span></div>
         <button class="btn-primary btn-bet" id="mnStartBtn">START</button>
         <button class="btn-primary btn-cashout" id="mnCashBtn" hidden>CASH OUT</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="mines"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">25 tegels. Multiplier na k diamanten = <b>0,97 ÷ kans(k veilige op rij)</b>. RTP <b>97%</b> bij elke cashout. De mijnen liggen vast vóór je eerste klik.</div>
+        <div class="odds-note">25 tiles. Multiplier after k diamonds = <b>0.97 / chance(k safe in a row)</b>. RTP <b>97%</b> at every cash-out. The mines are placed before your first click.</div>
       </div>
     </aside>
 
@@ -2492,15 +2597,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="plinkoBet" value="10" min="1" step="1">
           <div class="chips" data-for="plinko">
             <button class="chip" data-action="half">½</button>
@@ -2510,7 +2615,7 @@
           </div>
         </div>
         <div class="field-group">
-          <div class="field-label"><span>RIJEN</span></div>
+          <div class="field-label"><span>ROWS</span></div>
           <div class="seg" id="pkRowsSeg">
             <button data-r="8">8</button>
             <button data-r="12" class="on">12</button>
@@ -2518,25 +2623,25 @@
           </div>
         </div>
         <div class="field-group">
-          <div class="field-label"><span>RISICO</span></div>
+          <div class="field-label"><span>RISK</span></div>
           <div class="seg" id="pkRiskSeg">
-            <button data-k="low">LAAG</button>
+            <button data-k="low">LOW</button>
             <button data-k="medium" class="on">MID</button>
-            <button data-k="high">HOOG</button>
+            <button data-k="high">HIGH</button>
           </div>
         </div>
         <div class="payout-line"><span>MAX MULTIPLIER</span><span class="v" id="pkMax">—</span></div>
-        <button class="btn-primary btn-bet" id="pkDropBtn">LAAT VALLEN</button>
+        <button class="btn-primary btn-bet" id="pkDropBtn">DROP</button>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="plinko"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">Elke rij is een eerlijke 50/50. De uitbetaaltabel is per rijen/risico genormaliseerd op RTP <b>97%</b>. Hoog risico = grotere uitschieters, meer kleine verliezen.</div>
+        <div class="odds-note">Every row is a fair 50/50. The payout table is normalised to RTP <b>97%</b> per row count and risk level. Higher risk means bigger outliers and more small losses.</div>
       </div>
     </aside>
 
@@ -2558,15 +2663,15 @@
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
           <input type="number" id="blackjackBet" value="10" min="1" step="1">
           <div class="chips" data-for="blackjack">
             <button class="chip" data-action="half">½</button>
@@ -2575,7 +2680,7 @@
             <button class="chip" data-action="max">MAX</button>
           </div>
         </div>
-        <button class="btn-primary btn-bet" id="bjDealBtn">DEEL</button>
+        <button class="btn-primary btn-bet" id="bjDealBtn">DEAL</button>
         <div class="bj-actions">
           <button class="btn-secondary" id="bjHitBtn" disabled>HIT</button>
           <button class="btn-secondary" id="bjStandBtn" disabled>STAND</button>
@@ -2584,13 +2689,13 @@
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="blackjack"></div>
       </div>
 
       <div class="panel">
-        <div class="panel-title">► REGELS</div>
-        <div class="odds-note">6 decks, continu geschud (elke hand een verse schoen). Dealer staat op elke 17. Blackjack betaalt <b>3:2</b>, dealer-blackjack wordt direct gecheckt. Dubbelen op elke eerste twee kaarten. Geen split, geen verzekering. Huisvoordeel ≈ <b>1%</b>.</div>
+        <div class="panel-title">► RULES</div>
+        <div class="odds-note">6 decks, continuously shuffled (a fresh shoe every hand). Dealer stands on all 17s. Blackjack pays <b>3:2</b> and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around <b>1%</b>.</div>
       </div>
     </aside>
 
@@ -2602,9 +2707,9 @@
             <div class="hand-label">DEALER <span class="val" id="bjDealerVal">—</span></div>
             <div class="cards" id="bjDealer"></div>
           </div>
-          <div class="bj-message" id="bjMessage">PLAATS EEN INZET EN DEEL</div>
+          <div class="bj-message" id="bjMessage">PLACE A BET AND DEAL</div>
           <div class="hand">
-            <div class="hand-label">JIJ <span class="val" id="bjPlayerVal">—</span> <span id="bjBetLabel" style="color: var(--gold);"></span></div>
+            <div class="hand-label">YOU <span class="val" id="bjPlayerVal">—</span> <span id="bjBetLabel" style="color: var(--gold);"></span></div>
             <div class="cards" id="bjPlayer"></div>
           </div>
         </div>
@@ -2617,19 +2722,19 @@
     <aside class="game-aside">
       <div class="crash-header">
         <button class="back-btn" data-route="home">← LOBBY</button>
-        <div class="crash-header-title">RACE</div>
+        <div class="crash-header-title">HORSE RACE</div>
       </div>
 
       <div class="panel balance">
-        <div class="balance-label">SALDO</div>
+        <div class="balance-label">BALANCE</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
-        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
       </div>
 
       <div class="panel">
         <div class="field-group">
-          <div class="field-label"><span>INZET PER PAARD</span><span class="hint">$</span></div>
+          <div class="field-label"><span>STAKE PER HORSE</span><span class="hint">$</span></div>
           <input type="number" id="horseBet" value="10" min="1" step="1">
           <div class="chips" data-for="horse">
             <button class="chip" data-action="half">½</button>
@@ -2638,24 +2743,24 @@
             <button class="chip" data-action="max">MAX</button>
           </div>
         </div>
-        <div class="field-label"><span>PAARDEN &amp; ODDS</span><span class="hint">winkans</span></div>
+        <div class="field-label"><span>HORSES &amp; ODDS</span><span class="hint">win chance</span></div>
         <div class="hr-list" id="hrList"></div>
-        <div class="payout-line"><span>TOTALE INZET</span><span class="v" id="hrTotal">$0.00</span></div>
-        <button class="btn-primary btn-bet" id="hrStartBtn">START RACE</button>
+        <div class="payout-line"><span>TOTAL STAKE</span><span class="v" id="hrTotal">$0.00</span></div>
+        <button class="btn-primary btn-bet" id="hrStartBtn">START THE RACE</button>
         <div class="btn-row">
-          <button class="btn-secondary" id="hrClearBtn">WISSEN</button>
-          <button class="btn-secondary" id="hrNewBtn">NIEUWE ODDS</button>
+          <button class="btn-secondary" id="hrClearBtn">CLEAR</button>
+          <button class="btn-secondary" id="hrNewBtn">NEW ODDS</button>
         </div>
       </div>
 
       <div class="panel" style="font-size: 10px;">
-        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="panel-title">► STATISTICS</div>
         <div class="stats-grid" data-stats="horse"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">► ODDS</div>
-        <div class="odds-note">Elk paard heeft een eigen winkans (zichtbaar als percentage). Uitbetaling = <b>0,97 ÷ winkans</b>, dus RTP <b>97%</b> op elk paard, favoriet of outsider. De uitslag wordt vóór de start geloot; de race speelt die uitslag af.</div>
+        <div class="odds-note">Every horse has its own win chance, shown as a percentage. Payout = <b>0.97 / win chance</b>, dus RTP <b>97%</b> on every horse, favourite or longshot. The result is drawn before the start; the race just plays it out.</div>
       </div>
     </aside>
 
@@ -2673,13 +2778,13 @@
 
 <div class="modal" id="brokeModal" hidden>
   <div class="panel modal-panel">
-    <div class="panel-title">► NOODFONDS</div>
-    <div class="odds-note">Je bent blut. Stop de marker zo dicht mogelijk bij het midden. <b>$10</b> krijg je sowieso, een perfecte stop levert <b>$40</b> op.</div>
+    <div class="panel-title">► SAFETY NET</div>
+    <div class="odds-note">You are broke. Stop the marker as close to the middle as you can. <b>$10</b> is guaranteed; a perfect stop is worth <b>$40</b>.</div>
     <div class="bk-bar"><div class="bk-marker" id="bkMarker"></div></div>
     <div class="bk-scale"><span>$10</span><span>$40</span><span>$10</span></div>
     <div class="bk-result" id="bkResult"></div>
     <button class="btn-primary btn-bet" id="bkStopBtn">STOP</button>
-    <button class="btn-secondary" id="bkCloseBtn" style="width: 100%; margin-top: 8px;" hidden>SLUITEN</button>
+    <button class="btn-secondary" id="bkCloseBtn" style="width: 100%; margin-top: 8px;" hidden>CLOSE</button>
   </div>
 </div>
 
@@ -2693,8 +2798,8 @@ const MIN_BET = 1;
 const randInt = n => Math.floor(Math.random() * n);
 // De basisspellen staan voor iedereen open; de VIP-spellen alleen voor de winnaar van het
 // vorige seizoen. GAMES is alles wat statistieken bijhoudt.
-const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'horse', 'scratch'];
-const VIP_GAMES = ['slots', 'wheel'];
+const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'horse', 'scratch', 'wheel'];
+const VIP_GAMES = ['slots', 'bus'];
 const GAMES = [...BASE_GAMES, ...VIP_GAMES];
 
 function fitCanvas(canvas) {
@@ -2748,11 +2853,11 @@ const ODDS = {
   // Dragon Tower
   TOWER_LEVELS: 9,
   TOWER_DIFF: {
-    easy:   { tiles: 4, safe: 3, label: '3 van 4 veilig' },
-    medium: { tiles: 3, safe: 2, label: '2 van 3 veilig' },
-    hard:   { tiles: 2, safe: 1, label: '1 van 2 veilig' },
-    expert: { tiles: 3, safe: 1, label: '1 van 3 veilig' },
-    master: { tiles: 4, safe: 1, label: '1 van 4 veilig' },
+    easy:   { tiles: 4, safe: 3, label: '3 of 4 safe' },
+    medium: { tiles: 3, safe: 2, label: '2 of 3 safe' },
+    hard:   { tiles: 2, safe: 1, label: '1 of 2 safe' },
+    expert: { tiles: 3, safe: 1, label: '1 of 3 safe' },
+    master: { tiles: 4, safe: 1, label: '1 of 4 safe' },
   },
   towerMultiplier(diff, level) {
     const d = this.TOWER_DIFF[diff];
@@ -2808,12 +2913,12 @@ const ODDS = {
 
   // Paardenrace: 6 horses with random win probabilities; payout = 0.97 / p.
   HORSES: [
-    { name: 'BLIKSEM', color: '#e0616e' },
-    { name: 'DONDER',  color: '#e0b555' },
-    { name: 'KOMEET',  color: '#3ecf8e' },
+    { name: 'LIGHTNING', color: '#e0616e' },
+    { name: 'THUNDER',  color: '#e0b555' },
+    { name: 'COMET',  color: '#3ecf8e' },
     { name: 'STORM',   color: '#5fb8ff' },
-    { name: 'VONK',    color: '#ff8c3a' },
-    { name: 'NEVEL',   color: '#c084fc' },
+    { name: 'SPARK',    color: '#ff8c3a' },
+    { name: 'MIST',   color: '#c084fc' },
   ],
   horseField() {
     const w = this.HORSES.map(() => 0.5 + Math.random() * 2.5);
@@ -2924,6 +3029,44 @@ const ODDS = {
   WHEEL: [0, 1.2, 0, 2, 0, 1.5, 0, 0, 10, 0, 0, 1.2, 0, 2, 0, 1.5, 0, 0, 0, 0],
   wheelRtp() { return this.WHEEL.reduce((a, b) => a + b, 0) / this.WHEEL.length; },
   wheelSpin() { return randInt(this.WHEEL.length); },
+
+  // Ride the Bus: four calls through one shuffled deck — colour, higher or lower, inside or
+  // outside, then the suit. Every multiplier is 0.97 divided by the chance of getting that
+  // far, and that chance is counted off the cards still in the deck, so cashing out after
+  // any call returns exactly 97% no matter how well or badly the player calls.
+  BUS_STEPS: ['colour', 'highlow', 'inout', 'suit'],
+  BUS_SUITS: ['♠', '♥', '♦', '♣'],
+  BUS_RANKS: ['A','2','3','4','5','6','7','8','9','10','J','Q','K'],
+  busRank(card) { return this.BUS_RANKS.indexOf(card.r) + 1; },
+  // Does this card satisfy the call? `shown` holds the cards already on the table.
+  busHit(card, step, choice, shown) {
+    if (step === 0) return (choice === 'red') === (card.s === '♥' || card.s === '♦');
+    if (step === 1) {
+      const r = this.busRank(card), a = this.busRank(shown[0]);
+      return choice === 'higher' ? r > a : r < a; // equal always loses
+    }
+    if (step === 2) {
+      const r = this.busRank(card);
+      const lo = Math.min(this.busRank(shown[0]), this.busRank(shown[1]));
+      const hi = Math.max(this.busRank(shown[0]), this.busRank(shown[1]));
+      return choice === 'inside' ? (r > lo && r < hi) : (r < lo || r > hi);
+    }
+    return card.s === choice;
+  },
+  busChance(deck, step, choice, shown) {
+    if (!deck.length) return 0;
+    let hits = 0;
+    for (const c of deck) if (this.busHit(c, step, choice, shown)) hits++;
+    return hits / deck.length;
+  },
+  busOptions(step) {
+    if (step === 0) return [['red', 'RED'], ['black', 'BLACK']];
+    if (step === 1) return [['higher', 'HIGHER'], ['lower', 'LOWER']];
+    if (step === 2) return [['inside', 'INSIDE'], ['outside', 'OUTSIDE']];
+    return this.BUS_SUITS.map(x => [x, x]);
+  },
+  // prob = the chance of having reached this point, including the call just made.
+  busMultiplier(prob) { return prob > 0 ? Math.floor((1 - this.HOUSE_EDGE) / prob * 100) / 100 : 0; },
 
   // Blackjack
   bjNewShoe(decks = 6) {
@@ -3070,6 +3213,7 @@ function pendingStakes() {
   if (!RL.spinning) p += rlTotal();
   if (TW.active) p += TW.bet;
   if (MN.active) p += MN.bet;
+  if (BU.active) p += BU.bet;
   if (!HR.racing) p += hrTotal();
   return round2(p);
 }
@@ -3158,12 +3302,12 @@ function renderStats(game) {
   const el = document.querySelector(`[data-stats="${game}"]`);
   if (!el) return;
   const rows = [
-    ['RONDES', s.rounds, ''],
-    ['GEWONNEN', s.won, 'color: var(--neon);'],
-    ['VERLOREN', s.lost, 'color: var(--red);'],
+    ['ROUNDS', s.rounds, ''],
+    ['WON', s.won, 'color: var(--neon);'],
+    ['LOST', s.lost, 'color: var(--red);'],
   ];
-  if (game === 'crash') rows.push(['HOOGSTE', s.highest > 0 ? fmt(s.highest) + '×' : '—', 'color: var(--gold);']);
-  else if (s.highest > 0) rows.push(['BESTE MULT', fmt(s.highest) + '×', 'color: var(--gold);']);
+  if (game === 'crash') rows.push(['BEST', s.highest > 0 ? fmt(s.highest) + '×' : '—', 'color: var(--gold);']);
+  else if (s.highest > 0) rows.push(['BEST MULT', fmt(s.highest) + '×', 'color: var(--gold);']);
   const p = s.profit;
   rows.push(['PROFIT', (p >= 0 ? '+$' : '-$') + fmt(Math.abs(p)), p >= 0 ? 'color: var(--neon);' : 'color: var(--red);']);
   el.innerHTML = rows.map(([k, v, st]) => `<div class="stat-row"><span class="k">${k}</span><span style="${st}">${v}</span></div>`).join('');
@@ -3201,6 +3345,8 @@ function roundContext(game, wager, payout, mult, meta) {
     c.doubled = BJ.lastDoubled;
   } else if (game === 'roulette') {
     c.straight = RL.lastStraight;
+  } else if (game === 'bus') {
+    c.full = BU.step >= 4;
   }
   return c;
 }
@@ -3257,8 +3403,8 @@ function bindBet(game) {
 // Validate and deduct a wager. Returns the amount taken, or 0 when refused.
 function takeBet(amt, hostId) {
   amt = round2(amt);
-  if (!(amt >= MIN_BET)) { flash(`MINIMALE INZET $${fmt(MIN_BET)}`, 'red', hostId); return 0; }
-  if (amt > state.balance + 1e-9) { flash('ONVOLDOENDE SALDO', 'red', hostId); return 0; }
+  if (!(amt >= MIN_BET)) { flash(`MINIMUM STAKE $${fmt(MIN_BET)}`, 'red', hostId); return 0; }
+  if (amt > state.balance + 1e-9) { flash('NOT ENOUGH BALANCE', 'red', hostId); return 0; }
   adjustBalance(-amt);
   return amt; // callers save state once the round is marked active, so pendingStakes() includes it
 }
@@ -3290,6 +3436,7 @@ function navigate(route) {
     if (route === 'scratch') scRender();
     if (route === 'slots') slRender();
     if (route === 'wheel') whRender();
+    if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
     if (route === 'home') seasonRender();
   });
@@ -3597,7 +3744,7 @@ function crash() {
   for (const p of state.players) if (!p.cashedOut) p.lost = true;
 
   if (state.hasBet && !state.cashedOut) {
-    flash(`VERLOREN $${fmt(state.betAmount)} @ ${fmt(state.crashAt)}×`, 'red');
+    flash(`LOST $${fmt(state.betAmount)} @ ${fmt(state.crashAt)}x`, 'red');
     recordRound('crash', state.betAmount, 0, 0);
   }
   renderStats('crash');
@@ -3670,7 +3817,7 @@ function renderPlayers() {
   if (!all.length) {
     const empty = document.createElement('div');
     empty.className = 'odds-note';
-    empty.textContent = 'Nog geen inzet deze ronde. Plaats een inzet om hier te verschijnen.';
+    empty.textContent = 'No bet this round yet. Place one to show up here.';
     list.appendChild(empty);
     return;
   }
@@ -3689,7 +3836,7 @@ function renderPlayers() {
   }
 }
 
-const GAME_LABEL = { crash: 'CRASH', roulette: 'ROULETTE', tower: 'TOWER', mines: 'MINES', plinko: 'PLINKO', blackjack: 'BLACKJACK', horse: 'RACE', scratch: 'KRASLOT', slots: '777', wheel: 'RAD' };
+const GAME_LABEL = { crash: 'CRASH', roulette: 'ROULETTE', tower: 'TOWER', mines: 'MINES', plinko: 'PLINKO', blackjack: 'BLACKJACK', horse: 'RACE', scratch: 'SCRATCH', slots: '777', wheel: 'WHEEL', bus: 'BUS' };
 
 function renderRecentWins() {
   const list = $('recentWins');
@@ -3698,7 +3845,7 @@ function renderRecentWins() {
   if (!rows.length) {
     const empty = document.createElement('div');
     empty.className = 'odds-note';
-    empty.textContent = online() ? 'Nog geen winsten. Jouw winst verschijnt hier voor alle spelers.' : 'Offline modus: winsten van andere spelers worden niet opgehaald.';
+    empty.textContent = online() ? 'No wins yet. Yours will show up here for everyone.' : 'Offline mode: wins from other players are not pulled in.';
     list.appendChild(empty);
     return;
   }
@@ -3739,9 +3886,9 @@ function updateOverlay() {
   const overlay = $('overlay');
   let html = '';
   if (state.phase === 'waiting') {
-    html = `<div class="countdown"><div class="countdown-label">VOLGENDE RONDE</div><div class="countdown-num">${state.countdown}</div></div>`;
+    html = `<div class="countdown"><div class="countdown-label">NEXT ROUND</div><div class="countdown-num">${state.countdown}</div></div>`;
   } else if (state.phase === 'flying') {
-    html = `<div class="multiplier-display">${fmt(state.multiplier)}×</div><div class="status-label">► IN DE LUCHT</div>`;
+    html = `<div class="multiplier-display">${fmt(state.multiplier)}×</div><div class="status-label">► IN THE AIR</div>`;
   } else if (state.phase === 'crashed') {
     html = `<div class="multiplier-display crashed">${fmt(state.multiplier)}×</div><div class="status-label" style="color: #ffdddd;">► CRASHED</div>`;
   }
@@ -3763,7 +3910,7 @@ function updateButton() {
       btn.disabled = true;
     } else {
       btn.classList.add('btn-bet');
-      btn.textContent = 'PLAATS INZET';
+      btn.textContent = 'PLACE BET';
     }
   } else if (state.phase === 'flying') {
     if (state.hasBet && !state.cashedOut) {
@@ -3771,7 +3918,7 @@ function updateButton() {
       btn.textContent = `CASH OUT $${fmt(floor2(state.betAmount * state.multiplier))}`;
     } else {
       btn.classList.add('btn-waiting');
-      btn.textContent = state.cashedOut ? 'UITBETAALD ✓' : 'IN VLUCHT';
+      btn.textContent = state.cashedOut ? 'CASHED OUT ✓' : 'IN FLIGHT';
       btn.disabled = true;
     }
   } else if (state.phase === 'crashed') {
@@ -3872,7 +4019,7 @@ function rlRepeat() {
   if (RL.spinning) return;
   const total = round2(Object.values(RL.lastBets).reduce((a, b) => a + b, 0));
   if (total === 0) return;
-  if (total > state.balance + 1e-9) { flash('ONVOLDOENDE SALDO', 'red', 'rouletteToasts'); return; }
+  if (total > state.balance + 1e-9) { flash('NOT ENOUGH BALANCE', 'red', 'rouletteToasts'); return; }
   adjustBalance(-total);
   for (const k in RL.lastBets) RL.bets[k] = round2((RL.bets[k] || 0) + RL.lastBets[k]);
   rlRenderBets();
@@ -3882,7 +4029,7 @@ function rlRepeat() {
 function rlSpin() {
   if (RL.spinning) return;
   const total = rlTotal();
-  if (total === 0) { flash('PLAATS EERST EEN INZET', 'red', 'rouletteToasts'); return; }
+  if (total === 0) { flash('PLACE A BET FIRST', 'red', 'rouletteToasts'); return; }
   RL.lastBets = { ...RL.bets };
   RL.spinning = true;
   document.querySelectorAll('#rlBoard .rl-cell.win').forEach(c => c.classList.remove('win'));
@@ -4091,7 +4238,7 @@ function twRender() {
     const cur = TW.level > 0 ? floor2(TW.bet * ODDS.towerMultiplier(TW.diff, TW.level)) : 0;
     $('twCurrent').textContent = TW.level > 0 ? `$${fmt(cur)} (${fmt(ODDS.towerMultiplier(TW.diff, TW.level))}×)` : '—';
     $('twNext').textContent = `${fmt(ODDS.towerMultiplier(TW.diff, TW.level + 1))}×`;
-    $('twCashBtn').textContent = TW.level > 0 ? `CASH OUT $${fmt(cur)}` : 'KIES EEN TEGEL';
+    $('twCashBtn').textContent = TW.level > 0 ? `CASH OUT $${fmt(cur)}` : 'PICK A TILE';
   } else {
     $('twCurrent').textContent = '—';
     $('twNext').textContent = `${fmt(ODDS.towerMultiplier(TW.diff, 1))}×`;
@@ -4190,7 +4337,7 @@ function mnRender() {
     const cur = floor2(MN.bet * ODDS.minesMultiplier(MN.mines, k));
     $('mnCurrent').textContent = k > 0 ? `$${fmt(cur)} (${fmt(ODDS.minesMultiplier(MN.mines, k))}×)` : '—';
     $('mnNext').textContent = k < maxK ? `${fmt(ODDS.minesMultiplier(MN.mines, k + 1))}×` : '—';
-    $('mnCashBtn').textContent = k > 0 ? `CASH OUT $${fmt(cur)}` : 'KIES EEN TEGEL';
+    $('mnCashBtn').textContent = k > 0 ? `CASH OUT $${fmt(cur)}` : 'PICK A TILE';
   } else {
     $('mnCurrent').textContent = '—';
     $('mnNext').textContent = `${fmt(ODDS.minesMultiplier(MN.mines, 1))}×`;
@@ -4433,7 +4580,7 @@ function bjRender() {
   const pv = ODDS.bjValue(BJ.player), dv = ODDS.bjValue(BJ.dealer);
   $('bjPlayerVal').textContent = BJ.player.length ? (pv.soft && pv.total <= 21 ? `${pv.total - 10}/${pv.total}` : pv.total) : '—';
   $('bjDealerVal').textContent = BJ.dealer.length ? (hideHole ? ODDS.bjValue([BJ.dealer[0]]).total : dv.total) : '—';
-  $('bjBetLabel').textContent = BJ.bet ? `· INZET $${fmt(BJ.bet)}` : '';
+  $('bjBetLabel').textContent = BJ.bet ? `· STAKE $${fmt(BJ.bet)}` : '';
 
   const inPlay = BJ.phase === 'player';
   $('bjDealBtn').disabled = BJ.phase === 'player' || BJ.phase === 'dealer';
@@ -4526,14 +4673,14 @@ function bjFinish() {
   else if (dBJ) { msg = 'DEALER BLACKJACK'; cls = 'lose'; }
   else if (p > 21) { msg = 'BUST'; cls = 'lose'; }
   else if (d > 21) { msg = `DEALER BUST · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
-  else if (mult === 2) { msg = `GEWONNEN · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
-  else if (mult === 1) { msg = 'PUSH · INZET TERUG'; cls = 'push'; }
-  else { msg = `VERLOREN · -$${fmt(BJ.bet)}`; cls = 'lose'; }
+  else if (mult === 2) { msg = `WON · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
+  else if (mult === 1) { msg = 'PUSH · STAKE RETURNED'; cls = 'push'; }
+  else { msg = `LOST · -$${fmt(BJ.bet)}`; cls = 'lose'; }
   bjMessage(msg, cls);
   bjRender();
   const wager = BJ.bet;
   BJ.bet = 0;
-  $('bjBetLabel').textContent = `· INZET $${fmt(wager)}`;
+  $('bjBetLabel').textContent = `· STAKE $${fmt(wager)}`;
 }
 
 $('bjDealBtn').addEventListener('click', bjDeal);
@@ -4616,7 +4763,7 @@ function hrClear() {
 function hrStart() {
   if (HR.racing) return;
   const total = hrTotal();
-  if (total === 0) { flash('ZET EERST IN OP EEN PAARD', 'red', 'horseToasts'); return; }
+  if (total === 0) { flash('BACK A HORSE FIRST', 'red', 'horseToasts'); return; }
   HR.order = ODDS.horseRanking(HR.horses.map(h => h.p));
   // finishing time per horse: winner first, the rest trail by random gaps
   HR.finish = [];
@@ -4726,7 +4873,7 @@ function hrDraw() {
     c.fillStyle = lead.color;
     c.font = 'bold 11px JetBrains Mono, monospace';
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(`AAN KOP: ${lead.name}`, w / 2, top / 2);
+    c.fillText(`LEADING: ${lead.name}`, w / 2, top / 2);
   }
 }
 
@@ -4742,7 +4889,7 @@ const BK = { running: false, t0: 0, gen: 0, MIN: 10, MAX: 40, PERIOD: 1.1 };
 // Any money in play, decided or not: refundable stakes, decided-but-animating rounds, open hands.
 function roundInProgress() {
   return pendingStakes() > 0 || pendingPayouts() > 0 || RL.spinning || HR.racing || PK.balls.length > 0 ||
-    SC.active || SL.spinning || WH.spinning ||
+    SC.active || SL.spinning || WH.spinning || BU.active ||
     BJ.phase === 'player' || BJ.phase === 'dealer' || (state.hasBet && state.phase !== 'crashed');
 }
 
@@ -4789,7 +4936,7 @@ function bkStop() {
   achCheck(null);
   $('bkStopBtn').hidden = true;
   $('bkCloseBtn').hidden = false;
-  flash(`NOODFONDS +$${fmt(reward)} · ${Math.round(accuracy * 100)}% precisie`, 'gold', toastHost());
+  flash(`SAFETY NET +$${fmt(reward)} · ${Math.round(accuracy * 100)}% accuracy`, 'gold', toastHost());
 }
 
 function bkClose() {
@@ -4852,9 +4999,9 @@ function scRender(popIndex) {
   $('scBuyBtn').hidden = SC.active;
   $('scAllBtn').hidden = !SC.active;
   const left = SC.active ? SC.revealed.filter(r => !r).length : 0;
-  $('scStatusLabel').textContent = SC.active ? 'TE GAAN' : 'UITSLAG';
-  $('scStatus').textContent = SC.active ? plural(left, 'vakje', 'vakjes')
-    : (SC.shown ? (SC.mult > 0 ? fmt(SC.mult) + '×' : 'geen prijs') : '—');
+  $('scStatusLabel').textContent = SC.active ? 'TO GO' : 'RESULT';
+  $('scStatus').textContent = SC.active ? plural(left, 'cell', 'cells')
+    : (SC.shown ? (SC.mult > 0 ? fmt(SC.mult) + '×' : 'no prize') : '—');
 }
 
 function scBuy() {
@@ -4895,8 +5042,8 @@ function scSettle() {
   if (payout > 0) adjustBalance(payout);
   recordRound('scratch', bet, payout, mult);
   scRender();
-  if (payout > bet) flash(`${ODDS.SCRATCH_PRIZES[prize].sym} DRIE GELIJKE · +$${fmt(payout)}`, 'green', 'scratchToasts');
-  else flash('GEEN DRIE GELIJKE', 'red', 'scratchToasts');
+  if (payout > bet) flash(`${ODDS.SCRATCH_PRIZES[prize].sym} THREE OF A KIND · +$${fmt(payout)}`, 'green', 'scratchToasts');
+  else flash('NO THREE OF A KIND', 'red', 'scratchToasts');
 }
 
 $('scBuyBtn').addEventListener('click', scBuy);
@@ -4926,7 +5073,7 @@ function slRender() {
   slPaytable();
   for (let i = 0; i < 3; i++) $('slReel' + i).textContent = SL.reels[i];
   $('slSpinBtn').disabled = SL.spinning;
-  $('slSpinBtn').textContent = SL.spinning ? 'DRAAIT…' : 'DRAAI';
+  $('slSpinBtn').textContent = SL.spinning ? 'SPINNING…' : 'SPIN';
   const hist = $('slHistory');
   if (hist) {
     hist.innerHTML = '';
@@ -4941,7 +5088,7 @@ function slRender() {
 
 function slSpin() {
   if (SL.spinning) return;
-  if (!vipActive()) { flash('ALLEEN VOOR DE VIP VAN DIT SEIZOEN', 'red', 'slotsToasts'); return; }
+  if (!vipActive()) { flash('VIP PASS REQUIRED', 'red', 'slotsToasts'); return; }
   const amt = takeBet(getSlotsBet(), 'slotsToasts');
   if (!amt) return;
   SL.bet = amt;
@@ -4981,7 +5128,7 @@ function slSettle(gen) {
   recordRound('slots', bet, payout, mult);
   slRender();
   if (payout > bet) flash(`${SL.reels.join('')} · +$${fmt(payout)}`, mult >= 12 ? 'gold' : 'green', 'slotsToasts');
-  else flash('GEEN COMBINATIE', 'red', 'slotsToasts');
+  else flash('NO COMBINATION', 'red', 'slotsToasts');
 }
 
 $('slSpinBtn').addEventListener('click', slSpin);
@@ -5052,7 +5199,7 @@ function whDraw() {
 function whRender() {
   if (!$('whSpinBtn')) return;
   $('whSpinBtn').disabled = WH.spinning;
-  $('whSpinBtn').textContent = WH.spinning ? 'DRAAIT…' : 'DRAAI HET RAD';
+  $('whSpinBtn').textContent = WH.spinning ? 'SPINNING…' : 'SPIN THE WHEEL';
   const hist = $('whHistory');
   if (hist) {
     hist.innerHTML = '';
@@ -5068,7 +5215,6 @@ function whRender() {
 
 function whSpin() {
   if (WH.spinning) return;
-  if (!vipActive()) { flash('ALLEEN VOOR DE VIP VAN DIT SEIZOEN', 'red', 'wheelToasts'); return; }
   const amt = takeBet(getWheelBet(), 'wheelToasts');
   if (!amt) return;
   WH.bet = amt;
@@ -5111,10 +5257,111 @@ function whSettle(gen) {
   recordRound('wheel', bet, payout, mult);
   whRender();
   if (payout > bet) flash(`${fmt(mult)}× · +$${fmt(payout)}`, mult >= 10 ? 'gold' : 'green', 'wheelToasts');
-  else flash('NAAST HET VAK', 'red', 'wheelToasts');
+  else flash('MISSED', 'red', 'wheelToasts');
 }
 
 $('whSpinBtn').addEventListener('click', whSpin);
+
+// =================== RIDE THE BUS (VIP) ===================
+// One shuffled deck, four calls. The multiplier is 0.97 divided by the chance of having
+// got this far, so stopping after any call pays back 97% however well the player calls.
+// A ride in progress is an undecided round: a reload refunds the stake.
+const BU = { active: false, bet: 0, deck: [], shown: [], prob: 1, step: 0, mult: 0, over: '' };
+const getBusBet = bindBet('bus');
+
+const BU_ASK = ['Red or black?', 'Higher or lower than that card?', 'Inside or outside the two?', 'Which suit?'];
+
+function buRender() {
+  if (!$('buCards')) return;
+  const cards = $('buCards');
+  cards.innerHTML = '';
+  for (const c of BU.shown) cards.appendChild(bjCardEl(c, false));
+  if (BU.active && BU.step < 4) cards.appendChild(bjCardEl(null, true));
+
+  $('buAsk').textContent = BU.active ? BU_ASK[BU.step] : (BU.over || 'Place a bet and get on the bus.');
+  $('buAsk').className = 'bj-message' + (BU.over ? (BU.over.startsWith('+') ? ' win' : ' lose') : '');
+  $('buStartBtn').hidden = BU.active;
+  $('buCashBtn').hidden = !(BU.active && BU.step > 0);
+  if (BU.active && BU.step > 0) $('buCashBtn').textContent = `CASH OUT $${fmt(floor2(BU.bet * BU.mult))}`;
+  $('buMult').textContent = BU.step > 0 ? fmt(BU.mult) + '×' : '—';
+  $('buStep').textContent = BU.active ? (BU.step + 1) + ' / 4' : '—';
+
+  const opts = $('buOptions');
+  opts.innerHTML = '';
+  if (!BU.active) return;
+  for (const [value, label] of ODDS.busOptions(BU.step)) {
+    const p = ODDS.busChance(BU.deck, BU.step, value, BU.shown);
+    const b = document.createElement('button');
+    b.className = 'bu-option' + (p <= 0 ? ' dead' : '');
+    b.disabled = p <= 0;
+    const t = document.createElement('span');
+    t.className = 'lb';
+    t.textContent = label;
+    const m = document.createElement('span');
+    m.className = 'mu';
+    // What the ride is worth if this call comes good, and how likely that is.
+    m.textContent = p > 0 ? fmt(ODDS.busMultiplier(BU.prob * p)) + '× · ' + Math.round(p * 100) + '%' : 'impossible';
+    b.appendChild(t); b.appendChild(m);
+    b.addEventListener('click', () => buCall(value));
+    opts.appendChild(b);
+  }
+}
+
+function buStart() {
+  if (BU.active) return;
+  if (!vipActive()) { flash('VIP PASS REQUIRED', 'red', 'busToasts'); return; }
+  const amt = takeBet(getBusBet(), 'busToasts');
+  if (!amt) return;
+  BU.bet = amt;
+  BU.deck = ODDS.bjNewShoe(1);
+  BU.shown = [];
+  BU.prob = 1;
+  BU.step = 0;
+  BU.mult = 0;
+  BU.over = '';
+  BU.active = true;
+  buRender();
+  saveState();
+}
+
+function buCall(choice) {
+  if (!BU.active || BU.step >= 4) return;
+  const p = ODDS.busChance(BU.deck, BU.step, choice, BU.shown);
+  if (p <= 0) return;
+  BU.prob *= p;
+  const card = BU.deck.pop();
+  const hit = ODDS.busHit(card, BU.step, choice, BU.shown);
+  BU.shown.push(card);
+  if (!hit) {
+    const bet = BU.bet;
+    BU.active = false;
+    BU.over = `OFF THE BUS · -$${fmt(bet)}`;
+    recordRound('bus', bet, 0, 0);
+    buRender();
+    flash(`OFF THE BUS · -$${fmt(bet)}`, 'red', 'busToasts');
+    return;
+  }
+  BU.step += 1;
+  BU.mult = ODDS.busMultiplier(BU.prob);
+  buRender();
+  saveState();
+  // Four calls is the whole ride; there is nothing left to call, so it pays out.
+  if (BU.step >= 4) buCashOut(true);
+}
+
+function buCashOut(full) {
+  if (!BU.active || BU.step === 0) return;
+  const bet = BU.bet, mult = BU.mult, win = floor2(bet * mult);
+  BU.active = false;
+  BU.over = `+$${fmt(win)} · ${fmt(mult)}×`;
+  adjustBalance(win);
+  recordRound('bus', bet, win, mult);
+  buRender();
+  flash(full ? `FULL RIDE · +$${fmt(win)}` : `+$${fmt(win)} · ${fmt(mult)}×`, full ? 'gold' : 'green', 'busToasts');
+}
+
+$('buStartBtn').addEventListener('click', buStart);
+$('buCashBtn').addEventListener('click', () => buCashOut(false));
 
 // =================== BACKEND (accounts, progression, live leaderboard) ===================
 // Passwords never reach this file: they go straight to the auth endpoint, which stores
@@ -5136,7 +5383,7 @@ function authExpire(reason) {
   try { localStorage.removeItem(SESSION_KEY); } catch {}
   lbRender();
   authShow();
-  authMsg(reason || 'Je sessie is verlopen. Log opnieuw in om verder te spelen.', 'error');
+  authMsg(reason || 'Your session expired. Sign in again to keep playing.', 'error');
 }
 
 async function api(path, { method = 'GET', body, auth = true, headers = {}, retry = true } = {}) {
@@ -5192,14 +5439,14 @@ function emailFor(username) { return username.toLowerCase() + '@' + BACKEND.emai
 
 async function authRegister(username, password) {
   const taken = await api('/rest/v1/public_leaderboard?select=username&username=eq.' + encodeURIComponent(username) + '&limit=1', { auth: false });
-  if (Array.isArray(taken) && taken.length) throw new Error('Die gebruikersnaam is al bezet.');
+  if (Array.isArray(taken) && taken.length) throw new Error('That username is taken.');
   const signup = await api('/auth/v1/signup', {
     method: 'POST', auth: false,
     body: { email: emailFor(username), password, data: { username } },
   });
   if (!signup.access_token) {
     // e-mailbevestiging staat nog aan in het project
-    throw new Error('Registratie gelukt, maar het project vraagt om e-mailbevestiging. Zet die uit in Supabase (Authentication → Sign In / Providers → Confirm email).');
+    throw new Error('Registered, but the project asks for email confirmation. Turn that off in Supabase (Authentication → Sign In / Providers → Confirm email).');
   }
   applyTokens(signup);
   const userId = signup.user.id;
@@ -5378,7 +5625,7 @@ function lbApplyStatus() {
     const dot = chip.querySelector('.live-dot');
     chip.textContent = '';
     if (dot) chip.appendChild(dot);
-    chip.append(!online() ? 'OFFLINE' : (LB.ok ? lbOnlineNow().length + ' ACTIEF' : 'GEEN VERBINDING'));
+    chip.append(!online() ? 'OFFLINE' : (LB.ok ? lbOnlineNow().length + ' ACTIVE' : 'NO CONNECTION'));
   }
 }
 
@@ -5414,7 +5661,7 @@ function lbRowEl(p, rank, value, meta) {
     const c = document.createElement('span');
     c.className = 'lb-count';
     c.textContent = p.achievements + '\u2060🏅';
-    c.title = p.achievements + ' prestaties';
+    c.title = p.achievements + ' achievements';
     wrap.appendChild(c);
   }
   if (p.title) {
@@ -5438,8 +5685,8 @@ function lbRender() {
 
   if (!online()) {
     const why = !BACKEND_READY
-      ? 'De live leaderboard is nog niet geconfigureerd op deze installatie.'
-      : 'Je speelt offline. Log in met een account om live tegen andere spelers te ranken.';
+      ? 'The live leaderboard is not configured on this install yet.'
+      : 'You are playing offline. Sign in with an account to rank live against other players.';
     for (const el of [money, ratio]) {
       const d = document.createElement('div');
       d.className = 'odds-note';
@@ -5464,14 +5711,14 @@ function lbRender() {
     const gap = byMoney[1] ? round2(me.balance - byMoney[1].balance) : 0;
     const b = document.createElement('b');
     b.textContent = RANKS[0].name;
-    next.append('Je staat bovenaan als ', b, byMoney[1] ? ` · $${fmt(gap)} voorsprong op plek 2.` : '.');
+    next.append('You are top of the board as ', b, byMoney[1] ? ` · $${fmt(gap)} ahead of second place.` : '.');
   } else {
     const target = byMoney[myMoney - 1];
     const gap = round2(target.balance - me.balance + 0.01);
     const b = document.createElement('b');
     b.textContent = '$' + fmt(gap);
     const named = myMoney <= RANKS.length ? RANKS[myMoney - 1] : null;
-    next.append('Nog ', b, ` naar plek ${myMoney}${named ? ' (' + named.name + ')' : ''}.`);
+    next.append('Still ', b, ` to reach place ${myMoney}${named ? ' (' + named.name + ')' : ''}.`);
   }
   money.appendChild(next);
 
@@ -5480,13 +5727,13 @@ function lbRender() {
   byRatio.slice(0, 10).forEach((p, i) => ratio.appendChild(lbRowEl(p, i + 1, lbRatio(p).toFixed(2), p.won + 'W · ' + p.lost + 'L')));
   const myRatio = byRatio.findIndex(p => p.self);
   if (myRatio >= 10) ratio.appendChild(lbRowEl(me, myRatio + 1, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L'));
-  else if (myRatio < 0) ratio.appendChild(lbRowEl(me, null, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L · nog ' + plural(Math.max(0, 10 - me.won - me.lost), 'ronde', 'rondes')));
+  else if (myRatio < 0) ratio.appendChild(lbRowEl(me, null, lbRatio(me).toFixed(2), me.won + 'W · ' + me.lost + 'L · ' + plural(Math.max(0, 10 - me.won - me.lost), 'round', 'rounds') + ' to go'));
 
   if (note) {
     const now = lbOnlineNow();
     note.textContent = LB.ok
-      ? `Echte accounts, live van de server. Geen bots. ${plural(LB.rows.length, 'speler', 'spelers')} geregistreerd, ${now.length} nu actief${now.length ? ': ' + now.slice(0, 6).join(', ') + (now.length > 6 ? '…' : '') : ''}.`
-      : 'Verbinding met de server mislukt: ' + LB.error;
+      ? `Real accounts, live from the server. No bots. ${plural(LB.rows.length, 'player', 'players')} registered, ${now.length} active now${now.length ? ': ' + now.slice(0, 6).join(', ') + (now.length > 6 ? '…' : '') : ''}.`
+      : 'Could not reach the server: ' + LB.error;
   }
   lbApplyStatus();
 }
@@ -5519,13 +5766,13 @@ function authShow() {
   const prev = lastOffline();
   const resume = $('authResume');
   resume.hidden = !prev;
-  if (prev) resume.textContent = 'VERDER OFFLINE ALS ' + prev.username;
-  $('authOffline').textContent = prev ? 'NIEUW OFFLINE PROFIEL' : 'OFFLINE SPELEN (GEEN LEADERBOARD)';
+  if (prev) resume.textContent = 'CONTINUE OFFLINE AS ' + prev.username;
+  $('authOffline').textContent = prev ? 'NEW OFFLINE PROFILE' : 'PLAY OFFLINE (NO LEADERBOARD)';
   $('authNote').innerHTML = BACKEND_READY
-    ? 'Je wachtwoord wordt versleuteld opgeslagen door de server en verlaat je apparaat nooit in leesbare vorm. Je saldo en statistieken horen bij je account en zijn alleen door jou te wijzigen.'
-    : '⚠ De server is nog niet ingesteld, dus online accounts werken nog niet. Je kunt intussen offline spelen.';
+    ? 'Your password is stored encrypted by the server and never leaves your device in readable form. Your balance and statistics belong to your account and only you can change them.'
+    : '⚠ The server is not set up yet, so online accounts do not work. You can play offline in the meantime.';
   $('authSubmit').disabled = !BACKEND_READY;
-  if (!BACKEND_READY) authMsg('Online accounts zijn nog niet geconfigureerd.', 'error');
+  if (!BACKEND_READY) authMsg('Online accounts are not configured yet.', 'error');
   $('authUser').focus();
 }
 
@@ -5534,7 +5781,7 @@ function authSetMode(mode) {
   $('authTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   $('authSubmit').textContent = mode === 'login' ? 'INLOGGEN' : 'ACCOUNT AANMAKEN';
   $('authPass').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
-  if (!BACKEND_READY) authMsg('Online accounts zijn nog niet geconfigureerd.', 'error');
+  if (!BACKEND_READY) authMsg('Online accounts are not configured yet.', 'error');
   else authMsg('');
 }
 
@@ -5542,8 +5789,8 @@ async function authSubmit() {
   if (AUTHUI.busy || !BACKEND_READY) return;
   const username = $('authUser').value.trim();
   const password = $('authPass').value;
-  if (!USERNAME_RE.test(username)) { authMsg('Gebruikersnaam: 3-16 letters, cijfers of _', 'error'); return; }
-  if (password.length < 6) { authMsg('Wachtwoord moet minstens 6 tekens zijn.', 'error'); return; }
+  if (!USERNAME_RE.test(username)) { authMsg('Username: 3-16 letters, digits or _', 'error'); return; }
+  if (password.length < 6) { authMsg('Password must be at least 6 characters.', 'error'); return; }
   AUTHUI.busy = true;
   $('authSubmit').disabled = true;
   authMsg(AUTHUI.mode === 'login' ? 'Inloggen…' : 'Account aanmaken…');
@@ -5553,9 +5800,9 @@ async function authSubmit() {
     authMsg('Gelukt. Laden…', 'ok');
     location.reload();
   } catch (e) {
-    const m = /Invalid login/i.test(e.message) ? 'Onbekende gebruikersnaam of verkeerd wachtwoord.'
-      : /already registered|User already/i.test(e.message) ? 'Die gebruikersnaam bestaat al.'
-      : /failed to fetch|networkerror|load failed|network ?request/i.test(e.message) ? 'Geen verbinding met de server. Probeer het opnieuw, of kies OFFLINE SPELEN.'
+    const m = /Invalid login/i.test(e.message) ? 'Unknown username or wrong password.'
+      : /already registered|User already/i.test(e.message) ? 'That username already exists.'
+      : /failed to fetch|networkerror|load failed|network ?request/i.test(e.message) ? 'No connection to the server. Try again, or choose PLAY OFFLINE.'
       : e.message;
     authMsg(m, 'error');
     AUTHUI.busy = false;
@@ -5591,7 +5838,7 @@ function authResume() {
 // Leaves the offline profile on this device and returns to the login screen, so the
 // player can sign in or register without losing their offline progress.
 function switchToOnline() {
-  if (!confirm('Naar een online account? Je offline voortgang blijft op dit apparaat staan, los van je online account.')) return;
+  if (!confirm('Switch to an online account? Your offline progress stays on this device, separate from your online account.')) return;
   try { localStorage.removeItem(SESSION_KEY); } catch {}
   location.reload();
 }
@@ -5602,11 +5849,11 @@ function renderAccountBar() {
     el.textContent = AUTH.session ? AUTH.session.username + (offline ? ' (OFFLINE)' : '') : '—';
   });
   document.querySelectorAll('.js-acct-switch').forEach(el => {
-    el.textContent = offline ? 'ONLINE SPELEN ↪' : 'OFFLINE SPELEN ↪';
+    el.textContent = offline ? 'PLAY ONLINE ↪' : 'PLAY OFFLINE ↪';
     el.hidden = !AUTH.session;
   });
   document.querySelectorAll('.js-acct-logout').forEach(el => {
-    el.textContent = offline ? 'ANDERE NAAM ↪' : 'UITLOGGEN ↪';
+    el.textContent = offline ? 'ANOTHER NAME ↪' : 'SIGN OUT ↪';
     el.hidden = !AUTH.session;
   });
 }
@@ -5614,8 +5861,8 @@ function renderAccountBar() {
 async function authLogout(question) {
   const offline = !!(AUTH.session && AUTH.session.offline);
   const ask = question || (offline
-    ? 'Onder een andere naam spelen? Je huidige offline voortgang blijft op dit apparaat bewaard.'
-    : 'Uitloggen? Je voortgang staat veilig op je account.');
+    ? 'Play under another name? Your current offline progress stays saved on this device.'
+    : 'Sign out? Your progress is safe on your account.');
   if (!confirm(ask)) return;
   const wasOnline = online();
   let flushed = false;
@@ -5627,7 +5874,7 @@ async function authLogout(question) {
   }
   const settled = !roundInProgress();
   if (wasOnline && !flushed) {
-    alert('De laatste rondes konden niet worden opgeslagen. Je voortgang blijft op dit apparaat staan tot je weer inlogt.');
+    alert('The last rounds could not be saved. Your progress stays on this device until you sign in again.');
   }
   try {
     localStorage.removeItem(SESSION_KEY);
@@ -5644,7 +5891,7 @@ $('authOffline').addEventListener('click', authOffline);
 document.querySelectorAll('.js-acct-logout').forEach(el => el.addEventListener('click', () => authLogout()));
 document.querySelectorAll('.js-acct-switch').forEach(el => el.addEventListener('click', () => {
   if (AUTH.session && AUTH.session.offline) switchToOnline();
-  else authLogout('Offline verder spelen? Je wordt uitgelogd, je online voortgang wordt eerst opgeslagen, en je offline profiel staat los van je account.');
+  else authLogout('Keep playing offline? You will be signed out, your online progress is saved first, and your offline profile is separate from your account.');
 }));
 $('authResume').addEventListener('click', authResume);
 [$('authUser'), $('authPass')].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') authSubmit(); }));
@@ -5653,66 +5900,90 @@ $('authResume').addEventListener('click', authResume);
 // Elke plek op de ranglijst heeft een naam en iets om naar te streven; de top drie krijgt
 // aan het eind van elk seizoen van drie dagen een titel en een bonus van de server.
 const RANKS = [
-  { icon: '👑', name: 'Huisbaas',      perk: 'De hoogste stand van het hele casino' },
-  { icon: '🥈', name: 'Uitdager',      perk: 'Tweede in de lobby, binnen bereik van de top' },
-  { icon: '🥉', name: 'Podium',        perk: 'Derde in de lobby' },
-  { icon: '🔥', name: 'Scherpschutter', perk: 'Gouden rand om je naam in de lobby' },
-  { icon: '🔥', name: 'Stormjager',    perk: 'Gouden rand om je naam in de lobby' },
-  { icon: '⭐', name: 'Gelukzoeker',   perk: 'Je naam staat in de top tien' },
-  { icon: '⭐', name: 'Kaartenteller', perk: 'Je naam staat in de top tien' },
-  { icon: '⭐', name: 'Tafelvaste',    perk: 'Je naam staat in de top tien' },
-  { icon: '✦', name: 'Doorzetter',    perk: 'Je naam staat in de top tien' },
-  { icon: '✦', name: 'Lijstbewoner',  perk: 'De laatste plek met een naam' },
+  { icon: '👑', name: 'House Boss',      perk: 'The highest balance in the whole casino' },
+  { icon: '🥈', name: 'Challenger',      perk: 'Second in the lobby, within reach of the top' },
+  { icon: '🥉', name: 'Podium',        perk: 'Third in the lobby' },
+  { icon: '🔥', name: 'Sharpshooter', perk: 'A gold border around your name in the lobby' },
+  { icon: '🔥', name: 'Stormchaser',    perk: 'A gold border around your name in the lobby' },
+  { icon: '⭐', name: 'Chancer',   perk: 'Your name sits in the top ten' },
+  { icon: '⭐', name: 'Card Counter', perk: 'Your name sits in the top ten' },
+  { icon: '⭐', name: 'Regular',    perk: 'Your name sits in the top ten' },
+  { icon: '✦', name: 'Grinder',    perk: 'Your name sits in the top ten' },
+  { icon: '✦', name: 'Lister',  perk: 'The last place with a name on it' },
 ];
 
-const SEASON_SECONDS = 3 * 24 * 3600;
-const SEASON_BONUS = [2500, 1500, 1000];
+// Two clocks run side by side. A SPRINT lasts three days: it is what the standings are
+// scored on, it hands out the cash prizes, and it starts everyone back at zero. A SEASON
+// lasts twelve days — four sprints — and is how long a VIP pass is good for.
+// The server only knows the three-day clock (season_scores / season_awards are keyed by it);
+// the twelve-day one is pure arithmetic on top, so no extra bookkeeping is needed.
+const SPRINT_SECONDS = 3 * 24 * 3600;
+const SEASON_SECONDS = 12 * 24 * 3600;
+const SPRINT_BONUS = [2500, 1500, 1000];
 
+function sprintId(ms) { return Math.floor(((ms || Date.now()) / 1000) / SPRINT_SECONDS); }
+function sprintEndsAt(id) { return ((id + 1) * SPRINT_SECONDS) * 1000; }
 function seasonId(ms) { return Math.floor(((ms || Date.now()) / 1000) / SEASON_SECONDS); }
 function seasonEndsAt(id) { return ((id + 1) * SEASON_SECONDS) * 1000; }
+// Winning a sprint opens the zone the moment that sprint ends, and it stays open until the
+// season holding that moment runs out. Win the last sprint of a season and the pass covers
+// the season that is starting, never one that is already over.
+function vipSeasonFor(sprint) { return seasonId((sprint + 1) * SPRINT_SECONDS * 1000); }
+function sprintsLeft() { return 4 - (sprintId() - seasonId() * 4); }
 
-function seasonCountdown() {
-  const left = Math.max(0, seasonEndsAt(seasonId()) - Date.now());
+function countdown(until) {
+  const left = Math.max(0, until - Date.now());
   const d = Math.floor(left / 86400000);
   const h = Math.floor(left / 3600000) % 24;
   const m = Math.floor(left / 60000) % 60;
-  return d > 0 ? `${d}d ${h}u ${m}m` : (h > 0 ? `${h}u ${m}m` : `${m}m`);
+  return d > 0 ? `${d}d ${h}h ${m}m` : (h > 0 ? `${h}h ${m}m` : `${m}m`);
 }
+function sprintCountdown() { return countdown(sprintEndsAt(sprintId())); }
+function seasonCountdown() { return countdown(seasonEndsAt(seasonId())); }
 
 // ---------- VIP-zone ----------
 // Wie een seizoen wint, mag het seizoen daarna (drie dagen) in de VIP-zone. Dat oordeel
 // komt van de uitslagtabel op de server; de client leest hem alleen uit.
 // Let op: een opgeslagen null zou via Number() een 0 worden, en 0 is een geldig seizoen.
 const VIP = { season: typeof saved?.vipSeason === 'number' && Number.isFinite(saved.vipSeason) ? saved.vipSeason : null, timer: null };
-const VIP_ROUTES = { slots: true, wheel: true };
+const VIP_ROUTES = { slots: true, bus: true };
 const VIP_PERKS = [
-  ['🎰', '777', 'Drie rollen, drie zevens betalen 40×. Alleen hier te spelen.'],
-  ['🎡', 'Rad van fortuin', 'Twintig vakken, één vak van 10×. Alleen hier te spelen.'],
-  ['👑', 'De titel', 'Je naam staat bovenaan de lobby met je seizoenstitel ernaast.'],
+  ['🎰', '777', 'Three reels. Three sevens pay 40x. Nowhere else in the casino.'],
+  ['🚌', 'Ride the Bus', 'Four calls through a shuffled deck, cash out after any of them.'],
+  ['🎟', 'Four ways in', 'Every three-day sprint crowns a new number one, so a season has four.'],
 ];
 
-function vipActive() { return VIP.season !== null && VIP.season === seasonId() - 1; }
+// A pass is good for the whole twelve-day season that the winning sprint rolled into.
+function vipActive() { return VIP.season !== null && VIP.season === seasonId(); }
 
 async function vipPull() {
   if (!online()) return;
   try {
     const rows = await api('/rest/v1/season_awards?select=season,rank&rank=eq.1&player=eq.' +
-      encodeURIComponent(AUTH.session.userId) + '&order=season.desc&limit=1', { auth: false });
-    const row = Array.isArray(rows) ? rows[0] : null;
-    const s = row ? Number(row.season) : NaN;
+      encodeURIComponent(AUTH.session.userId) + '&order=season.desc&limit=8', { auth: false });
+    let best = null;
+    for (const r of (Array.isArray(rows) ? rows : [])) {
+      const v = vipSeasonFor(Number(r.season));
+      if (Number.isFinite(v) && (best === null || v > best)) best = v;
+    }
     const was = VIP.season;
-    VIP.season = Number.isFinite(s) ? s : null;
+    VIP.season = best;
     if (VIP.season !== was) saveState();
-  } catch { /* geen verbinding: de opgeslagen stand blijft gelden */ }
+  } catch { /* offline: whatever was stored keeps counting */ }
   vipRender();
   achCheck(null);
 }
 
-// Wie op dit moment de zone in mag, volgens de laatst opgehaalde uitslag.
-function vipHolder() {
-  const want = seasonId() - 1;
-  const row = SEASON.awards.find(a => Number(a.season) === want && Number(a.rank) === 1);
-  return row ? String(row.username) : '';
+// Everyone who has finished a sprint at #1 this season, as far as the results say.
+function vipHolders() {
+  const now = seasonId();
+  const names = [];
+  for (const a of SEASON.awards) {
+    if (Number(a.rank) !== 1 || vipSeasonFor(Number(a.season)) !== now) continue;
+    const n = String(a.username || '');
+    if (n && !names.includes(n)) names.push(n);
+  }
+  return names;
 }
 
 function vipRender() {
@@ -5735,14 +6006,16 @@ function vipRender() {
   const sub = document.createElement('div');
   sub.className = 'vip-sub';
   if (on) {
-    t.textContent = '👑 De zone is van jou';
-    sub.textContent = 'Je won seizoen ' + VIP.season + '. Nog ' + seasonCountdown() + ' toegang, tot de volgende uitslag.';
+    t.textContent = '👑 Your pass is valid';
+    sub.textContent = 'You finished a sprint at #1. The zone stays open for ' + seasonCountdown() +
+      ', until this season ends.';
   } else {
-    const who = vipHolder();
-    t.textContent = '🔒 Op slot';
-    sub.textContent = who
-      ? who + ' won het vorige seizoen en heeft de zone tot de volgende uitslag.'
-      : 'De zone gaat open voor wie een seizoen wint. Sta bovenaan bij SEIZOENWINST als de drie dagen om zijn.';
+    const who = vipHolders();
+    t.textContent = '🔒 Locked';
+    sub.textContent = who.length
+      ? who.join(', ') + (who.length === 1 ? ' holds' : ' hold') + ' the zone until this season ends, in ' + seasonCountdown() + '.'
+      : 'Finish a three-day sprint at the top of SPRINT PROFIT and the zone is yours for the rest of the season. ' +
+        sprintsLeft() + ' sprint' + (sprintsLeft() === 1 ? '' : 's') + ' left this season.';
   }
   head.appendChild(t); head.appendChild(sub);
   gate.appendChild(head);
@@ -5770,45 +6043,47 @@ function vipRender() {
 // ---------- prestaties ----------
 // Elke prestatie kijkt naar de ronde die net is gespeeld (ctx) en naar de stand (s).
 const ACHIEVEMENTS = [
-  { id: 'first_bet',   icon: '🎲', tier: 'brons', title: 'Eerste inzet',      desc: 'Speel je eerste ronde',                       test: (c, s) => s.rounds >= 1 },
-  { id: 'first_win',   icon: '💵', tier: 'brons', title: 'Eerste winst',      desc: 'Win een ronde',                               test: (c, s) => s.won >= 1 },
-  { id: 'rounds_50',   icon: '🕐', tier: 'brons', title: 'Vaste klant',       desc: 'Speel 50 rondes',                             test: (c, s) => s.rounds >= 50 },
-  { id: 'rounds_250',  icon: '🏛', tier: 'zilver', title: 'Stamgast',          desc: 'Speel 250 rondes',                            test: (c, s) => s.rounds >= 250 },
-  { id: 'all_games',   icon: '🎠', tier: 'zilver', title: 'Allrounder',        desc: 'Speel elke mode minstens één keer',           test: (c, s) => BASE_GAMES.every(g => s.stats[g].rounds > 0) },
-  { id: 'streak_5',    icon: '📈', tier: 'brons', title: 'Op dreef',          desc: 'Win vijf rondes op rij',                      test: (c, s) => s.extra.bestStreak >= 5 },
-  { id: 'streak_10',   icon: '🚀', tier: 'goud',  title: 'Onaantastbaar',     desc: 'Win tien rondes op rij',                      test: (c, s) => s.extra.bestStreak >= 10 },
-  { id: 'balance_2500',icon: '💰', tier: 'brons', title: 'Vermogend',         desc: 'Bereik een saldo van $2.500',                 test: (c, s) => s.balance >= 2500 },
-  { id: 'balance_10k', icon: '🏦', tier: 'goud',  title: 'Fortuin',           desc: 'Bereik een saldo van $10.000',                test: (c, s) => s.balance >= 10000 },
-  { id: 'big_win_500', icon: '💎', tier: 'zilver', title: 'Grote klapper',     desc: 'Win $500 of meer in één ronde',               test: (c, s) => s.extra.bigWin >= 500 },
-  { id: 'comeback',    icon: '🔄', tier: 'zilver', title: 'Comeback',          desc: 'Ga van onder $50 terug naar boven $1.000',    test: (c, s) => s.extra.comeback },
-  { id: 'crash_5x',    icon: '✈️', tier: 'brons', title: 'Hoogvlieger',       desc: 'Cash out bij 5× of hoger in Crash',           test: (c, s) => (s.extra.max.crash || 0) >= 5 },
-  { id: 'crash_20x',   icon: '🛰', tier: 'goud',  title: 'Stratosfeer',       desc: 'Cash out bij 20× of hoger in Crash',          test: (c, s) => (s.extra.max.crash || 0) >= 20 },
-  { id: 'crash_cool',  icon: '🧊', tier: 'zilver', title: 'Koelbloedig',       desc: 'Cash out tien keer boven 2× in Crash',        test: (c, s) => s.extra.crashAbove2 >= 10 },
-  { id: 'rl_straight', icon: '🎯', tier: 'goud',  title: 'Vol op nummer',     desc: 'Win met een inzet op één nummer',             test: (c, s) => s.extra.rouletteStraight },
-  { id: 'rl_500',      icon: '🪙', tier: 'zilver', title: 'Tafelheer',         desc: 'Win $500 of meer in één spin',                test: (c, s) => (s.extra.maxWinPer.roulette || 0) >= 500 },
-  { id: 'tw_top',      icon: '🗼', tier: 'zilver', title: 'Torenwachter',      desc: 'Bereik de negende verdieping',                test: (c, s) => s.extra.towerLevel >= 9 },
-  { id: 'tw_master',   icon: '🐉', tier: 'goud',  title: 'Drakentemmer',      desc: 'Cash out op master in de Dragon Tower',       test: (c, s) => s.extra.towerMaster },
-  { id: 'mn_10',       icon: '⛏', tier: 'zilver', title: 'Mijnwerker',        desc: 'Cash out met tien mijnen op het veld',        test: (c, s) => s.extra.minesMines >= 10 },
-  { id: 'mn_perfect',  icon: '🧨', tier: 'goud',  title: 'Explosievenexpert', desc: 'Maak een veld met vijf mijnen helemaal leeg', test: (c, s) => s.extra.minesPerfect },
-  { id: 'pk_50',       icon: '🔻', tier: 'zilver', title: 'Stuiterbal',        desc: 'Raak een vakje van 50× of meer in Plinko',    test: (c, s) => (s.extra.max.plinko || 0) >= 50 },
-  { id: 'pk_500',      icon: '🎰', tier: 'goud',  title: 'Jackpot',           desc: 'Raak een vakje van 500× of meer in Plinko',   test: (c, s) => (s.extra.max.plinko || 0) >= 500 },
-  { id: 'bj_natural',  icon: '🃏', tier: 'brons', title: 'Blackjack!',        desc: 'Win een hand met een blackjack',              test: (c, s) => s.extra.bjNatural },
-  { id: 'bj_double',   icon: '✌️', tier: 'zilver', title: 'Lef',               desc: 'Win een verdubbelde hand',                    test: (c, s) => s.extra.bjDouble },
-  { id: 'hr_outsider', icon: '🐎', tier: 'goud',  title: 'Buitenbeentje',     desc: 'Win een race met een paard van 8× of meer',   test: (c, s) => (s.extra.max.horse || 0) >= 8 },
-  { id: 'hr_triple',   icon: '🏇', tier: 'zilver', title: 'Stalmeester',       desc: 'Win drie races op rij',                       test: (c, s) => s.extra.horseStreak >= 3 },
-  { id: 'nood_precise',icon: '🎚', tier: 'zilver', title: 'Precisie',          desc: 'Haal $35 of meer uit het noodfonds',          test: (c, s) => s.extra.noodfonds >= 35 },
-  { id: 'sc_win',      icon: '🎟', tier: 'brons', title: 'Prijs gekrast',     desc: 'Win met een kraslot',                         test: (c, s) => s.stats.scratch.won >= 1 },
-  { id: 'sc_diamond',  icon: '💎', tier: 'goud',  title: 'Drie diamanten',    desc: 'Kras drie diamanten open (50×)',              test: (c, s) => (s.extra.max.scratch || 0) >= 50 },
-  { id: 'vip_zone',    icon: '🔑', tier: 'goud',  title: 'Sleutel van de zone', desc: 'Win een seizoen en kom in de VIP-zone',     test: (c, s) => VIP.season !== null },
-  { id: 'sl_777',      icon: '7️⃣', tier: 'goud',  title: 'Drie zevens',       desc: 'Draai 777 in de VIP-zone (40×)',              test: (c, s) => (s.extra.max.slots || 0) >= 40 },
-  { id: 'wh_top',      icon: '🎡', tier: 'goud',  title: 'Vol op het rad',    desc: 'Raak het vak van 10× op het rad',             test: (c, s) => (s.extra.max.wheel || 0) >= 10 },
-  { id: 'season_pod',  icon: '🏆', tier: 'goud',  title: 'Op het podium',     desc: 'Eindig een seizoen in de top drie',           test: (c, s) => !!(AUTH.session && profileTitle) },
+  { id: 'first_bet',   icon: '🎲', tier: 'bronze', title: 'First bet',          desc: 'Play your first round',                       test: (c, s) => s.rounds >= 1 },
+  { id: 'first_win',   icon: '💵', tier: 'bronze', title: 'First win',          desc: 'Win a round',                               test: (c, s) => s.won >= 1 },
+  { id: 'rounds_50',   icon: '🕐', tier: 'bronze', title: 'Regular',            desc: 'Play 50 rounds',                             test: (c, s) => s.rounds >= 50 },
+  { id: 'rounds_250',  icon: '🏛', tier: 'silver', title: 'Fixture',            desc: 'Play 250 rounds',                            test: (c, s) => s.rounds >= 250 },
+  { id: 'all_games',   icon: '🎠', tier: 'silver', title: 'Allrounder',         desc: 'Play every mode at least once',           test: (c, s) => BASE_GAMES.every(g => s.stats[g].rounds > 0) },
+  { id: 'streak_5',    icon: '📈', tier: 'bronze', title: 'On a roll',          desc: 'Win five rounds in a row',                      test: (c, s) => s.extra.bestStreak >= 5 },
+  { id: 'streak_10',   icon: '🚀', tier: 'gold',  title: 'Untouchable',        desc: 'Win ten rounds in a row',                      test: (c, s) => s.extra.bestStreak >= 10 },
+  { id: 'balance_2500',icon: '💰', tier: 'bronze', title: 'Well off',           desc: 'Reach a balance of $2,500',                 test: (c, s) => s.balance >= 2500 },
+  { id: 'balance_10k', icon: '🏦', tier: 'gold',  title: 'Fortune',            desc: 'Reach a balance of $10,000',                test: (c, s) => s.balance >= 10000 },
+  { id: 'big_win_500', icon: '💎', tier: 'silver', title: 'Big hit',            desc: 'Win $500 or more in one round',               test: (c, s) => s.extra.bigWin >= 500 },
+  { id: 'comeback',    icon: '🔄', tier: 'silver', title: 'Comeback',           desc: 'Go from under $50 back above $1,000',    test: (c, s) => s.extra.comeback },
+  { id: 'crash_5x',    icon: '✈️', tier: 'bronze', title: 'High flyer',         desc: 'Cash out at 5x or higher in Crash',           test: (c, s) => (s.extra.max.crash || 0) >= 5 },
+  { id: 'crash_20x',   icon: '🛰', tier: 'gold',  title: 'Stratosphere',       desc: 'Cash out at 20x or higher in Crash',          test: (c, s) => (s.extra.max.crash || 0) >= 20 },
+  { id: 'crash_cool',  icon: '🧊', tier: 'silver', title: 'Cool head',          desc: 'Cash out above 2x ten times in Crash',        test: (c, s) => s.extra.crashAbove2 >= 10 },
+  { id: 'rl_straight', icon: '🎯', tier: 'gold',  title: 'Straight up',        desc: 'Win on a straight number bet',             test: (c, s) => s.extra.rouletteStraight },
+  { id: 'rl_500',      icon: '🪙', tier: 'silver', title: 'Table master',       desc: 'Win $500 or more on one spin',                test: (c, s) => (s.extra.maxWinPer.roulette || 0) >= 500 },
+  { id: 'tw_top',      icon: '🗼', tier: 'silver', title: 'Tower keeper',       desc: 'Reach the ninth floor',                test: (c, s) => s.extra.towerLevel >= 9 },
+  { id: 'tw_master',   icon: '🐉', tier: 'gold',  title: 'Dragon tamer',       desc: 'Cash out on master in the Dragon Tower',       test: (c, s) => s.extra.towerMaster },
+  { id: 'mn_10',       icon: '⛏', tier: 'silver', title: 'Miner',              desc: 'Cash out with ten mines on the field',        test: (c, s) => s.extra.minesMines >= 10 },
+  { id: 'mn_perfect',  icon: '🧨', tier: 'gold',  title: 'Bomb squad',         desc: 'Clear a whole field with five mines on it', test: (c, s) => s.extra.minesPerfect },
+  { id: 'pk_50',       icon: '🔻', tier: 'silver', title: 'Bouncer',            desc: 'Hit a 50x or better slot in Plinko',    test: (c, s) => (s.extra.max.plinko || 0) >= 50 },
+  { id: 'pk_500',      icon: '🎰', tier: 'gold',  title: 'Jackpot',            desc: 'Hit a 500x or better slot in Plinko',   test: (c, s) => (s.extra.max.plinko || 0) >= 500 },
+  { id: 'bj_natural',  icon: '🃏', tier: 'bronze', title: 'Blackjack!',         desc: 'Win a hand with a blackjack',              test: (c, s) => s.extra.bjNatural },
+  { id: 'bj_double',   icon: '✌️', tier: 'silver', title: 'Nerve',              desc: 'Win a doubled hand',                    test: (c, s) => s.extra.bjDouble },
+  { id: 'hr_outsider', icon: '🐎', tier: 'gold',  title: 'Longshot',           desc: 'Win a race on a horse paying 8x or more',   test: (c, s) => (s.extra.max.horse || 0) >= 8 },
+  { id: 'hr_triple',   icon: '🏇', tier: 'silver', title: 'Stable master',      desc: 'Win three races in a row',                       test: (c, s) => s.extra.horseStreak >= 3 },
+  { id: 'nood_precise',icon: '🎚', tier: 'silver', title: 'Precision',          desc: 'Get $35 or more out of the safety net',          test: (c, s) => s.extra.noodfonds >= 35 },
+  { id: 'sc_win',      icon: '🎟', tier: 'bronze', title: 'Scratched a prize',  desc: 'Win on a scratch card',                         test: (c, s) => s.stats.scratch.won >= 1 },
+  { id: 'sc_diamond',  icon: '💎', tier: 'gold',  title: 'Three diamonds',     desc: 'Scratch open three diamonds (50x)',              test: (c, s) => (s.extra.max.scratch || 0) >= 50 },
+  { id: 'vip_zone',    icon: '🔑', tier: 'gold',  title: 'Key to the zone',    desc: 'Finish a sprint at #1 and enter the VIP zone',     test: (c, s) => VIP.season !== null },
+  { id: 'sl_777',      icon: '7️⃣', tier: 'gold',  title: 'Three sevens',       desc: 'Spin 777 in the VIP zone (40x)',              test: (c, s) => (s.extra.max.slots || 0) >= 40 },
+  { id: 'wh_top',      icon: '🎡', tier: 'gold',  title: 'Wheel topper',       desc: 'Hit the 10x segment on the wheel',             test: (c, s) => (s.extra.max.wheel || 0) >= 10 },
+  { id: 'bus_ride',    icon: '🚌', tier: 'silver', title: 'All aboard',         desc: 'Win a ride in Ride the Bus',                 test: (c, s) => s.stats.bus.won >= 1 },
+  { id: 'bus_full',    icon: '🎫', tier: 'gold',  title: 'The full ride',      desc: 'Make all four calls in Ride the Bus',      test: (c, s) => s.extra.busFull },
+  { id: 'season_pod',  icon: '🏆', tier: 'gold',  title: 'On the podium',      desc: 'Finish a sprint in the top three',           test: (c, s) => !!(AUTH.session && profileTitle) },
 ];
 
 const freshExtra = () => ({
   streak: 0, bestStreak: 0, bigWin: 0, crashAbove2: 0, rouletteStraight: false,
   towerLevel: 0, towerMaster: false, minesMines: 0, minesPerfect: false,
-  bjNatural: false, bjDouble: false, horseStreak: 0, noodfonds: 0, comeback: false,
+  bjNatural: false, bjDouble: false, horseStreak: 0, noodfonds: 0, comeback: false, busFull: false,
   wasBroke: false, max: {}, maxWinPer: {},
 });
 
@@ -5850,6 +6125,7 @@ function achCheck(ctx) {
         if (ctx.natural) e.bjNatural = true;
         if (ctx.doubled) e.bjDouble = true;
       }
+      if (ctx.game === 'bus' && ctx.full) e.busFull = true;
     } else if (ctx.payout < ctx.wager) {
       e.streak = 0;
       if (ctx.game === 'horse') e.horseStreak = 0;
@@ -5869,7 +6145,7 @@ function achCheck(ctx) {
   }
   if (fresh.length) {
     for (const a of fresh) {
-      flash(`PRESTATIE: ${a.icon} ${a.title}`, 'gold', toastHost());
+      flash(`ACHIEVEMENT: ${a.icon} ${a.title}`, 'gold', toastHost());
     }
     saveState();
     achRender();
@@ -5883,7 +6159,7 @@ function achRender() {
   const grid = $('achGrid');
   if (!grid) return;
   grid.innerHTML = '';
-  const order = { goud: 0, zilver: 1, brons: 2 };
+  const order = { gold: 0, silver: 1, bronze: 2 };
   const list = [...ACHIEVEMENTS].sort((a, b) => (!!ACH.unlocked[b.id] - !!ACH.unlocked[a.id]) || order[a.tier] - order[b.tier]);
   for (const a of list) {
     const done = !!ACH.unlocked[a.id];
@@ -5948,7 +6224,7 @@ async function claimAwards() {
     return 0;
   }
   for (const a of fresh) {
-    flash(`SEIZOEN ${a.season}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
+    flash(`SPRINT ${a.season}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
   }
   renderBalance();
   achCheck(null);
@@ -5970,7 +6246,7 @@ async function seasonScoresPull() {
   if (!online()) { SEASON.scores = []; return; }
   try {
     const rows = await api('/rest/v1/season_scores?select=username,start_balance,end_balance,start_rounds,end_rounds&season=eq.' +
-      seasonId() + '&limit=200', { auth: false });
+      sprintId() + '&limit=200', { auth: false });
     SEASON.scores = (Array.isArray(rows) ? rows : [])
       .filter(r => Number(r.end_rounds) > Number(r.start_rounds))
       .map(r => ({ username: String(r.username || '?').slice(0, 16), gain: round2(Number(r.end_balance) - Number(r.start_balance)) }))
@@ -5985,7 +6261,7 @@ function seasonBoardRender() {
   if (!online()) {
     const d = document.createElement('div');
     d.className = 'odds-note';
-    d.textContent = 'De seizoenstand telt alleen voor online accounts.';
+    d.textContent = 'Sprint standings only count for online accounts.';
     el.appendChild(d);
     return;
   }
@@ -5994,12 +6270,12 @@ function seasonBoardRender() {
   if (!rows.length) {
     const d = document.createElement('div');
     d.className = 'odds-note';
-    d.textContent = 'Nog niemand heeft dit seizoen gespeeld. De eerste ronde zet je bovenaan.';
+    d.textContent = 'Nobody has played this sprint yet. The first round puts you on top.';
     el.appendChild(d);
     return;
   }
   rows.slice(0, 10).forEach((p, i) => {
-    const bonus = i < SEASON_BONUS.length ? '+$' + fmt(SEASON_BONUS[i]) : '';
+    const bonus = i < SPRINT_BONUS.length ? '+$' + fmt(SPRINT_BONUS[i]) : '';
     el.appendChild(lbRowEl(p, i + 1, (p.gain >= 0 ? '+$' : '-$') + fmt(Math.abs(p.gain)), bonus ? 'bonus ' + bonus : ''));
   });
   const me = rows.findIndex(p => p.self);
@@ -6009,7 +6285,7 @@ function seasonBoardRender() {
 async function seasonPull() {
   if (!online()) { seasonRender(); return; }
   try {
-    const rows = await api('/rest/v1/season_awards?select=season,rank,username,gain,bonus&order=season.desc,rank.asc&limit=9', { auth: false });
+    const rows = await api('/rest/v1/season_awards?select=season,rank,username,gain,bonus&order=season.desc,rank.asc&limit=15', { auth: false });
     SEASON.awards = Array.isArray(rows) ? rows : [];
     SEASON.error = '';
   } catch (e) { SEASON.awards = []; SEASON.error = e.message; }
@@ -6032,7 +6308,7 @@ function renderSeasonStrip(strip) {
   if (!online()) {
     const note = document.createElement('div');
     note.className = 'odds-note';
-    note.textContent = 'Seizoenen, titels en bonussen gelden voor online accounts. Log in om mee te doen.';
+    note.textContent = 'Sprints, titles and prizes are for online accounts. Sign in to take part.';
     strip.appendChild(note);
     return;
   }
@@ -6040,19 +6316,24 @@ function renderSeasonStrip(strip) {
   left.className = 'season-now';
   const t1 = document.createElement('div');
   t1.className = 'season-label';
-  t1.textContent = 'SEIZOEN ' + seasonId();
+  t1.textContent = 'SPRINT ' + sprintId();
   const t2 = document.createElement('div');
   t2.className = 'season-time';
-  t2.textContent = seasonCountdown();
+  t2.textContent = sprintCountdown();
   const t3 = document.createElement('div');
   t3.className = 'season-sub';
-  t3.textContent = 'tot de uitslag · de bonus én de VIP-zone gaan naar wie dit seizoen het meeste wint';
-  left.appendChild(t1); left.appendChild(t2); left.appendChild(t3);
+  t3.textContent = 'until the standings reset to zero · the prizes and a VIP pass go to whoever gains the most';
+  const t4 = document.createElement('div');
+  t4.className = 'season-sub';
+  const n = sprintsLeft();
+  t4.textContent = 'SEASON ' + seasonId() + ' ends in ' + seasonCountdown() + ' · ' +
+    n + (n === 1 ? ' sprint' : ' sprints') + ' left to earn a pass · a pass lasts the whole season';
+  left.appendChild(t1); left.appendChild(t2); left.appendChild(t3); left.appendChild(t4);
   strip.appendChild(left);
 
   const prizes = document.createElement('div');
   prizes.className = 'season-prizes';
-  SEASON_BONUS.forEach((b, i) => {
+  SPRINT_BONUS.forEach((b, i) => {
     const d = document.createElement('div');
     d.className = 'season-prize';
     const ic = document.createElement('span'); ic.textContent = RANKS[i].icon;
@@ -6075,15 +6356,15 @@ function seasonRender() {
       const p = document.createElement('div');
       p.className = 'odds-note';
       p.textContent = !online()
-        ? 'Seizoenen en beloningen gelden alleen voor online accounts.'
-        : (SEASON.error ? 'De uitslag kon niet worden opgehaald: ' + SEASON.error
-                        : 'Nog geen seizoen afgerond. De eerste uitslag verschijnt zodra dit seizoen voorbij is.');
+        ? 'Sprints and rewards only apply to online accounts.'
+        : (SEASON.error ? 'Could not load the results: ' + SEASON.error
+                        : 'No sprint has finished yet. The first result shows up as soon as this one is over.');
       last.appendChild(p);
     } else {
       const season = SEASON.awards[0].season;
       const head = document.createElement('div');
       head.className = 'panel-title';
-      head.textContent = '► UITSLAG SEIZOEN ' + season;
+      head.textContent = '► SPRINT ' + season;
       last.appendChild(head);
       for (const a of SEASON.awards.filter(x => x.season === season)) {
         const row = document.createElement('div');
@@ -6156,6 +6437,7 @@ hrRender();
 scRender();
 slRender();
 whRender();
+buRender();
 vipRender();
 achRender();
 seasonRender();
@@ -6177,7 +6459,7 @@ function bootGame() {
         // The server refused this session: that is a logout, not a hiccup.
         if (r === false) { authExpire(); return; }
         // Could not reach the server at all: keep playing on the local snapshot.
-        if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard'); return; }
+        if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'no connection, progress is kept on this device'); return; }
         // Close first, pull second: the pull then already carries the season bonus.
         return seasonClose().then(profilePull).then(claimAwards).then(vipPull).then(() => { AUTH.profileAt = Date.now(); });
       })
@@ -6185,7 +6467,7 @@ function bootGame() {
         // api() already expires on a genuine 401/403; anything else is a connection problem.
         if (AUTH.expired) return;
         AUTH.disconnected = true;
-        lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard');
+        lbSetStatus(false, 'no connection, progress is kept on this device');
       })
       // Interrupted rounds are settled after the pull, so their payouts and statistics
       // are not overwritten by the server snapshot.
@@ -6219,7 +6501,7 @@ let settledHandMsg = '';
     const ret = floor2(bet * ODDS.bjSettle(h.player, dealer));
     if (ret > 0) state.balance = round2(state.balance + ret);
     recordRound('blackjack', bet, ret, ret > bet ? round2(ret / bet) : 0);
-    settledHandMsg = `BLACKJACK-HAND UITGESPEELD (STAND): ${ret > bet ? '+$' + fmt(ret - bet) : ret === bet ? 'PUSH' : '-$' + fmt(bet)}`;
+    settledHandMsg = `BLACKJACK HAND PLAYED OUT (STAND): ${ret > bet ? '+$' + fmt(ret - bet) : ret === bet ? 'PUSH' : '-$' + fmt(bet)}`;
     renderBalance();
   }
 }
@@ -6229,8 +6511,8 @@ for (const r of settledRounds) {
 }
 if (refundedStake > 0 || owedPayout > 0 || settledRounds.length || settledHandMsg) {
   saveState();
-  if (refundedStake > 0) flash(`ONAFGEMAAKTE INZET TERUGBETAALD: $${fmt(refundedStake)}`, 'gold', 'homeToasts');
-  if (settledRounds.length) flash(`AFGEBROKEN RONDE${settledRounds.length > 1 ? 'S' : ''} AFGEREKEND: ${owedPayout > 0 ? '+$' + fmt(owedPayout) : 'GEEN WINST'}`, owedPayout > 0 ? 'green' : 'gold', 'homeToasts');
+  if (refundedStake > 0) flash(`UNFINISHED BET REFUNDED: $${fmt(refundedStake)}`, 'gold', 'homeToasts');
+  if (settledRounds.length) flash(`INTERRUPTED ROUND${settledRounds.length > 1 ? 'S' : ''} SETTLED: ${owedPayout > 0 ? '+$' + fmt(owedPayout) : 'NO WIN'}`, owedPayout > 0 ? 'green' : 'gold', 'homeToasts');
   if (settledHandMsg) flash(settledHandMsg, 'gold', 'homeToasts');
 }
 }
