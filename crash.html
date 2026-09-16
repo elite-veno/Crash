@@ -5516,6 +5516,7 @@ async function mpPull() {
 
 // De speler stapt over op een nieuwe ronde: niets van de vorige blijft staan.
 function mpNewRound() {
+  MP.autoTried = false;
   state.hasBet = false;
   state.cashedOut = false;
   state.cashOutAt = 0;
@@ -5527,12 +5528,17 @@ function mpNewRound() {
 }
 
 function mpStop() {
+  // Valt de gedeelde tafel weg terwijl er een inzet loopt, dan staat dat geld bij de
+  // server. Dat stil laten verdwijnen is het ergste wat je kunt doen: zeg het.
+  const orphan = MP.on && state.hasBet && !state.cashedOut;
   MP.on = false;
   MP.round = null;
   MP.bets = [];
+  MP.autoTried = false;
   mpFairRender();
   state.hasBet = false;
   state.cashedOut = false;
+  if (orphan) flash('SHARED TABLE LOST · YOUR STAKE IS SETTLED ON THE SERVER', 'gold', toastHost());
   startWaiting();
 }
 
@@ -5587,7 +5593,13 @@ function mpFrame() {
     if (was !== 'flying') { state.phase = 'flying'; state.startTime = performance.now(); state.pathPoints = []; updateButton(); }
     state.multiplier = Math.min(MP_MAX_MULT, mpMultAt(t - r.startsAt));
     // Auto-cashout vraagt de server om af te rekenen zodra het doel gehaald is.
-    if (state.hasBet && !state.cashedOut && state.autoEnabled && state.multiplier >= state.autoMultiplier) mpCashOut(true);
+    // Eén poging per ronde: mislukt de automatische cashout, dan is de kans voorbij en
+    // moet hij niet zestig keer per seconde opnieuw naar de server gaan.
+    if (state.hasBet && !state.cashedOut && !MP.autoTried &&
+        state.autoEnabled && state.multiplier >= state.autoMultiplier) {
+      MP.autoTried = true;
+      mpCashOut(true);
+    }
     updatePathPoints();
     return;
   }
@@ -5638,6 +5650,25 @@ function mpAdopt(d) {
   if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
 }
 
+// Blijft het antwoord op een inzet of een cashout uit, dan weet deze browser niet of de
+// server al heeft afgerekend. Het saldo dat hier staat mag dan niet leidend zijn: haal op
+// wat de server ervan vindt, anders schrijft de eerstvolgende opslag een uitbetaling weg.
+// De opslag wordt pas op het moment van verzenden opgebouwd, dus een wachtende opslag
+// pakt het saldo van hieronder vanzelf mee.
+async function mpSyncBalance() {
+  if (!online() || !AUTH.session) return;
+  try {
+    const rows = await api('/rest/v1/profiles?select=balance&id=eq.' +
+      encodeURIComponent(AUTH.session.userId) + '&limit=1');
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    const b = Number(row && row.balance);
+    if (!Number.isFinite(b) || Math.abs(b - state.balance) < 0.005) return;
+    state.balance = round2(b);
+    renderBalance();
+    saveLocalOnly();
+  } catch {}
+}
+
 async function mpPlaceBet() {
   if (state.hasBet) return;
   // De poll loopt tot twee seconden achter. Ziet deze browser een ronde die al vertrokken
@@ -5662,6 +5693,7 @@ async function mpPlaceBet() {
     mpPull();
   } catch (e) {
     flash(String(e.message || 'BET REFUSED').toUpperCase(), 'red');
+    await mpSyncBalance();
     mpPull();
   }
 }
@@ -5689,6 +5721,7 @@ async function mpCashOut(auto) {
     state.cashedOut = false;
     updateButton();
     flash(String(e.message || 'TOO LATE').toUpperCase(), 'red');
+    await mpSyncBalance();
     mpPull();
   } finally { MP.cashing = false; }
 }
@@ -5918,6 +5951,7 @@ function pushNow() {
 // An update, never an upsert: a row that already exists must not go through the
 // insert branch of the database guard, which resets an account to its starting values.
 async function profileWrite() {
+  await seasonCatchUp();
   const row = profileRow();
   delete row.id;
   delete row.username;
@@ -5963,6 +5997,21 @@ function adoptServerRow(row, sent) {
     else if (rolled) flash('SEASON SETTLED BY THE SERVER', 'gold', toastHost());
   }
   if (Number.isFinite(rs)) knownResetSeason = rs;
+}
+
+// Een tab die door een seizoensgrens heen open blijft staan, draagt nog het oude saldo.
+// De bewaker op de server rekent een afgelopen seizoen maar een keer af, dus als een
+// andere tab (of deze zelf) al heeft afgerekend, zou dit saldo de afrekening zo weer
+// wegschrijven. Vandaar: eerst laten afrekenen, dan pas opslaan. De server antwoordt ook
+// als er niets te resetten viel, en dat antwoord is leidend.
+async function seasonCatchUp() {
+  if (!online() || !AUTH.session || knownResetSeason === null) return;
+  if (seasonId() <= knownResetSeason) return;
+  let d = null;
+  try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
+  catch { return; }
+  if (!d) return;
+  adoptServerRow({ balance: d.balance, reset_season: d.season }, state.balance);
 }
 
 // Het saldo lokaal bijwerken zonder meteen weer naar de server te schrijven: dat zou de
@@ -6726,6 +6775,11 @@ const SEASON = { awards: [], closed: false, error: '', scores: [] };
 // Een plek op de ranglijst levert geen geld meer op: de uitslag bepaalt alleen de titel
 // en wie de VIP-zone in mag.
 
+// De rekensom van de server, hier nagerekend: $1000 plus een tiende van alles daarboven.
+function seasonBalanceAfter(b) {
+  return round2(1000 + Math.floor(Math.max(0, round2(b) - 1000) * 0.10 * 100) / 100);
+}
+
 // A season is over: everyone starts again on $1000 plus a tenth of whatever they held
 // above it. The server decides whether it has already happened, so asking twice is safe.
 // Awaited before the profile is pulled, so the pull already carries the new balance.
@@ -6734,9 +6788,25 @@ async function seasonReset() {
   let d = null;
   try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
   catch { return null; }
+  if (d && Number.isFinite(Number(d.season))) knownResetSeason = Number(d.season);
   if (!d || !d.reset) return d;
   MP.resetNotice = { before: round2(Number(d.before) || 0), after: round2(Number(d.balance) || 0) };
   return d;
+}
+
+// Een onderbroken ronde wordt bij het opstarten terugbetaald, maar dat geld is van het
+// vorige seizoen. Kwam er in dezelfde start een reset voorbij, dan mag het er niet
+// ongeschoren bovenop komen: tel het bij het oude saldo op en laat het door de reset heen
+// gaan. Dat sluit meteen het gat waarin een lokale snapshot die nieuwer is dan de server
+// de reset helemaal zou overslaan.
+function seasonRebase() {
+  if (!MP.resetNotice) return;
+  const after = seasonBalanceAfter(round2(MP.resetNotice.before + bootCredit));
+  if (Math.abs(after - state.balance) < 0.005) return;
+  state.balance = after;
+  MP.resetNotice.after = after;
+  renderBalance();
+  saveLocalOnly();
 }
 
 // Awaited during boot: any title it hands out must be on the server row before
@@ -7206,7 +7276,7 @@ function bootGame() {
         // Could not reach the server at all: keep playing on the local snapshot.
         if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'no connection, progress is kept on this device'); return; }
         // Close first, pull second: the pull then already carries the season bonus.
-        return seasonClose().then(seasonReset).then(profilePull).then(vipPull).then(() => { AUTH.profileAt = Date.now(); });
+        return seasonClose().then(seasonReset).then(profilePull).then(seasonRebase).then(vipPull).then(() => { AUTH.profileAt = Date.now(); });
       })
       .catch(() => {
         // api() already expires on a genuine 401/403; anything else is a connection problem.
