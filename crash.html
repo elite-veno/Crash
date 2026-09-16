@@ -68,11 +68,16 @@
     display: flex;
     flex-direction: column;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
+    /* Er passen elf items in; op een laag scherm moet de lijst kunnen schuiven,
+       anders is het onderste spel niet te bereiken. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
     flex-shrink: 0;
     position: relative;
     z-index: 100;
   }
+  nav.sidebar::-webkit-scrollbar { width: 0; }
   nav.sidebar.open { width: 240px; }
   nav.sidebar::after {
     content: '';
@@ -491,17 +496,6 @@
     text-shadow: none;
   }
   .balance-amount::before { content: '$'; opacity: 0.6; margin-right: 2px; }
-  .reset-link {
-    display: block;
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 0.6px;
-    cursor: pointer;
-    transition: color 0.2s;
-  }
-  .reset-link:hover { color: var(--red); }
-
   .field-group { margin-bottom: 14px; }
   .field-label {
     font-size: 11px;
@@ -1054,6 +1048,63 @@
   .mines-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%; max-width: 400px; }
   .mines-grid .tile { height: auto; aspect-ratio: 1; font-size: 26px; }
 
+
+  /* Krasloten */
+  .scratch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 360px; }
+  .scratch-grid .tile { height: auto; aspect-ratio: 1; font-size: 30px; }
+  .tile.sc-open { background: var(--panel-light); border-color: var(--border); }
+  /* Na sc-open, anders verliest de markering van de winnende drie het van de gewone stijl. */
+  .tile.sc-open.gem { background: rgba(62,207,142,0.16); border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon-glow); }
+  .sc-legend { display: flex; flex-direction: column; gap: 6px; }
+  .sc-prize { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+  .sc-prize .sy { letter-spacing: 1px; }
+  .sc-prize .mu { font-family: var(--font-num); color: var(--gold); font-weight: 600; }
+
+  /* 777 */
+  .slot-machine { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+  .slot-reels {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    padding: 16px; border-radius: 10px; background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(224,181,85,0.45);
+  }
+  .slot-reel {
+    width: 108px; height: 128px; display: flex; align-items: center; justify-content: center;
+    font-size: 54px; border-radius: 8px; background: var(--panel-light); border: 1px solid var(--border);
+  }
+  .slot-reel.spin { opacity: 0.55; }
+  .sl-history-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .sl-hist {
+    font-family: var(--font-num); font-size: 11px; padding: 4px 8px; border-radius: 6px;
+    border: 1px solid var(--border); color: var(--muted); background: rgba(0,0,0,0.25);
+  }
+  .sl-hist.win { color: var(--neon); border-color: rgba(62,207,142,0.45); }
+
+  /* Rad van fortuin */
+  .wheel-wrap { width: 100%; flex: 1; min-height: 320px; position: relative; margin-bottom: 14px; }
+  .wheel-wrap canvas { width: 100%; height: 100%; display: block; }
+
+  /* VIP-zone */
+  .vip-gate { border-color: rgba(224,181,85,0.3); margin-bottom: 22px; }
+  .vip-gate.open { border-color: rgba(224,181,85,0.6); background: linear-gradient(180deg, rgba(224,181,85,0.07), transparent 60%), var(--panel); }
+  .vip-head { margin-bottom: 16px; }
+  .vip-status { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .vip-gate.open .vip-status { color: var(--gold); }
+  .vip-sub { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .vip-perks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .vip-perk {
+    display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: center;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2);
+  }
+  .vip-perk .ic { font-size: 20px; text-align: center; }
+  .vip-perk .nm { font-size: 13px; font-weight: 600; }
+  .vip-perk .ds { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .game-card.vip-card { border-color: rgba(224,181,85,0.35); }
+  .game-card.vip-card.locked { opacity: 0.45; filter: grayscale(0.7); cursor: not-allowed; }
+  .game-card.vip-card.locked:hover { transform: none; border-color: rgba(224,181,85,0.35); box-shadow: none; }
+  .game-card.vip-card.locked .game-card-arrow { display: none; }
+  .game-card.vip-card.locked .game-card-title::after { content: ' 🔒'; }
+  .nav-item.vip-open .nav-label { color: var(--gold); }
+
   /* Plinko */
   .plinko-wrap { width: 100%; flex: 1; min-height: 340px; position: relative; }
   .plinko-wrap canvas { width: 100%; height: 100%; display: block; }
@@ -1406,6 +1457,11 @@
     #homeView { padding: 24px 16px; }
     .odds-wrap { overflow-x: auto; }
     .odds-table { min-width: 560px; }
+    #vipView, #achievementsView { padding: 28px 16px !important; }
+    .vip-perks { grid-template-columns: 1fr; }
+    .slot-reel { width: 64px; height: 78px; font-size: 32px; }
+    .scratch-grid { max-width: 100%; }
+    .wheel-wrap { min-height: 260px; }
     .rl-board { grid-template-columns: 34px repeat(12, 30px) 34px; grid-template-rows: repeat(3, 38px) 32px 32px; width: max-content; max-width: none; }
     .rl-cell { font-size: 11px; }
     .rl-top { flex-direction: column; }
@@ -1539,6 +1595,28 @@
     <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
   </div>
 
+  <div class="nav-item" data-route="scratch">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="2" y="6" width="20" height="12" rx="2"/>
+        <path d="M8 6v12M16 6v12" stroke-dasharray="2 2"/>
+        <path d="M11 11l2 2M13 11l-2 2"/>
+      </svg>
+    </div>
+    <div class="nav-label">KRASLOTEN</div>
+    <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
+  </div>
+
+  <div class="nav-item" data-route="vip">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8z"/>
+      </svg>
+    </div>
+    <div class="nav-label">VIP ZONE</div>
+    <div class="nav-badge" style="background: rgba(224,181,85,0.12); color: var(--gold); border-color: rgba(224,181,85,0.35);">🔒</div>
+  </div>
+
   <div class="nav-item" data-route="achievements">
     <div class="nav-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -1583,7 +1661,7 @@
 
     <div class="section-heading">
       <h2>BESCHIKBARE GAMES</h2>
-      <span class="count">7 LIVE</span>
+      <span class="count">8 LIVE</span>
       <div class="divider"></div>
     </div>
 
@@ -1803,6 +1881,36 @@
           </div>
         </div>
       </div>
+      <!-- KRASLOTEN -->
+      <div class="game-card available" data-route="scratch">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #1d2a24 0%, #16181f 100%);">
+          <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
+            <rect x="52" y="26" width="176" height="110" rx="8" fill="#151a21" stroke="#3ecf8e" stroke-width="2"/>
+            <g fill="#0e1116" stroke="#2a323d">
+              <rect x="70" y="44" width="44" height="34" rx="4"/>
+              <rect x="118" y="44" width="44" height="34" rx="4"/>
+              <rect x="166" y="44" width="44" height="34" rx="4"/>
+              <rect x="70" y="82" width="44" height="34" rx="4"/>
+              <rect x="118" y="82" width="44" height="34" rx="4"/>
+              <rect x="166" y="82" width="44" height="34" rx="4"/>
+            </g>
+            <g font-size="20" text-anchor="middle">
+              <text x="92" y="69">💎</text><text x="140" y="69">💎</text><text x="188" y="69">💎</text>
+            </g>
+            <g fill="#8d97a6" font-size="17" text-anchor="middle">
+              <text x="92" y="107">?</text><text x="140" y="107">?</text><text x="188" y="107">?</text>
+            </g>
+          </svg>
+        </div>
+        <div class="game-card-body">
+          <div class="game-card-title">KRASLOTEN</div>
+          <div class="game-card-desc">Koop een lot, kras negen vakjes open. Drie gelijke symbolen betalen tot 50×.</div>
+          <div class="game-card-footer">
+            <span class="game-card-tag">RTP 97%</span>
+            <span class="game-card-arrow">→</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="season-strip" id="seasonStrip"></div>
@@ -1841,11 +1949,246 @@
         <tr><td>DRAGON TOWER</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Multiplier per verdieping = 0,97 × (tegels / veilige tegels)^niveau.</td></tr>
         <tr><td>MINES</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Multiplier = 0,97 × kans-inverse dat je k veilige tegels op rij vindt.</td></tr>
         <tr><td>PLINKO</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Elke rij 50/50 links of rechts. Uitbetaaltabel per risico is genormaliseerd op 97%.</td></tr>
+        <tr><td>KRASLOTEN</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Negen vakjes, drie gelijke betalen 1,25× tot 50×. De uitslag ligt vast bij aankoop; 21,6% van de loten betaalt.</td></tr>
         <tr><td>NOODFONDS</td><td class="rtp">—</td><td>—</td><td class="note">Geen inzet. Alleen beschikbaar als je blut bent: stop de marker bij het midden en krijg $10 tot $40 om weer te kunnen spelen.</td></tr>
         <tr><td>PAARDENRACE</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Elk paard heeft een vaste winkans; uitbetaling = 0,97 ÷ winkans. De volgorde wordt vóór de start geloot, de animatie volgt die uitslag.</td></tr>
         <tr><td>BLACKJACK</td><td class="rtp">~99%</td><td>~1%</td><td class="note">6 decks, continu geschud, dealer staat op alle 17, blackjack 3:2, dubbelen op elke 2 kaarten, geen split.</td></tr>
+        <tr><td>777 <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Drie rollen. Drie gelijke betalen 3× tot 40×, twee kersen 1,5×. 17% van de draaien betaalt.</td></tr>
+        <tr><td>RAD <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Twintig even grote vakken die samen 19,4× betalen: 19,4 ÷ 20 = 0,97.</td></tr>
       </tbody>
     </table></div>
+  </div>
+
+  <!-- =================== KRASLOTEN VIEW =================== -->
+  <div class="view game-view" id="scratchView">
+    <aside class="game-aside">
+      <div class="crash-header">
+        <button class="back-btn" data-route="home">← LOBBY</button>
+        <div class="crash-header-title">KRASLOTEN</div>
+      </div>
+
+      <div class="panel balance">
+        <div class="balance-label">SALDO</div>
+        <div class="balance-amount js-balance">1000.00</div>
+        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="field-group">
+          <div class="field-label"><span>PRIJS PER LOT</span><span class="hint">$</span></div>
+          <input type="number" id="scratchBet" value="10" min="1" step="1">
+          <div class="chips" data-for="scratch">
+            <button class="chip" data-action="half">½</button>
+            <button class="chip" data-action="double">2×</button>
+            <button class="chip" data-action="min">MIN</button>
+            <button class="chip" data-action="max">MAX</button>
+          </div>
+        </div>
+        <div class="payout-line"><span id="scStatusLabel">TE GAAN</span><span class="v" id="scStatus">—</span></div>
+        <button class="btn-primary btn-bet" id="scBuyBtn">KOOP LOT</button>
+        <button class="btn-primary btn-cashout" id="scAllBtn" hidden>KRAS ALLES OPEN</button>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► PRIJZEN</div>
+        <div class="sc-legend" id="scLegend"></div>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="stats-grid" data-stats="scratch"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">► ODDS</div>
+        <div class="odds-note">Negen vakjes, drie gelijke symbolen betalen. Het lot ligt vast op het moment dat je het koopt: krassen laat alleen zien wat er al is geloot. RTP <b>97%</b>, kans op een prijs <b>21,6%</b>.</div>
+      </div>
+    </aside>
+
+    <main class="game-main">
+      <div class="panel board">
+        <div class="toast-host" id="scratchToasts"></div>
+        <div class="scratch-grid" id="scratchGrid"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- =================== VIP ZONE VIEW =================== -->
+  <div class="view" id="vipView" style="overflow-y: auto; padding: 40px 50px;">
+    <div class="toast-host" id="vipToasts"></div>
+    <div class="home-hero" style="margin-bottom: 26px;">
+      <h1 class="home-title" style="font-size: 40px;">VIP ZONE</h1>
+      <div class="home-subtitle">► VAN DE WINNAAR VAN HET VORIGE SEIZOEN · DRIE DAGEN LANG</div>
+    </div>
+
+    <div class="panel vip-gate" id="vipGate"></div>
+    <div class="season-strip" id="seasonStripThree"></div>
+
+    <div class="section-heading">
+      <h2>EXCLUSIEVE GAMES</h2>
+      <span class="count">ALLEEN HIER</span>
+      <div class="divider"></div>
+    </div>
+    <div class="games-grid">
+      <div class="game-card available vip-card" data-route="slots">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #2a2112 0%, #16181f 100%);">
+          <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
+            <rect x="40" y="35" width="200" height="90" rx="8" fill="#0e1116" stroke="#e0b555" stroke-width="2"/>
+            <g fill="#151a21" stroke="#e0b555" stroke-width="1">
+              <rect x="56" y="52" width="52" height="56" rx="4"/>
+              <rect x="114" y="52" width="52" height="56" rx="4"/>
+              <rect x="172" y="52" width="52" height="56" rx="4"/>
+            </g>
+            <g fill="#e0b555" font-size="30" font-family="monospace" text-anchor="middle">
+              <text x="82" y="92">7</text><text x="140" y="92">7</text><text x="198" y="92">7</text>
+            </g>
+          </svg>
+        </div>
+        <div class="game-card-body">
+          <div class="game-card-title">777</div>
+          <div class="game-card-desc">Drie rollen. Drie zevens betalen 40×, twee kersen betalen klein.</div>
+          <div class="game-card-footer">
+            <span class="game-card-tag">RTP 97%</span>
+            <span class="game-card-arrow">→</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="game-card available vip-card" data-route="wheel">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #12222a 0%, #16181f 100%);">
+          <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
+            <circle cx="140" cy="88" r="58" fill="#151a21" stroke="#2a323d" stroke-width="2"/>
+            <g stroke="#2a323d" stroke-width="1">
+              <line x1="140" y1="30" x2="140" y2="146"/><line x1="82" y1="88" x2="198" y2="88"/>
+              <line x1="99" y1="47" x2="181" y2="129"/><line x1="181" y1="47" x2="99" y2="129"/>
+            </g>
+            <path d="M 140 88 L 140 30 A 58 58 0 0 1 181 47 Z" fill="#3a2f12" stroke="#e0b555"/>
+            <path d="M 140 88 L 99 129 A 58 58 0 0 0 140 146 Z" fill="#14301f" stroke="#3ecf8e"/>
+            <circle cx="140" cy="88" r="11" fill="#0e1116" stroke="#2a323d"/>
+            <polygon points="131,24 149,24 140,42" fill="#e0b555"/>
+            <text x="163" y="52" fill="#e0b555" font-size="12" font-family="monospace">10×</text>
+          </svg>
+        </div>
+        <div class="game-card-body">
+          <div class="game-card-title">RAD VAN FORTUIN</div>
+          <div class="game-card-desc">Twintig vakken, zeven betalen. Eén vak van 10× voor wie geduld heeft.</div>
+          <div class="game-card-footer">
+            <span class="game-card-tag">RTP 97%</span>
+            <span class="game-card-arrow">→</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== 777 VIEW =================== -->
+  <div class="view game-view" id="slotsView">
+    <aside class="game-aside">
+      <div class="crash-header">
+        <button class="back-btn" data-route="vip">← VIP ZONE</button>
+        <div class="crash-header-title">777</div>
+      </div>
+
+      <div class="panel balance">
+        <div class="balance-label">SALDO</div>
+        <div class="balance-amount js-balance">1000.00</div>
+        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="field-group">
+          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <input type="number" id="slotsBet" value="10" min="1" step="1">
+          <div class="chips" data-for="slots">
+            <button class="chip" data-action="half">½</button>
+            <button class="chip" data-action="double">2×</button>
+            <button class="chip" data-action="min">MIN</button>
+            <button class="chip" data-action="max">MAX</button>
+          </div>
+        </div>
+        <button class="btn-primary btn-bet" id="slSpinBtn">DRAAI</button>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► UITBETALING</div>
+        <div class="sc-legend" id="slPaytable"></div>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="stats-grid" data-stats="slots"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">► ODDS</div>
+        <div class="odds-note">De uitslag wordt geloot vóór de rollen stoppen; de animatie laat hem alleen zien. RTP <b>97%</b>, kans op een prijs <b>17%</b>.</div>
+      </div>
+    </aside>
+
+    <main class="game-main">
+      <div class="panel board">
+        <div class="toast-host" id="slotsToasts"></div>
+        <div class="slot-machine">
+          <div class="slot-reels">
+            <div class="slot-reel" id="slReel0">7️⃣</div>
+            <div class="slot-reel" id="slReel1">💎</div>
+            <div class="slot-reel" id="slReel2">🔔</div>
+          </div>
+          <div class="sl-history-row" id="slHistory"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- =================== RAD VIEW =================== -->
+  <div class="view game-view" id="wheelView">
+    <aside class="game-aside">
+      <div class="crash-header">
+        <button class="back-btn" data-route="vip">← VIP ZONE</button>
+        <div class="crash-header-title">RAD VAN FORTUIN</div>
+      </div>
+
+      <div class="panel balance">
+        <div class="balance-label">SALDO</div>
+        <div class="balance-amount js-balance">1000.00</div>
+        <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="field-group">
+          <div class="field-label"><span>INZET</span><span class="hint">$</span></div>
+          <input type="number" id="wheelBet" value="10" min="1" step="1">
+          <div class="chips" data-for="wheel">
+            <button class="chip" data-action="half">½</button>
+            <button class="chip" data-action="double">2×</button>
+            <button class="chip" data-action="min">MIN</button>
+            <button class="chip" data-action="max">MAX</button>
+          </div>
+        </div>
+        <button class="btn-primary btn-bet" id="whSpinBtn">DRAAI HET RAD</button>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► STATISTIEKEN</div>
+        <div class="stats-grid" data-stats="wheel"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">► ODDS</div>
+        <div class="odds-note">Twintig even grote vakken: 1× 10,00×, 2× 2,00×, 2× 1,50×, 2× 1,20× en dertien lege. Samen 19,4 ÷ 20 = RTP <b>97%</b>.</div>
+      </div>
+    </aside>
+
+    <main class="game-main">
+      <div class="panel board">
+        <div class="toast-host" id="wheelToasts"></div>
+        <div class="wheel-wrap"><canvas id="wheelCanvas"></canvas></div>
+        <div class="sl-history-row" id="whHistory"></div>
+      </div>
+    </main>
   </div>
 
   <!-- =================== PRESTATIES VIEW =================== -->
@@ -1892,7 +2235,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -1968,7 +2310,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -2030,7 +2371,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -2092,7 +2432,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -2155,7 +2494,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -2222,7 +2560,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -2286,7 +2623,6 @@
       <div class="panel balance">
         <div class="balance-label">SALDO</div>
         <div class="balance-amount js-balance">1000.00</div>
-        <a class="reset-link js-reset">↻ RESET SALDO</a>
         <button class="btn-secondary js-broke" hidden>💸 BLUT? SPEEL NOODFONDS</button>
         <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">UITLOGGEN ↪</span></div>
       </div>
@@ -2355,7 +2691,11 @@ const round2 = n => Math.round(n * 100) / 100;
 const floor2 = n => Math.floor(n * 100 + 1e-9) / 100; // payouts always round down
 const MIN_BET = 1;
 const randInt = n => Math.floor(Math.random() * n);
-const GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'horse'];
+// De basisspellen staan voor iedereen open; de VIP-spellen alleen voor de winnaar van het
+// vorige seizoen. GAMES is alles wat statistieken bijhoudt.
+const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'horse', 'scratch'];
+const VIP_GAMES = ['slots', 'wheel'];
+const GAMES = [...BASE_GAMES, ...VIP_GAMES];
 
 function fitCanvas(canvas) {
   const dpr = window.devicePixelRatio || 1;
@@ -2494,6 +2834,97 @@ const ODDS = {
     return order;
   },
 
+  // Krasloten: negen vakjes, drie gelijke symbolen betalen het bedrag van dat symbool.
+  // De uitslag wordt geloot bij aankoop; het rooster wordt daarna om die uitslag gebouwd,
+  // dus krassen kan de uitkomst niet meer veranderen.
+  SCRATCH_CELLS: 9,
+  SCRATCH_TOTAL: 10000,
+  SCRATCH_PRIZES: [
+    { sym: '💎', mult: 50,   weight: 40 },
+    { sym: '🔔', mult: 15,   weight: 120 },
+    { sym: '🍀', mult: 8,    weight: 200 },
+    { sym: '⭐', mult: 4,    weight: 500 },
+    { sym: '🍒', mult: 2,    weight: 900 },
+    { sym: '🪙', mult: 1.25, weight: 400 },
+  ],
+  scratchRtp() { return this.SCRATCH_PRIZES.reduce((a, p) => a + p.weight * p.mult, 0) / this.SCRATCH_TOTAL; },
+  // -1 = geen drie gelijke, anders de index in SCRATCH_PRIZES.
+  scratchDraw(u = Math.random()) {
+    let r = u * this.SCRATCH_TOTAL;
+    for (let i = 0; i < this.SCRATCH_PRIZES.length; i++) { r -= this.SCRATCH_PRIZES[i].weight; if (r < 0) return i; }
+    return -1;
+  },
+  // Elk symbool zit twee keer in de pot, dus een vulling kan nooit per ongeluk een derde
+  // gelijke opleveren; bij winst gaat het winnende symbool er drie keer in.
+  scratchGrid(prize) {
+    const syms = this.SCRATCH_PRIZES.map(p => p.sym);
+    const cells = [], pool = [];
+    const win = prize >= 0 ? syms[prize] : null;
+    if (win) for (let i = 0; i < 3; i++) cells.push(win);
+    for (const sy of syms) if (sy !== win) pool.push(sy, sy);
+    for (let i = pool.length - 1; i > 0; i--) { const j = randInt(i + 1); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    while (cells.length < this.SCRATCH_CELLS) cells.push(pool.pop());
+    for (let i = cells.length - 1; i > 0; i--) { const j = randInt(i + 1); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+    return cells;
+  },
+  // Wat een afgekrast lot waard is, gelezen uit het rooster zelf.
+  scratchPayout(cells) {
+    for (const p of this.SCRATCH_PRIZES) if (cells.filter(c => c === p.sym).length >= 3) return p.mult;
+    return 0;
+  },
+
+  // 777: drie rollen. Drie gelijke betaalt volgens de tabel, twee kersen betalen klein.
+  SLOT_SYMBOLS: ['7️⃣', '💎', '🔔', '🍇', '🍋', '🍒'],
+  SLOT_TOTAL: 10000,
+  SLOT_PRIZES: [
+    { kind: 'triple', sym: '7️⃣', mult: 40,  weight: 40 },
+    { kind: 'triple', sym: '💎', mult: 20,  weight: 80 },
+    { kind: 'triple', sym: '🔔', mult: 12,  weight: 150 },
+    { kind: 'triple', sym: '🍇', mult: 8,   weight: 200 },
+    { kind: 'triple', sym: '🍋', mult: 5,   weight: 230 },
+    { kind: 'triple', sym: '🍒', mult: 3,   weight: 300 },
+    { kind: 'pair',   sym: '🍒', mult: 1.5, weight: 700 },
+  ],
+  slotRtp() { return this.SLOT_PRIZES.reduce((a, p) => a + p.weight * p.mult, 0) / this.SLOT_TOTAL; },
+  slotDraw(u = Math.random()) {
+    let r = u * this.SLOT_TOTAL;
+    for (let i = 0; i < this.SLOT_PRIZES.length; i++) { r -= this.SLOT_PRIZES[i].weight; if (r < 0) return i; }
+    return -1;
+  },
+  slotReels(idx) {
+    const syms = this.SLOT_SYMBOLS, cherry = '🍒';
+    if (idx >= 0) {
+      const p = this.SLOT_PRIZES[idx];
+      if (p.kind === 'triple') return [p.sym, p.sym, p.sym];
+      const others = syms.filter(sy => sy !== cherry);
+      const r = [cherry, cherry, others[randInt(others.length)]];
+      for (let i = r.length - 1; i > 0; i--) { const j = randInt(i + 1); [r[i], r[j]] = [r[j], r[i]]; }
+      return r;
+    }
+    // Verlies: geen drie gelijke en geen twee kersen, anders zou het beeld meer beloven
+    // dan de uitslag waard is.
+    for (let t = 0; t < 100; t++) {
+      const r = [syms[randInt(syms.length)], syms[randInt(syms.length)], syms[randInt(syms.length)]];
+      if (r[0] === r[1] && r[1] === r[2]) continue;
+      if (r.filter(sy => sy === cherry).length === 2) continue;
+      return r;
+    }
+    return ['🍒', '🍋', '🔔'];
+  },
+  slotPayout(reels) {
+    if (reels[0] === reels[1] && reels[1] === reels[2]) {
+      const p = this.SLOT_PRIZES.find(x => x.kind === 'triple' && x.sym === reels[0]);
+      return p ? p.mult : 0;
+    }
+    if (reels.filter(sy => sy === '🍒').length === 2) return this.SLOT_PRIZES.find(x => x.kind === 'pair').mult;
+    return 0;
+  },
+
+  // Rad: twintig vakken van gelijke grootte. De som van de vakken is 19,4 = 0,97 × 20.
+  WHEEL: [0, 1.2, 0, 2, 0, 1.5, 0, 0, 10, 0, 0, 1.2, 0, 2, 0, 1.5, 0, 0, 0, 0],
+  wheelRtp() { return this.WHEEL.reduce((a, b) => a + b, 0) / this.WHEEL.length; },
+  wheelSpin() { return randInt(this.WHEEL.length); },
+
   // Blackjack
   bjNewShoe(decks = 6) {
     const shoe = [];
@@ -2614,6 +3045,7 @@ function saveState() {
       autoMultiplier: state.autoMultiplier,
       rouletteHistory: RL.history,
       awardsClaimed,
+      vipSeason: VIP.season,
       achievements: ACH.unlocked,
       achExtra: ACH.extra,
       title: profileTitle,
@@ -2651,6 +3083,11 @@ function pendingRounds() {
   if (HR.racing) r.push({ game: 'horse', wager: hrTotal(), payout: HR.pendingPayout, mult: HR.pendingMult || 0 });
   for (const b of PK.balls) if (!b.done) r.push({ game: 'plinko', wager: b.bet, payout: floor2(b.bet * b.mult), mult: b.mult });
   if (BJ.phase === 'dealer') r.push({ game: 'blackjack', wager: BJ.bet, payout: BJ.pendingPayout, natural: ODDS.bjIsBlackjack(BJ.player), doubled: BJ.doubled });
+  // Een gekocht kraslot en een draaiende rol of rad zijn al beslist: bij een herstart
+  // worden ze uitbetaald, niet terugbetaald.
+  if (SC.active) r.push({ game: 'scratch', wager: SC.bet, payout: SC.payout, mult: SC.mult });
+  if (SL.spinning) r.push({ game: 'slots', wager: SL.bet, payout: SL.payout, mult: SL.mult });
+  if (WH.spinning) r.push({ game: 'wheel', wager: WH.bet, payout: WH.payout, mult: WH.mult });
   return r;
 }
 
@@ -2768,6 +3205,13 @@ function roundContext(game, wager, payout, mult, meta) {
   return c;
 }
 
+// De toasthost van het scherm waar de speler op dat moment staat.
+function toastHost() {
+  if (currentRoute === 'crash') return 'overlay';
+  if (currentRoute === 'home') return 'homeToasts';
+  return currentRoute + 'Toasts';
+}
+
 function flash(msg, color, hostId) {
   const host = $(hostId || 'overlay');
   if (!host) return;
@@ -2819,55 +3263,19 @@ function takeBet(amt, hostId) {
   return amt; // callers save state once the round is marked active, so pendingStakes() includes it
 }
 
-// Abort every unfinished round without paying anything out (used by reset).
-function abortAllRounds() {
-  state.hasBet = false;
-  state.cashedOut = false;
-  RL.bets = {};
-  RL.lastBets = {};
-  RL.generation += 1; // a running spin animation will see a stale generation and stop paying out
-  RL.spinning = false; RL.pendingPayout = 0;
-  TW.active = false; TW.rows = []; TW.picks = []; TW.level = 0;
-  MN.active = false; MN.grid = []; MN.revealed = []; MN.hit = -1;
-  PK.balls = []; PK.results = []; PK.lastHit = null;
-  clearTimeout(BJ.timer);
-  BJ.phase = 'idle'; BJ.player = []; BJ.dealer = []; BJ.bet = 0; BJ.pendingPayout = 0;
-  HR.generation += 1;
-  HR.racing = false; HR.lastPodium = []; HR.pendingPayout = 0;
-  hrNewField();
-  for (const h of HR.horses) h.progress = 0;
-  rlRenderBets(); rlDraw();
-  twRender(); mnRender(); pkRender(); bjRender(); bjMessage('PLAATS EEN INZET EN DEEL');
-  hrRender();
-  updateButton(); renderPlayers();
-}
-
-function resetEverything() {
-  if (!confirm('Saldo terugzetten naar $1000 en alle statistieken wissen?')) return;
-  abortAllRounds();
-  state.balance = 1000;
-  state.history = [];
-  state.recentWins = [];
-  Object.assign(ACH.extra, freshExtra());
-  for (const g of GAMES) Object.assign(gameStats[g], freshStats());
-  RL.history = [];
-  renderBalance();
-  renderHistory();
-  renderRecentWins();
-  for (const g of GAMES) renderStats(g);
-  rlRenderHistory();
-  saveState();
-}
-document.querySelectorAll('.js-reset').forEach(el => el.addEventListener('click', resetEverything));
-
 // =================== ROUTING ===================
 function navigate(route) {
+  // De VIP-spellen zijn alleen bereikbaar zolang de zone open is; anders kom je uit bij
+  // de zone zelf, die uitlegt hoe je er binnenkomt.
+  if (VIP_ROUTES[route] && !vipActive()) route = 'vip';
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const view = $(route + 'View');
   if (!view) return;
   view.classList.add('active');
-  const nav = document.querySelector(`.nav-item[data-route="${route}"]`);
+  // De VIP-spellen hebben geen eigen menu-item; de zone blijft dan oplichten.
+  const navRoute = VIP_ROUTES[route] ? 'vip' : route;
+  const nav = document.querySelector(`.nav-item[data-route="${navRoute}"]`);
   if (nav) nav.classList.add('active');
   currentRoute = route;
   if (window.innerWidth <= 900) document.getElementById('sidebar').classList.remove('open');
@@ -2879,6 +3287,10 @@ function navigate(route) {
     if (route === 'plinko') pkRender();
     if (route === 'horse') hrDraw();
     if (route === 'achievements') { achRender(); seasonRender(); }
+    if (route === 'scratch') scRender();
+    if (route === 'slots') slRender();
+    if (route === 'wheel') whRender();
+    if (route === 'vip') { vipRender(); seasonRender(); }
     if (route === 'home') seasonRender();
   });
 }
@@ -2927,6 +3339,7 @@ window.addEventListener('resize', () => {
   if (currentRoute === 'roulette') rlDraw();
   if (currentRoute === 'plinko') pkDraw();
   if (currentRoute === 'horse') hrDraw();
+  if (currentRoute === 'wheel') whDraw();
 });
 
 function initClouds() {
@@ -3183,14 +3596,10 @@ function crash() {
   state.multiplier = state.crashAt;
   for (const p of state.players) if (!p.cashedOut) p.lost = true;
 
-  if (state.hasBet && !state.cashedOut) state.stats.rounds += 1;
   if (state.hasBet && !state.cashedOut) {
-    state.stats.lost += 1;
-    state.stats.profit = round2(state.stats.profit - state.betAmount);
     flash(`VERLOREN $${fmt(state.betAmount)} @ ${fmt(state.crashAt)}×`, 'red');
-    achCheck({ game: 'crash', wager: state.betAmount, payout: 0, mult: 0 });
+    recordRound('crash', state.betAmount, 0, 0);
   }
-  if (state.hasBet && state.cashedOut && state.cashOutAt > state.stats.highest) state.stats.highest = state.cashOutAt;
   renderStats('crash');
 
   state.history.unshift(state.crashAt);
@@ -3222,21 +3631,14 @@ function cashOut(at) {
   const m = Math.floor((at ?? state.multiplier) * 100) / 100;
   state.cashedOut = true;
   state.cashOutAt = m;
-  state.stats.rounds += 1;
   const winnings = floor2(state.betAmount * m);
   adjustBalance(winnings);
-  // Cashing out at 1.00x returns the stake; that is not a win and is not worth announcing.
-  const realWin = winnings > state.betAmount + 1e-9;
-  if (realWin) state.stats.won += 1;
-  else if (winnings < state.betAmount - 1e-9) state.stats.lost += 1;
-  state.stats.profit = round2(state.stats.profit + winnings - state.betAmount);
-  renderStats('crash');
   updateButton();
   renderPlayers();
-  if (realWin) postWin('crash', winnings, m);
   flash(`+$${fmt(winnings)} @ ${fmt(m)}×`, 'green');
-  achCheck({ game: 'crash', wager: state.betAmount, payout: winnings, mult: m });
-  saveState();
+  // Elke ronde loopt via recordRound: daar worden de statistieken bijgewerkt en de
+  // VIP-bonus bijgeschreven. Cashen op 1,00× geeft de inzet terug en telt niet als winst.
+  recordRound('crash', state.betAmount, winnings, m);
 }
 
 function renderHistory() {
@@ -3287,7 +3689,7 @@ function renderPlayers() {
   }
 }
 
-const GAME_LABEL = { crash: 'CRASH', roulette: 'ROULETTE', tower: 'TOWER', mines: 'MINES', plinko: 'PLINKO', blackjack: 'BLACKJACK', horse: 'RACE' };
+const GAME_LABEL = { crash: 'CRASH', roulette: 'ROULETTE', tower: 'TOWER', mines: 'MINES', plinko: 'PLINKO', blackjack: 'BLACKJACK', horse: 'RACE', scratch: 'KRASLOT', slots: '777', wheel: 'RAD' };
 
 function renderRecentWins() {
   const list = $('recentWins');
@@ -3511,7 +3913,7 @@ function rlSpin() {
   const ease = t => 1 - Math.pow(1 - t, 3);
 
   function frame(now) {
-    if (gen !== RL.generation) return; // aborted by reset
+    if (gen !== RL.generation) return; // een afgebroken ronde betaalt niet alsnog uit
     const t = Math.min(1, (now - t0) / duration);
     const e = ease(t);
     RL.angle = startAngle + (endAngle - startAngle) * e;
@@ -4231,7 +4633,7 @@ function hrStart() {
   hrRender();
   saveState();
   const frame = now => {
-    if (gen !== HR.generation) return; // aborted by reset
+    if (gen !== HR.generation) return; // een afgebroken race betaalt niet alsnog uit
     const t = (now - HR.t0) / 1000;
     let maxT = 0;
     for (const h of HR.horses) {
@@ -4340,6 +4742,7 @@ const BK = { running: false, t0: 0, gen: 0, MIN: 10, MAX: 40, PERIOD: 1.1 };
 // Any money in play, decided or not: refundable stakes, decided-but-animating rounds, open hands.
 function roundInProgress() {
   return pendingStakes() > 0 || pendingPayouts() > 0 || RL.spinning || HR.racing || PK.balls.length > 0 ||
+    SC.active || SL.spinning || WH.spinning ||
     BJ.phase === 'player' || BJ.phase === 'dealer' || (state.hasBet && state.phase !== 'crashed');
 }
 
@@ -4386,7 +4789,7 @@ function bkStop() {
   achCheck(null);
   $('bkStopBtn').hidden = true;
   $('bkCloseBtn').hidden = false;
-  flash(`NOODFONDS +$${fmt(reward)} · ${Math.round(accuracy * 100)}% precisie`, 'gold', currentRoute === 'home' ? 'homeToasts' : (currentRoute === 'crash' ? 'overlay' : currentRoute + 'Toasts'));
+  flash(`NOODFONDS +$${fmt(reward)} · ${Math.round(accuracy * 100)}% precisie`, 'gold', toastHost());
 }
 
 function bkClose() {
@@ -4399,6 +4802,319 @@ document.querySelectorAll('.js-broke').forEach(b => b.addEventListener('click', 
 $('bkStopBtn').addEventListener('click', bkStop);
 $('bkCloseBtn').addEventListener('click', bkClose);
 $('brokeModal').addEventListener('click', e => { if (e.target === e.currentTarget && !BK.running) bkClose(); });
+
+// =================== KRASLOTEN ===================
+// Het lot wordt bij aankoop geloot; krassen laat alleen zien wat er al ligt. Daarom telt
+// een gekocht lot als een besliste ronde: sluit je de pagina, dan wordt hij uitbetaald.
+const SC = { active: false, shown: false, bet: 0, cells: [], revealed: [], prize: -1, payout: 0, mult: 0 };
+const getScratchBet = bindBet('scratch');
+
+function scLegend() {
+  const el = $('scLegend');
+  if (!el || el.dataset.built) return;
+  el.dataset.built = '1';
+  for (const p of ODDS.SCRATCH_PRIZES) {
+    const row = document.createElement('div');
+    row.className = 'sc-prize';
+    const sy = document.createElement('span'); sy.className = 'sy'; sy.textContent = p.sym + p.sym + p.sym;
+    const mu = document.createElement('span'); mu.className = 'mu'; mu.textContent = fmt(p.mult) + '×';
+    row.appendChild(sy); row.appendChild(mu);
+    el.appendChild(row);
+  }
+}
+
+function scRender(popIndex) {
+  const grid = $('scratchGrid');
+  if (!grid) return;
+  scLegend();
+  if (grid.children.length !== ODDS.SCRATCH_CELLS) {
+    grid.innerHTML = '';
+    for (let i = 0; i < ODDS.SCRATCH_CELLS; i++) {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      t.addEventListener('click', () => scScratch(i));
+      grid.appendChild(t);
+    }
+  }
+  // Een afgerekend lot blijft staan tot het volgende lot gekocht wordt: de speler moet
+  // kunnen zien waarvoor hij betaald heeft.
+  [...grid.children].forEach((t, i) => {
+    const open = SC.shown && SC.revealed[i];
+    const cls = ['tile'];
+    if (SC.active && !SC.revealed[i]) cls.push('clickable');
+    if (open) cls.push('sc-open');
+    if (open && SC.prize >= 0 && SC.cells[i] === ODDS.SCRATCH_PRIZES[SC.prize].sym) cls.push('gem');
+    if (!SC.shown) cls.push('dim');
+    if (i === popIndex) cls.push('pop');
+    t.className = cls.join(' ');
+    t.textContent = open ? SC.cells[i] : (SC.shown ? '?' : '·');
+  });
+  $('scBuyBtn').hidden = SC.active;
+  $('scAllBtn').hidden = !SC.active;
+  const left = SC.active ? SC.revealed.filter(r => !r).length : 0;
+  $('scStatusLabel').textContent = SC.active ? 'TE GAAN' : 'UITSLAG';
+  $('scStatus').textContent = SC.active ? plural(left, 'vakje', 'vakjes')
+    : (SC.shown ? (SC.mult > 0 ? fmt(SC.mult) + '×' : 'geen prijs') : '—');
+}
+
+function scBuy() {
+  if (SC.active) return;
+  const amt = takeBet(getScratchBet(), 'scratchToasts');
+  if (!amt) return;
+  SC.bet = amt;
+  SC.prize = ODDS.scratchDraw();
+  SC.cells = ODDS.scratchGrid(SC.prize);
+  SC.mult = ODDS.scratchPayout(SC.cells);
+  SC.payout = floor2(amt * SC.mult);
+  SC.revealed = Array(ODDS.SCRATCH_CELLS).fill(false);
+  SC.active = true;
+  SC.shown = true;
+  scRender();
+  saveState();
+}
+
+function scScratch(i) {
+  if (!SC.active || SC.revealed[i]) return;
+  SC.revealed[i] = true;
+  scRender(i);
+  if (SC.revealed.every(Boolean)) scSettle();
+  else saveState();
+}
+
+function scRevealAll() {
+  if (!SC.active) return;
+  SC.revealed = SC.revealed.map(() => true);
+  scRender();
+  scSettle();
+}
+
+function scSettle() {
+  if (!SC.active) return;
+  const bet = SC.bet, payout = SC.payout, mult = SC.mult, prize = SC.prize;
+  SC.active = false;
+  if (payout > 0) adjustBalance(payout);
+  recordRound('scratch', bet, payout, mult);
+  scRender();
+  if (payout > bet) flash(`${ODDS.SCRATCH_PRIZES[prize].sym} DRIE GELIJKE · +$${fmt(payout)}`, 'green', 'scratchToasts');
+  else flash('GEEN DRIE GELIJKE', 'red', 'scratchToasts');
+}
+
+$('scBuyBtn').addEventListener('click', scBuy);
+$('scAllBtn').addEventListener('click', scRevealAll);
+
+// =================== 777 (VIP) ===================
+const SL = { spinning: false, gen: 0, bet: 0, reels: ['7️⃣', '💎', '🔔'], outcome: -1, payout: 0, mult: 0, history: [] };
+const getSlotsBet = bindBet('slots');
+
+function slPaytable() {
+  const el = $('slPaytable');
+  if (!el || el.dataset.built) return;
+  el.dataset.built = '1';
+  for (const p of ODDS.SLOT_PRIZES) {
+    const row = document.createElement('div');
+    row.className = 'sc-prize';
+    const sy = document.createElement('span'); sy.className = 'sy';
+    sy.textContent = p.kind === 'triple' ? p.sym + p.sym + p.sym : p.sym + p.sym + ' +';
+    const mu = document.createElement('span'); mu.className = 'mu'; mu.textContent = fmt(p.mult) + '×';
+    row.appendChild(sy); row.appendChild(mu);
+    el.appendChild(row);
+  }
+}
+
+function slRender() {
+  if (!$('slReel0')) return;
+  slPaytable();
+  for (let i = 0; i < 3; i++) $('slReel' + i).textContent = SL.reels[i];
+  $('slSpinBtn').disabled = SL.spinning;
+  $('slSpinBtn').textContent = SL.spinning ? 'DRAAIT…' : 'DRAAI';
+  const hist = $('slHistory');
+  if (hist) {
+    hist.innerHTML = '';
+    for (const h of SL.history) {
+      const d = document.createElement('div');
+      d.className = 'sl-hist' + (h.mult > 0 ? ' win' : '');
+      d.textContent = h.reels.join('') + (h.mult > 0 ? ' ' + fmt(h.mult) + '×' : '');
+      hist.appendChild(d);
+    }
+  }
+}
+
+function slSpin() {
+  if (SL.spinning) return;
+  if (!vipActive()) { flash('ALLEEN VOOR DE VIP VAN DIT SEIZOEN', 'red', 'slotsToasts'); return; }
+  const amt = takeBet(getSlotsBet(), 'slotsToasts');
+  if (!amt) return;
+  SL.bet = amt;
+  SL.outcome = ODDS.slotDraw();
+  SL.reels = ODDS.slotReels(SL.outcome);
+  SL.mult = ODDS.slotPayout(SL.reels);
+  SL.payout = floor2(amt * SL.mult);
+  SL.spinning = true;
+  const gen = ++SL.gen;
+  slRender();
+  saveState();
+
+  const syms = ODDS.SLOT_SYMBOLS;
+  const stops = [750, 1150, 1600];
+  const t0 = performance.now();
+  const frame = () => {
+    if (gen !== SL.gen) return;
+    const t = performance.now() - t0;
+    for (let i = 0; i < 3; i++) {
+      const el = $('slReel' + i);
+      if (t >= stops[i]) { el.textContent = SL.reels[i]; el.classList.remove('spin'); }
+      else { el.textContent = syms[(Math.floor(t / 60) + i * 2) % syms.length]; el.classList.add('spin'); }
+    }
+    if (t >= stops[2]) slSettle(gen);
+    else requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+function slSettle(gen) {
+  if (gen !== SL.gen || !SL.spinning) return;
+  SL.spinning = false;
+  const bet = SL.bet, payout = SL.payout, mult = SL.mult;
+  if (payout > 0) adjustBalance(payout);
+  SL.history.unshift({ reels: [...SL.reels], mult });
+  if (SL.history.length > 8) SL.history.pop();
+  recordRound('slots', bet, payout, mult);
+  slRender();
+  if (payout > bet) flash(`${SL.reels.join('')} · +$${fmt(payout)}`, mult >= 12 ? 'gold' : 'green', 'slotsToasts');
+  else flash('GEEN COMBINATIE', 'red', 'slotsToasts');
+}
+
+$('slSpinBtn').addEventListener('click', slSpin);
+
+// =================== RAD VAN FORTUIN (VIP) ===================
+const WH = { spinning: false, gen: 0, bet: 0, index: 0, payout: 0, mult: 0, angle: 0, history: [] };
+const getWheelBet = bindBet('wheel');
+
+function whColor(m) {
+  // Canvas kent geen CSS-variabelen: hier moeten echte kleuren staan.
+  if (m >= 10) return { fill: '#3a2f12', text: '#e0b555', edge: '#e0b555' };
+  if (m >= 2)  return { fill: '#14301f', text: '#3ecf8e', edge: '#3ecf8e' };
+  if (m > 0)   return { fill: '#152634', text: '#5fb8ff', edge: '#5fb8ff' };
+  return { fill: '#1a1f27', text: '#8d97a6', edge: '#2a323d' };
+}
+
+function whDraw() {
+  const fit = fitCanvas($('wheelCanvas'));
+  if (!fit) return;
+  const { ctx: c, W: w, H: h } = fit;
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 10;
+  const n = ODDS.WHEEL.length, step = (Math.PI * 2) / n;
+  c.clearRect(0, 0, w, h);
+
+  c.beginPath(); c.arc(cx, cy, R + 5, 0, Math.PI * 2);
+  c.fillStyle = '#1a212a'; c.fill();
+  c.strokeStyle = '#2a323d'; c.lineWidth = 2; c.stroke();
+
+  for (let i = 0; i < n; i++) {
+    const m = ODDS.WHEEL[i];
+    const col = whColor(m);
+    const a0 = -Math.PI / 2 + WH.angle + i * step;
+    const a1 = a0 + step;
+    c.beginPath();
+    c.moveTo(cx, cy);
+    c.arc(cx, cy, R, a0, a1);
+    c.closePath();
+    c.fillStyle = col.fill; c.fill();
+    c.strokeStyle = col.edge; c.lineWidth = 1; c.stroke();
+
+    const mid = (a0 + a1) / 2;
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(mid);
+    c.fillStyle = col.text;
+    c.font = '600 13px ' + getComputedStyle(document.body).getPropertyValue('--font-num');
+    c.textBaseline = 'middle';
+    const label = m > 0 ? fmt(m) + '×' : '·';
+    // Op de linkerhelft staat de tekst anders op zijn kop.
+    if (Math.cos(mid) < 0) { c.rotate(Math.PI); c.textAlign = 'left'; c.fillText(label, -(R - 20), 0); }
+    else { c.textAlign = 'right'; c.fillText(label, R - 20, 0); }
+    c.restore();
+  }
+
+  c.beginPath(); c.arc(cx, cy, R * 0.18, 0, Math.PI * 2);
+  c.fillStyle = '#151a21'; c.fill();
+  c.strokeStyle = '#2a323d'; c.stroke();
+
+  // de wijzer staat boven en wijst naar beneden het rad in
+  c.beginPath();
+  c.moveTo(cx - 9, cy - R - 8);
+  c.lineTo(cx + 9, cy - R - 8);
+  c.lineTo(cx, cy - R + 8);
+  c.closePath();
+  c.fillStyle = '#e0b555'; c.fill();
+}
+
+function whRender() {
+  if (!$('whSpinBtn')) return;
+  $('whSpinBtn').disabled = WH.spinning;
+  $('whSpinBtn').textContent = WH.spinning ? 'DRAAIT…' : 'DRAAI HET RAD';
+  const hist = $('whHistory');
+  if (hist) {
+    hist.innerHTML = '';
+    for (const m of WH.history) {
+      const d = document.createElement('div');
+      d.className = 'sl-hist' + (m > 0 ? ' win' : '');
+      d.textContent = m > 0 ? fmt(m) + '×' : '—';
+      hist.appendChild(d);
+    }
+  }
+  whDraw();
+}
+
+function whSpin() {
+  if (WH.spinning) return;
+  if (!vipActive()) { flash('ALLEEN VOOR DE VIP VAN DIT SEIZOEN', 'red', 'wheelToasts'); return; }
+  const amt = takeBet(getWheelBet(), 'wheelToasts');
+  if (!amt) return;
+  WH.bet = amt;
+  WH.index = ODDS.wheelSpin();
+  WH.mult = ODDS.WHEEL[WH.index];
+  WH.payout = floor2(amt * WH.mult);
+  WH.spinning = true;
+  const gen = ++WH.gen;
+  whRender();
+  saveState();
+
+  const n = ODDS.WHEEL.length, step = (Math.PI * 2) / n;
+  const start = WH.angle;
+  const spins = 5 + randInt(3);
+  // het midden van het gelote vak komt onder de wijzer uit
+  const end = start + Math.PI * 2 * spins +
+    (((-(WH.index + 0.5) * step) - start) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  const dur = 4000;
+  const t0 = performance.now();
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  const frame = now => {
+    if (gen !== WH.gen) return;
+    const t = Math.min(1, (now - t0) / dur);
+    WH.angle = start + (end - start) * ease(t);
+    whDraw();
+    if (t < 1) requestAnimationFrame(frame);
+    else whSettle(gen);
+  };
+  requestAnimationFrame(frame);
+}
+
+function whSettle(gen) {
+  if (gen !== WH.gen || !WH.spinning) return;
+  WH.spinning = false;
+  WH.angle = ((WH.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const bet = WH.bet, payout = WH.payout, mult = WH.mult;
+  if (payout > 0) adjustBalance(payout);
+  WH.history.unshift(mult);
+  if (WH.history.length > 8) WH.history.pop();
+  recordRound('wheel', bet, payout, mult);
+  whRender();
+  if (payout > bet) flash(`${fmt(mult)}× · +$${fmt(payout)}`, mult >= 10 ? 'gold' : 'green', 'wheelToasts');
+  else flash('NAAST HET VAK', 'red', 'wheelToasts');
+}
+
+$('whSpinBtn').addEventListener('click', whSpin);
 
 // =================== BACKEND (accounts, progression, live leaderboard) ===================
 // Passwords never reach this file: they go straight to the auth endpoint, which stores
@@ -4416,6 +5132,7 @@ function authExpire(reason) {
   AUTH.expired = true;
   clearInterval(LB.timer);
   clearInterval(FEED.timer);
+  clearInterval(VIP.timer);
   try { localStorage.removeItem(SESSION_KEY); } catch {}
   lbRender();
   authShow();
@@ -4777,12 +5494,15 @@ function lbRender() {
 function liveStart() {
   clearInterval(LB.timer);
   clearInterval(FEED.timer);
-  if (!online()) { lbRender(); renderRecentWins(); return; }
+  clearInterval(VIP.timer);
+  if (!online()) { lbRender(); renderRecentWins(); vipRender(); return; }
   lbPull();
   feedPull();
   seasonPull();
   LB.timer = setInterval(() => { if (currentRoute === 'home' && !document.hidden) { lbPull(); seasonScoresPull().then(seasonBoardRender); } }, 6000);
   FEED.timer = setInterval(() => { if (!document.hidden) feedPull(); }, 8000);
+  // Een seizoen kan aflopen terwijl de pagina openstaat; dan wisselt de zone van eigenaar.
+  VIP.timer = setInterval(() => { if (!document.hidden) { vipPull(); seasonPull(); } }, 300000);
 }
 
 // =================== ACCOUNT UI ===================
@@ -4959,6 +5679,94 @@ function seasonCountdown() {
   return d > 0 ? `${d}d ${h}u ${m}m` : (h > 0 ? `${h}u ${m}m` : `${m}m`);
 }
 
+// ---------- VIP-zone ----------
+// Wie een seizoen wint, mag het seizoen daarna (drie dagen) in de VIP-zone. Dat oordeel
+// komt van de uitslagtabel op de server; de client leest hem alleen uit.
+// Let op: een opgeslagen null zou via Number() een 0 worden, en 0 is een geldig seizoen.
+const VIP = { season: typeof saved?.vipSeason === 'number' && Number.isFinite(saved.vipSeason) ? saved.vipSeason : null, timer: null };
+const VIP_ROUTES = { slots: true, wheel: true };
+const VIP_PERKS = [
+  ['🎰', '777', 'Drie rollen, drie zevens betalen 40×. Alleen hier te spelen.'],
+  ['🎡', 'Rad van fortuin', 'Twintig vakken, één vak van 10×. Alleen hier te spelen.'],
+  ['👑', 'De titel', 'Je naam staat bovenaan de lobby met je seizoenstitel ernaast.'],
+];
+
+function vipActive() { return VIP.season !== null && VIP.season === seasonId() - 1; }
+
+async function vipPull() {
+  if (!online()) return;
+  try {
+    const rows = await api('/rest/v1/season_awards?select=season,rank&rank=eq.1&player=eq.' +
+      encodeURIComponent(AUTH.session.userId) + '&order=season.desc&limit=1', { auth: false });
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const s = row ? Number(row.season) : NaN;
+    const was = VIP.season;
+    VIP.season = Number.isFinite(s) ? s : null;
+    if (VIP.season !== was) saveState();
+  } catch { /* geen verbinding: de opgeslagen stand blijft gelden */ }
+  vipRender();
+  achCheck(null);
+}
+
+// Wie op dit moment de zone in mag, volgens de laatst opgehaalde uitslag.
+function vipHolder() {
+  const want = seasonId() - 1;
+  const row = SEASON.awards.find(a => Number(a.season) === want && Number(a.rank) === 1);
+  return row ? String(row.username) : '';
+}
+
+function vipRender() {
+  const on = vipActive();
+  const nav = document.querySelector('.nav-item[data-route="vip"]');
+  if (nav) {
+    nav.classList.toggle('vip-open', on);
+    const badge = nav.querySelector('.nav-badge');
+    if (badge) badge.textContent = on ? 'OPEN' : '🔒';
+  }
+  const gate = $('vipGate');
+  if (!gate) return;
+  gate.innerHTML = '';
+  gate.className = 'panel vip-gate' + (on ? ' open' : '');
+
+  const head = document.createElement('div');
+  head.className = 'vip-head';
+  const t = document.createElement('div');
+  t.className = 'vip-status';
+  const sub = document.createElement('div');
+  sub.className = 'vip-sub';
+  if (on) {
+    t.textContent = '👑 De zone is van jou';
+    sub.textContent = 'Je won seizoen ' + VIP.season + '. Nog ' + seasonCountdown() + ' toegang, tot de volgende uitslag.';
+  } else {
+    const who = vipHolder();
+    t.textContent = '🔒 Op slot';
+    sub.textContent = who
+      ? who + ' won het vorige seizoen en heeft de zone tot de volgende uitslag.'
+      : 'De zone gaat open voor wie een seizoen wint. Sta bovenaan bij SEIZOENWINST als de drie dagen om zijn.';
+  }
+  head.appendChild(t); head.appendChild(sub);
+  gate.appendChild(head);
+
+  const perks = document.createElement('div');
+  perks.className = 'vip-perks';
+  for (const [icon, name, desc] of VIP_PERKS) {
+    const d = document.createElement('div');
+    d.className = 'vip-perk';
+    const i = document.createElement('span'); i.className = 'ic'; i.textContent = icon;
+    const b = document.createElement('div');
+    const n = document.createElement('div'); n.className = 'nm'; n.textContent = name;
+    const s = document.createElement('div'); s.className = 'ds'; s.textContent = desc;
+    b.appendChild(n); b.appendChild(s);
+    d.appendChild(i); d.appendChild(b);
+    perks.appendChild(d);
+  }
+  gate.appendChild(perks);
+
+  document.querySelectorAll('.vip-card').forEach(c => {
+    c.classList.toggle('locked', !on);
+  });
+}
+
 // ---------- prestaties ----------
 // Elke prestatie kijkt naar de ronde die net is gespeeld (ctx) en naar de stand (s).
 const ACHIEVEMENTS = [
@@ -4966,7 +5774,7 @@ const ACHIEVEMENTS = [
   { id: 'first_win',   icon: '💵', tier: 'brons', title: 'Eerste winst',      desc: 'Win een ronde',                               test: (c, s) => s.won >= 1 },
   { id: 'rounds_50',   icon: '🕐', tier: 'brons', title: 'Vaste klant',       desc: 'Speel 50 rondes',                             test: (c, s) => s.rounds >= 50 },
   { id: 'rounds_250',  icon: '🏛', tier: 'zilver', title: 'Stamgast',          desc: 'Speel 250 rondes',                            test: (c, s) => s.rounds >= 250 },
-  { id: 'all_games',   icon: '🎠', tier: 'zilver', title: 'Allrounder',        desc: 'Speel elke mode minstens één keer',           test: (c, s) => GAMES.every(g => s.stats[g].rounds > 0) },
+  { id: 'all_games',   icon: '🎠', tier: 'zilver', title: 'Allrounder',        desc: 'Speel elke mode minstens één keer',           test: (c, s) => BASE_GAMES.every(g => s.stats[g].rounds > 0) },
   { id: 'streak_5',    icon: '📈', tier: 'brons', title: 'Op dreef',          desc: 'Win vijf rondes op rij',                      test: (c, s) => s.extra.bestStreak >= 5 },
   { id: 'streak_10',   icon: '🚀', tier: 'goud',  title: 'Onaantastbaar',     desc: 'Win tien rondes op rij',                      test: (c, s) => s.extra.bestStreak >= 10 },
   { id: 'balance_2500',icon: '💰', tier: 'brons', title: 'Vermogend',         desc: 'Bereik een saldo van $2.500',                 test: (c, s) => s.balance >= 2500 },
@@ -4989,6 +5797,11 @@ const ACHIEVEMENTS = [
   { id: 'hr_outsider', icon: '🐎', tier: 'goud',  title: 'Buitenbeentje',     desc: 'Win een race met een paard van 8× of meer',   test: (c, s) => (s.extra.max.horse || 0) >= 8 },
   { id: 'hr_triple',   icon: '🏇', tier: 'zilver', title: 'Stalmeester',       desc: 'Win drie races op rij',                       test: (c, s) => s.extra.horseStreak >= 3 },
   { id: 'nood_precise',icon: '🎚', tier: 'zilver', title: 'Precisie',          desc: 'Haal $35 of meer uit het noodfonds',          test: (c, s) => s.extra.noodfonds >= 35 },
+  { id: 'sc_win',      icon: '🎟', tier: 'brons', title: 'Prijs gekrast',     desc: 'Win met een kraslot',                         test: (c, s) => s.stats.scratch.won >= 1 },
+  { id: 'sc_diamond',  icon: '💎', tier: 'goud',  title: 'Drie diamanten',    desc: 'Kras drie diamanten open (50×)',              test: (c, s) => (s.extra.max.scratch || 0) >= 50 },
+  { id: 'vip_zone',    icon: '🔑', tier: 'goud',  title: 'Sleutel van de zone', desc: 'Win een seizoen en kom in de VIP-zone',     test: (c, s) => VIP.season !== null },
+  { id: 'sl_777',      icon: '7️⃣', tier: 'goud',  title: 'Drie zevens',       desc: 'Draai 777 in de VIP-zone (40×)',              test: (c, s) => (s.extra.max.slots || 0) >= 40 },
+  { id: 'wh_top',      icon: '🎡', tier: 'goud',  title: 'Vol op het rad',    desc: 'Raak het vak van 10× op het rad',             test: (c, s) => (s.extra.max.wheel || 0) >= 10 },
   { id: 'season_pod',  icon: '🏆', tier: 'goud',  title: 'Op het podium',     desc: 'Eindig een seizoen in de top drie',           test: (c, s) => !!(AUTH.session && profileTitle) },
 ];
 
@@ -5056,7 +5869,7 @@ function achCheck(ctx) {
   }
   if (fresh.length) {
     for (const a of fresh) {
-      flash(`PRESTATIE: ${a.icon} ${a.title}`, 'gold', currentRoute === 'crash' ? 'overlay' : (currentRoute === 'home' ? 'homeToasts' : currentRoute + 'Toasts'));
+      flash(`PRESTATIE: ${a.icon} ${a.title}`, 'gold', toastHost());
     }
     saveState();
     achRender();
@@ -5202,6 +6015,8 @@ async function seasonPull() {
   } catch (e) { SEASON.awards = []; SEASON.error = e.message; }
   await seasonScoresPull();
   seasonRender();
+  // De poort noemt de houder uit SEASON.awards; die is hier pas binnen.
+  vipRender();
 }
 
 function myRank(board) {
@@ -5231,7 +6046,7 @@ function renderSeasonStrip(strip) {
   t2.textContent = seasonCountdown();
   const t3 = document.createElement('div');
   t3.className = 'season-sub';
-  t3.textContent = 'tot de uitslag · de bonus gaat naar wie dit seizoen het meeste wint';
+  t3.textContent = 'tot de uitslag · de bonus én de VIP-zone gaan naar wie dit seizoen het meeste wint';
   left.appendChild(t1); left.appendChild(t2); left.appendChild(t3);
   strip.appendChild(left);
 
@@ -5250,7 +6065,7 @@ function renderSeasonStrip(strip) {
 }
 
 function seasonRender() {
-  for (const id of ['seasonStrip', 'seasonStripTwo']) renderSeasonStrip($(id));
+  for (const id of ['seasonStrip', 'seasonStripTwo', 'seasonStripThree']) renderSeasonStrip($(id));
   seasonBoardRender();
 
   const last = $('seasonLast');
@@ -5338,9 +6153,13 @@ pkRender();
 bjRender();
 hrNewField();
 hrRender();
+scRender();
+slRender();
+whRender();
+vipRender();
 achRender();
 seasonRender();
-setInterval(seasonRender, 30000);
+setInterval(() => { seasonRender(); vipRender(); }, 30000);
 
 // The casino only starts once an account is active; the gate stays up otherwise.
 function bootGame() {
@@ -5360,7 +6179,7 @@ function bootGame() {
         // Could not reach the server at all: keep playing on the local snapshot.
         if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'geen verbinding, voortgang wordt lokaal bewaard'); return; }
         // Close first, pull second: the pull then already carries the season bonus.
-        return seasonClose().then(profilePull).then(claimAwards).then(() => { AUTH.profileAt = Date.now(); });
+        return seasonClose().then(profilePull).then(claimAwards).then(vipPull).then(() => { AUTH.profileAt = Date.now(); });
       })
       .catch(() => {
         // api() already expires on a genuine 401/403; anything else is a connection problem.
