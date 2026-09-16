@@ -5922,6 +5922,7 @@ async function profileWrite() {
   delete row.id;
   delete row.username;
   if (!NET.hasFeatured) delete row.featured;
+  const sent = row.balance;
   let back;
   try {
     // De server schrijft terug wat er werkelijk is opgeslagen. Dat is nodig omdat hij een
@@ -5938,24 +5939,43 @@ async function profileWrite() {
       method: 'PATCH', headers: { Prefer: 'return=representation' }, body: row,
     });
   }
-  adoptServerRow(Array.isArray(back) ? back[0] : back);
+  adoptServerRow(Array.isArray(back) ? back[0] : back, sent);
   return back;
 }
 
-// Wat de server terugschrijft is leidend zodra hij het seizoen heeft afgerekend.
+// Wat de server terugschrijft is leidend. Hij mag een afgelopen seizoen zelf afrekenen, en
+// dan komt er een ander saldo terug dan wat we stuurden; dat nemen we over. Zonder dit zou
+// de volgende opslag het oude saldo er weer overheen zetten.
 let knownResetSeason = null;
-function adoptServerRow(row) {
+function adoptServerRow(row, sent) {
   if (!row) return;
-  const rs = Number(row.reset_season);
   const bal = Number(row.balance);
-  if (!Number.isFinite(rs) || !Number.isFinite(bal)) return;
-  if (knownResetSeason !== null && rs > knownResetSeason && Math.abs(bal - state.balance) > 0.005) {
+  if (!Number.isFinite(bal)) return;
+  const rs = Number(row.reset_season);
+  const rolled = Number.isFinite(rs) && knownResetSeason !== null && rs > knownResetSeason;
+  // De server corrigeerde ons: overnemen, wat de aanleiding ook was.
+  if (Number.isFinite(Number(sent)) && Math.abs(bal - Number(sent)) > 0.005) {
     const before = state.balance;
     state.balance = round2(bal);
     renderBalance();
-    flash(`NEW SEASON · $${fmt(before)} → $${fmt(state.balance)} (you keep 10% above $1000)`, 'gold', toastHost());
+    saveLocalOnly();
+    if (bal < before) flash(`NEW SEASON · $${fmt(before)} → $${fmt(state.balance)} (you keep 10% above $1000)`, 'gold', toastHost());
+    else if (rolled) flash('SEASON SETTLED BY THE SERVER', 'gold', toastHost());
   }
-  knownResetSeason = rs;
+  if (Number.isFinite(rs)) knownResetSeason = rs;
+}
+
+// Het saldo lokaal bijwerken zonder meteen weer naar de server te schrijven: dat zou de
+// correctie die we net overnamen opnieuw ter discussie stellen.
+function saveLocalOnly() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    data.balance = state.balance;
+    data.updatedAt = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {}
 }
 
 // The server holds the account's progression; the local snapshot is only a cache.
