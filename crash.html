@@ -1129,6 +1129,29 @@
   .bu-option .mu { font-family: var(--font-num); font-size: 11px; color: var(--muted); }
   .bu-option.dead { opacity: 0.4; cursor: not-allowed; }
 
+  /* Spelersprofielen */
+  .prof-featured { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .prof-slot {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 18px 12px; border-radius: 8px; text-align: center;
+    border: 1px dashed var(--border); background: rgba(0,0,0,0.2); color: var(--muted);
+  }
+  .prof-slot.filled { border-style: solid; background: var(--panel-light); color: var(--text); }
+  .prof-slot.filled.gold { border-color: rgba(224,181,85,0.55); }
+  .prof-slot.filled.silver { border-color: rgba(200,208,220,0.45); }
+  .prof-slot.filled.bronze { border-color: rgba(62,207,142,0.4); }
+  .prof-slot .ic { font-size: 30px; }
+  .prof-slot .nm { font-size: 12px; font-weight: 600; }
+  .prof-slot:not(.filled) .nm { font-weight: 400; }
+  .prof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 8px; }
+  .ach-card.pickable { cursor: pointer; }
+  .ach-card.pickable:hover { border-color: var(--neon); }
+  .ach-card.shown { box-shadow: inset 0 0 0 1px var(--gold); }
+  .ach-card.shown .ach-tier { color: var(--gold); }
+  .lb-row.clickable { cursor: pointer; }
+  .lb-row.clickable:hover .name { text-decoration: underline; }
+  .lb-badges { display: inline-flex; gap: 2px; margin-left: 6px; font-size: 11px; vertical-align: middle; }
+
   /* Prestaties, rangen en seizoenen */
   .ach-head { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
   .ach-progress { flex: 1; min-width: 160px; height: 8px; border-radius: 4px; background: rgba(0,0,0,0.5); border: 1px solid var(--border); overflow: hidden; }
@@ -1643,6 +1666,16 @@
     <div class="nav-badge" style="background: rgba(224,181,85,0.12); color: var(--gold); border-color: rgba(224,181,85,0.35);">🔒</div>
   </div>
 
+  <div class="nav-item" data-route="profile">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>
+      </svg>
+    </div>
+    <div class="nav-label">PROFILE</div>
+  </div>
+
   <div class="nav-item" data-route="achievements">
     <div class="nav-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -1980,7 +2013,7 @@
         <div id="lbRatio"></div>
       </div>
       <div class="panel lb-panel">
-        <div class="panel-title"><span>► SPRINT PROFIT</span><span class="sub">PRIZES AND A VIP PASS</span></div>
+        <div class="panel-title"><span>► SPRINT PROFIT</span><span class="sub">TITLE AND A VIP PASS</span></div>
         <div id="lbSeason"></div>
       </div>
     </div>
@@ -2294,6 +2327,16 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- =================== PROFILE VIEW =================== -->
+  <div class="view" id="profileView" style="overflow-y: auto; padding: 40px 50px;">
+    <div class="toast-host" id="profileToasts"></div>
+    <div class="home-hero" style="margin-bottom: 26px;">
+      <h1 class="home-title" style="font-size: 40px;" id="profName">—</h1>
+      <div class="home-subtitle" id="profTitle">—</div>
+    </div>
+    <div id="profBody"></div>
   </div>
 
   <!-- =================== ACHIEVEMENTS VIEW =================== -->
@@ -3188,10 +3231,10 @@ function saveState() {
       autoEnabled: state.autoEnabled,
       autoMultiplier: state.autoMultiplier,
       rouletteHistory: RL.history,
-      awardsClaimed,
       vipSeason: VIP.season,
       achievements: ACH.unlocked,
       achExtra: ACH.extra,
+      featured: ACH.featured,
       title: profileTitle,
       updatedAt: Date.now(),
       towerDiff: TW.diff,
@@ -3441,6 +3484,7 @@ function navigate(route) {
     if (route === 'wheel') whRender();
     if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
+    if (route === 'profile') { if (!PROF.user) profOpen(profMine()); else profRender(); }
     if (route === 'home') seasonRender();
   });
 }
@@ -5401,17 +5445,25 @@ const MP = {
   paid: 0,
 };
 
-const MP_RATE = 0.103995;  // m = e^(RATE * seconds), the same curve as the solo flight
-const MP_PAUSE_MS = 3100;  // the server refuses a new round until this long after the crash
+const MP_RATE = 0.103995;   // m = e^(RATE * seconds), the same curve as the solo flight
+const MP_PAUSE_MS = 3100;   // the server refuses a new round until this long after the crash
+const MP_MAX_MULT = 1000;   // the highest crash point the server can draw
+// The server does NOT say when the flight ends — that number would BE the crash point, since
+// the duration is an exact function of it. So the plane keeps climbing until a poll brings
+// back the result, and the display then snaps to what actually happened. Nothing is paid on
+// the climb: the server settles every cash-out against its own clock.
 function mpNow() { return Date.now() + MP.offset; }
 function mpMultAt(ms) { return Math.exp(MP_RATE * Math.max(0, ms) / 1000); }
 
 async function mpTick() {
-  if (MP.ticking) return;
+  // Eén tegelijk, en niet vaker dan eens per seconde: de server weigert een nieuwe ronde
+  // toch tot de pauze om is. Het slot blijft dicht tijdens het ophalen hieronder, anders
+  // roept die pull opnieuw een tick aan en herhaalt dat zichzelf.
+  if (MP.ticking || Date.now() - (MP.tickAt || 0) < 1000) return;
   MP.ticking = true;
+  MP.tickAt = Date.now();
   try {
     await api('/rest/v1/rpc/crash_tick', { method: 'POST', body: {} });
-    MP.ticking = false;
     // Meteen ophalen: anders staat de tafel nog een pollronde lang op CRASHED.
     await mpPull();
   } catch { /* iemand anders was eerder, of de tabellen bestaan nog niet */ }
@@ -5434,7 +5486,8 @@ async function mpPull() {
       id,
       commit: String(r.commit_hash || ''),
       startsAt: Date.parse(r.starts_at),
-      endsAt: Date.parse(r.ends_at),
+      // Alleen bekend zodra de vlucht voorbij is; daarvoor staat hier null.
+      endsAt: r.ends_at == null ? null : Date.parse(r.ends_at),
       crashAt: r.crash_at == null ? null : Number(r.crash_at),
       seed: r.seed || null,
     };
@@ -5444,9 +5497,10 @@ async function mpPull() {
     const bets = await api('/rest/v1/crash_bets?select=username,amount,cashed_at,payout&round_id=eq.' +
       id + '&order=amount.desc&limit=50', { auth: false });
     MP.bets = Array.isArray(bets) ? bets : [];
+    mpAdoptMyBet();
     if (currentRoute === 'crash') { renderPlayers(); mpFairRender(); }
     // De volgende ronde komt er niet vanzelf: wie als eerste merkt dat deze klaar is, vraagt hem aan.
-    if (mpNow() >= MP.round.endsAt + MP_PAUSE_MS) mpTick();
+    if (MP.round.endsAt != null && mpNow() >= MP.round.endsAt + MP_PAUSE_MS) mpTick();
   } catch (e) {
     MP.error = e.message || 'geen verbinding';
     // Zonder gedeelde rondes speelt de crash-tafel gewoon weer solo verder.
@@ -5481,8 +5535,10 @@ function mpStop() {
 function mpSchedule() {
   clearTimeout(MP.timer);
   const r = MP.round;
-  const between = !r || mpNow() >= r.endsAt;
-  MP.timer = setTimeout(mpLoop, between ? 600 : 2000);
+  let delay = 2000;                             // tijdens het aftellen rekent de browser zelf
+  if (!r || r.endsAt != null) delay = 600;      // tussen twee rondes: daar wacht de speler op
+  else if (mpNow() >= r.startsAt) delay = 500;  // tijdens de vlucht: hier komt de uitslag vandaan
+  MP.timer = setTimeout(mpLoop, delay);
 }
 
 async function mpLoop() {
@@ -5520,10 +5576,10 @@ function mpFrame() {
     return;
 
   }
-  if (t < r.endsAt) {
+  if (r.endsAt == null) {
+    // De vlucht loopt, of hij is net voorbij en dat weten we nog niet.
     if (was !== 'flying') { state.phase = 'flying'; state.startTime = performance.now(); state.pathPoints = []; updateButton(); }
-    state.multiplier = mpMultAt(t - r.startsAt);
-    if (r.crashAt != null && state.multiplier > r.crashAt) state.multiplier = r.crashAt;
+    state.multiplier = Math.min(MP_MAX_MULT, mpMultAt(t - r.startsAt));
     // Auto-cashout vraagt de server om af te rekenen zodra het doel gehaald is.
     if (state.hasBet && !state.cashedOut && state.autoEnabled && state.multiplier >= state.autoMultiplier) mpCashOut(true);
     updatePathPoints();
@@ -5532,6 +5588,8 @@ function mpFrame() {
   if (state.phase !== 'crashed') {
     state.phase = 'crashed';
     state.crashTime = performance.now();
+    // De uitslag is er nu pas: het beeld springt terug naar waar hij echt crashte.
+    if (r.crashAt != null) state.multiplier = r.crashAt;
     mpSettle();
     setTimeout(mpPull, 300);
   }
@@ -5562,9 +5620,11 @@ function mpSettle() {
 }
 
 // Een lopende opslag mag niet over het saldo heen schrijven dat de server net heeft gezet.
+// Wat nog niet is opgeslagen moet erúit voordat de server het saldo verzet, anders schrijft
+// een late opslag de uitbetaling weer weg. Niet annuleren dus, maar doorsturen.
 async function mpFlush() {
-  clearTimeout(pushTimer);
   try { await pushInFlight; } catch {}
+  if (pushPending) { try { await pushNow(); } catch {} }
 }
 
 function mpAdopt(d) {
@@ -5590,6 +5650,7 @@ async function mpPlaceBet() {
     state.betAmount = amt;
     state.hasBet = true;
     state.cashedOut = false;
+    MP.betAt = Date.now();
     updateButton();
     saveState();
     mpPull();
@@ -5650,6 +5711,32 @@ function mpFairRender() {
     if (r.crashAt != null) line('crashed at', fmt(r.crashAt) + 'x');
   } else {
     line('seed', 'revealed when the flight is over');
+  }
+}
+
+// De server weet welke inzet van jou is; deze browser hoeft dat niet te onthouden. Na een
+// herlaad, een tweede tabblad of een haperende verbinding komt de eigen inzet hier terug,
+// zodat er nog uitgestapt kan worden op geld dat al bij de server staat.
+function mpAdoptMyBet() {
+  const me = AUTH.session ? AUTH.session.username : null;
+  if (!me) return;
+  const mine = MP.bets.find(b => b.username === me);
+  if (mine) {
+    state.hasBet = true;
+    state.betAmount = round2(Number(mine.amount) || 0);
+    if (mine.cashed_at != null) {
+      state.cashedOut = true;
+      state.cashOutAt = Number(mine.cashed_at) || 0;
+      MP.paid = round2(Number(mine.payout) || 0);
+    }
+    updateButton();
+    return;
+  }
+  // Net zelf ingezet? Dan is de rij er misschien nog niet; die niet wegpoetsen.
+  if (state.hasBet && Date.now() - (MP.betAt || 0) > 4000) {
+    state.hasBet = false;
+    state.cashedOut = false;
+    updateButton();
   }
 }
 
@@ -5776,6 +5863,7 @@ async function authLogin(username, password) {
 // ---------- progression sync ----------
 let pushTimer = null;
 let pushInFlight = null;   // de opslag die op dit moment onderweg is, zodat er op gewacht kan worden
+let pushPending = false;   // er staat een opslag klaar die nog niet vertrokken is
 
 function profileRow() {
   let won = 0, lost = 0, rounds = 0, profit = 0;
@@ -5788,7 +5876,7 @@ function profileRow() {
     stats: gameStats,
     achievements: ACH.unlocked,
     ach_extra: ACH.extra,
-    awards_claimed: awardsClaimed,
+    featured: ACH.featured,
     updated_at: new Date().toISOString(),
   };
 }
@@ -5797,13 +5885,23 @@ function profileRow() {
 function profilePush() {
   if (!online() || !AUTH.profileAt) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => {
-    pushInFlight = (async () => {
-      try { await profileWrite(); lbSetWriteStatus(true); }
-      catch (e) { lbSetWriteStatus(false, e.message); }
-      finally { pushInFlight = null; }
-    })();
-  }, 1200);
+  pushPending = true;
+  pushTimer = setTimeout(pushNow, 1200);
+}
+
+// Stuurt de wachtende opslag nu meteen en geeft hem terug om op te wachten.
+function pushNow() {
+  clearTimeout(pushTimer);
+  if (!pushPending || !online() || !AUTH.profileAt) return pushInFlight;
+  pushPending = false;
+  const p = (async () => {
+    try { await profileWrite(); lbSetWriteStatus(true); }
+    catch (e) { lbSetWriteStatus(false, e.message); }
+  })();
+  pushInFlight = p;
+  // Alleen leegmaken als dit nog steeds de laatste is: een oudere mag een nieuwere niet wissen.
+  p.then(() => { if (pushInFlight === p) pushInFlight = null; });
+  return p;
 }
 
 // An update, never an upsert: a row that already exists must not go through the
@@ -5831,7 +5929,6 @@ async function profilePull() {
     return true;
   }
   profileTitle = row.title || '';
-  const pulledClaims = row.awards_claimed && typeof row.awards_claimed === 'object' ? row.awards_claimed : null;
   const serverAt = Date.parse(row.updated_at || 0) || 0;
   const localAt = Number(saved?.updatedAt) || 0;
   // A freshly registered row still holds the starting values; a save adopted from the
@@ -5840,12 +5937,11 @@ async function profilePull() {
   if (adoptedLegacy && untouched) return true;
   if (serverAt > localAt) {
     state.balance = Math.max(0, round2((Number(row.balance) || 0) + bootCredit));
-    // The marks belong to the balance they were paid into, so they travel together.
-    if (pulledClaims) awardsClaimed = Object.assign({}, pulledClaims);
     const st = row.stats && typeof row.stats === 'object' ? row.stats : {};
     for (const g of GAMES) Object.assign(gameStats[g], freshStats(), st[g] || {});
     state.stats = gameStats.crash;
     if (row.achievements && typeof row.achievements === 'object') ACH.unlocked = row.achievements;
+    if (Array.isArray(row.featured)) ACH.featured = row.featured.slice(0, 3);
     if (row.ach_extra && typeof row.ach_extra === 'object' && Object.keys(row.ach_extra).length) {
       Object.assign(ACH.extra, freshExtra(), row.ach_extra);
     }
@@ -5907,7 +6003,7 @@ function lbMineRow() {
   return {
     username: AUTH.session ? AUTH.session.username : 'YOU',
     balance: state.balance, won, lost, self: true,
-    title: profileTitle || '', achievements: achCount(),
+    title: profileTitle || '', achievements: achCount(), featured: ACH.featured,
   };
 }
 
@@ -5940,7 +6036,7 @@ function lbApplyStatus() {
 async function lbPull() {
   if (!online()) return;
   try {
-    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,last_seen,updated_at&order=balance.desc&limit=200', { auth: false });
+    const rows = await api('/rest/v1/public_leaderboard?select=username,balance,won,lost,title,achievements,featured,last_seen,updated_at&order=balance.desc&limit=200', { auth: false });
     LB.rows = (Array.isArray(rows) ? rows : []).map(r => ({
       username: String(r.username || '?').slice(0, 16),
       balance: Math.max(0, round2(Number(r.balance) || 0)),
@@ -5948,6 +6044,7 @@ async function lbPull() {
       lost: Math.max(0, Math.floor(Number(r.lost) || 0)),
       title: r.title ? String(r.title).slice(0, 24) : '',
       achievements: Math.max(0, Math.floor(Number(r.achievements) || 0)),
+      featured: Array.isArray(r.featured) ? r.featured.slice(0, 3) : [],
       seenAt: Date.parse(r.last_seen || r.updated_at || 0) || 0,
     }));
     lbSetStatus(true);
@@ -5978,10 +6075,31 @@ function lbRowEl(p, rank, value, meta) {
     t.textContent = '🏆 ' + titleLabel(p.title);
     wrap.appendChild(t);
   }
+  // De drie badges die deze speler zelf uitkoos.
+  const shown = Array.isArray(p.featured) ? p.featured : [];
+  if (shown.length) {
+    const b = document.createElement('span');
+    b.className = 'lb-badges';
+    const names = [];
+    for (const id of shown.slice(0, 3)) {
+      const a = ACHIEVEMENTS.find(x => x.id === id);
+      if (!a) continue;
+      const i = document.createElement('span');
+      i.textContent = a.icon;
+      b.appendChild(i);
+      names.push(a.title);
+    }
+    if (names.length) { b.title = names.join(' · '); wrap.appendChild(b); }
+  }
   const v = document.createElement('span');
   v.className = 'val';
   v.textContent = value;
   row.appendChild(r); row.appendChild(wrap); row.appendChild(v);
+  // Op een naam klikken opent het profiel van die speler.
+  if (p.username) {
+    row.classList.add('clickable');
+    row.addEventListener('click', () => profOpen(String(p.username)));
+  }
   return row;
 }
 
@@ -6229,7 +6347,9 @@ const RANKS = [
 // the twelve-day one is pure arithmetic on top, so no extra bookkeeping is needed.
 const SPRINT_SECONDS = 3 * 24 * 3600;
 const SEASON_SECONDS = 12 * 24 * 3600;
-const SPRINT_BONUS = [2500, 1500, 1000];
+// Wat elke plek in een sprint oplevert. Geen geld: een titel, en voor de winnaar een pas
+// voor de VIP-zone tot het einde van het seizoen.
+const SPRINT_PRIZE = ['VIP PASS + TITLE', 'TITLE', 'TITLE'];
 
 function sprintId(ms) { return Math.floor((((ms == null ? Date.now() : ms)) / 1000) / SPRINT_SECONDS); }
 function sprintEndsAt(id) { return ((id + 1) * SPRINT_SECONDS) * 1000; }
@@ -6428,6 +6548,8 @@ const freshExtra = () => ({
 const ACH = {
   unlocked: (saved && saved.achievements && typeof saved.achievements === 'object') ? saved.achievements : {},
   extra: Object.assign(freshExtra(), saved?.achExtra || {}),
+  // De drie badges die deze speler aan anderen laat zien.
+  featured: (Array.isArray(saved?.featured) ? saved.featured : []).filter(id => ACHIEVEMENTS.some(a => a.id === id)).slice(0, 3),
 };
 let profileTitle = saved?.title || '';
 
@@ -6527,51 +6649,25 @@ function achRender() {
 
 // ---------- seizoen ----------
 const SEASON = { awards: [], closed: false, error: '', scores: [] };
-// Seasons whose bonus is already added to this account's balance.
-let awardsClaimed = (saved && saved.awardsClaimed && typeof saved.awardsClaimed === 'object') ? saved.awardsClaimed : {};
 
-// The server decides who won and how much; the balance itself only ever moves through the
-// client, so an award can never overwrite rounds that were not pushed yet.
-async function claimAwards() {
-  if (!online()) return 0;
-  let rows = [];
-  try {
-    rows = await api('/rest/v1/season_awards?select=season,rank,bonus,gain&player=eq.' +
-      encodeURIComponent(AUTH.session.userId) + '&order=season.desc&limit=20', { auth: false });
-  } catch { return 0; }
-  const fresh = (Array.isArray(rows) ? rows : []).filter(a => !awardsClaimed[String(a.season)] && round2(Number(a.bonus) || 0) > 0);
-  if (!fresh.length) return 0;
+// Een plek op de ranglijst levert geen geld meer op: de uitslag bepaalt alleen de titel
+// en wie de VIP-zone in mag.
 
-  const balanceBefore = state.balance;
-  const marksBefore = Object.assign({}, awardsClaimed);
-  let claimed = 0;
-  for (const a of fresh) {
-    const bonus = round2(Number(a.bonus) || 0);
-    awardsClaimed[String(a.season)] = bonus;
-    adjustBalance(bonus);
-    claimed = round2(claimed + bonus);
-  }
-  try {
-    // The mark and the money land in the same write; a reload in between would otherwise
-    // leave the bonus marked as paid without it ever reaching the balance.
-    await profileWrite();
-  } catch {
-    state.balance = balanceBefore;
-    awardsClaimed = marksBefore;
-    renderBalance();
-    return 0;
-  }
-  for (const a of fresh) {
-    flash(`${sprintLabel(Number(a.season))}: ${RANKS[(Number(a.rank) || 1) - 1].name.toUpperCase()} · +$${fmt(round2(Number(a.bonus) || 0))}`, 'gold', 'homeToasts');
-  }
-  renderBalance();
-  achCheck(null);
-  saveState();
-  return claimed;
+// A season is over: everyone starts again on $1000 plus a tenth of whatever they held
+// above it. The server decides whether it has already happened, so asking twice is safe.
+// Awaited before the profile is pulled, so the pull already carries the new balance.
+async function seasonReset() {
+  if (!online()) return null;
+  let d = null;
+  try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
+  catch { return null; }
+  if (!d || !d.reset) return d;
+  MP.resetNotice = { before: round2(Number(d.before) || 0), after: round2(Number(d.balance) || 0) };
+  return d;
 }
 
-// Awaited during boot: any bonus and title it hands out must be on the server row before
-// the client is allowed to write its own balance again, or the payout is overwritten.
+// Awaited during boot: any title it hands out must be on the server row before
+// the client is allowed to write its own balance again.
 async function seasonClose() {
   if (!online() || SEASON.closed) return 0;
   SEASON.closed = true;
@@ -6613,8 +6709,8 @@ function seasonBoardRender() {
     return;
   }
   rows.slice(0, 10).forEach((p, i) => {
-    const bonus = i < SPRINT_BONUS.length ? '+$' + fmt(SPRINT_BONUS[i]) : '';
-    el.appendChild(lbRowEl(p, i + 1, (p.gain >= 0 ? '+$' : '-$') + fmt(Math.abs(p.gain)), bonus ? 'bonus ' + bonus : ''));
+    const prize = i < SPRINT_PRIZE.length ? SPRINT_PRIZE[i] : '';
+    el.appendChild(lbRowEl(p, i + 1, (p.gain >= 0 ? '+$' : '-$') + fmt(Math.abs(p.gain)), prize));
   });
   const me = rows.findIndex(p => p.self);
   if (me >= 10) el.appendChild(lbRowEl(rows[me], me + 1, (rows[me].gain >= 0 ? '+$' : '-$') + fmt(Math.abs(rows[me].gain)), ''));
@@ -6660,7 +6756,7 @@ function renderSeasonStrip(strip) {
   t2.textContent = sprintCountdown();
   const t3 = document.createElement('div');
   t3.className = 'season-sub';
-  t3.textContent = 'until the standings reset to zero · the prizes and a VIP pass go to whoever gains the most';
+  t3.textContent = 'until the standings reset to zero · whoever gains the most takes the title and a VIP pass';
   const t4 = document.createElement('div');
   t4.className = 'season-sub';
   const n = sprintsLeft();
@@ -6671,12 +6767,12 @@ function renderSeasonStrip(strip) {
 
   const prizes = document.createElement('div');
   prizes.className = 'season-prizes';
-  SPRINT_BONUS.forEach((b, i) => {
+  SPRINT_PRIZE.forEach((prize, i) => {
     const d = document.createElement('div');
     d.className = 'season-prize';
     const ic = document.createElement('span'); ic.textContent = RANKS[i].icon;
     const nm = document.createElement('b'); nm.textContent = RANKS[i].name;
-    const am = document.createElement('span'); am.className = 'amount'; am.textContent = '$' + fmt(b);
+    const am = document.createElement('span'); am.className = 'amount'; am.textContent = prize;
     d.appendChild(ic); d.appendChild(nm); d.appendChild(am);
     prizes.appendChild(d);
   });
@@ -6740,6 +6836,203 @@ function seasonRender() {
       ladder.appendChild(row);
     });
   }
+}
+
+// =================== PLAYER PROFILES ===================
+// Every account is public: its badges, its statistics and the three badges it chose to put
+// up front. You reach one by clicking a name on the leaderboard; your own also lets you
+// pick which three badges everyone else sees.
+const PROF = { user: null, data: null, loading: false, error: '' };
+
+function profMine() { return AUTH.session ? AUTH.session.username : null; }
+function profIsMine(name) { return !!name && name === profMine(); }
+
+// Your own profile, built from what this browser knows — works offline too.
+function profLocal() {
+  const t = achTotals();
+  let profit = 0;
+  for (const g of GAMES) profit += gameStats[g].profit;
+  return {
+    username: profMine() || 'YOU',
+    balance: state.balance,
+    rounds: t.rounds,
+    won: t.won,
+    lost: GAMES.reduce((a, g) => a + gameStats[g].lost, 0),
+    profit: round2(profit),
+    title: profileTitle || null,
+    titles: [],
+    stats: gameStats,
+    achievements: ACH.unlocked,
+    featured: ACH.featured,
+    last_seen: new Date().toISOString(),
+  };
+}
+
+async function profPull(username) {
+  PROF.loading = true;
+  PROF.error = '';
+  profRender();
+  try {
+    if (!online()) { PROF.data = profIsMine(username) ? profLocal() : null; if (!PROF.data) PROF.error = 'Sign in to look at other players.'; }
+    else {
+      const rows = await api('/rest/v1/public_profiles?select=*&username=eq.' + encodeURIComponent(username) + '&limit=1', { auth: false });
+      PROF.data = Array.isArray(rows) && rows[0] ? rows[0] : null;
+      if (!PROF.data) PROF.error = 'No player by that name.';
+      // Van jezelf telt wat deze browser weet: dat is verser dan de laatste opslag.
+      else if (profIsMine(username)) PROF.data = Object.assign(PROF.data, profLocal());
+    }
+  } catch (e) { PROF.data = null; PROF.error = e.message || 'Could not load that profile.'; }
+  PROF.loading = false;
+  profRender();
+}
+
+function profOpen(username) {
+  PROF.user = username || profMine();
+  navigate('profile');
+  profPull(PROF.user);
+}
+
+function profStatRow(label, value, cls) {
+  const d = document.createElement('div');
+  d.className = 'stat-row';
+  const k = document.createElement('span'); k.className = 'k'; k.textContent = label;
+  const v = document.createElement('span'); if (cls) v.style.color = cls; v.textContent = value;
+  d.appendChild(k); d.appendChild(v);
+  return d;
+}
+
+// Een badge omschakelen als uitgelicht. Hoogstens drie, en alleen wat je zelf hebt.
+function profToggleFeatured(id) {
+  if (!ACH.unlocked[id]) return;
+  const i = ACH.featured.indexOf(id);
+  if (i >= 0) ACH.featured.splice(i, 1);
+  else if (ACH.featured.length >= 3) { flash('THREE BADGES AT MOST', 'red', toastHost()); return; }
+  else ACH.featured.push(id);
+  saveState();
+  if (PROF.data) PROF.data.featured = [...ACH.featured];
+  profRender();
+  lbRender();
+}
+
+function profRender() {
+  const view = $('profileView');
+  if (!view) return;
+  const host = $('profBody');
+  host.innerHTML = '';
+  $('profName').textContent = PROF.user || '—';
+
+  if (PROF.loading) { host.appendChild(profNote('Loading…')); return; }
+  if (!PROF.data) { host.appendChild(profNote(PROF.error || 'Nothing to show.')); return; }
+
+  const d = PROF.data;
+  const mine = profIsMine(PROF.user);
+  const unlocked = (d.achievements && typeof d.achievements === 'object') ? d.achievements : {};
+  const featured = Array.isArray(d.featured) ? d.featured : [];
+
+  $('profTitle').textContent = d.title ? titleLabel(d.title) : (mine ? 'No title yet' : 'No title');
+  $('profTitle').style.color = d.title ? 'var(--gold)' : 'var(--muted)';
+
+  // ---------- de drie uitgelichte badges ----------
+  const show = document.createElement('div');
+  show.className = 'prof-featured';
+  for (let i = 0; i < 3; i++) {
+    const id = featured[i];
+    const a = id ? ACHIEVEMENTS.find(x => x.id === id) : null;
+    const slot = document.createElement('div');
+    slot.className = 'prof-slot' + (a ? ' filled ' + a.tier : '');
+    if (a) {
+      const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = a.icon;
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = a.title;
+      slot.appendChild(ic); slot.appendChild(nm);
+    } else {
+      const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = '—';
+      const nm = document.createElement('div'); nm.className = 'nm';
+      nm.textContent = mine ? 'pick a badge below' : 'empty';
+      slot.appendChild(ic); slot.appendChild(nm);
+    }
+    show.appendChild(slot);
+  }
+  host.appendChild(show);
+
+  // ---------- de cijfers ----------
+  const grid = document.createElement('div');
+  grid.className = 'prof-grid';
+
+  const totals = document.createElement('div');
+  totals.className = 'panel';
+  const th = document.createElement('div'); th.className = 'panel-title'; th.textContent = '► TOTALS';
+  totals.appendChild(th);
+  const tg = document.createElement('div'); tg.className = 'stats-grid';
+  const won = Number(d.won) || 0, lost = Number(d.lost) || 0, profit = Number(d.profit) || 0;
+  tg.appendChild(profStatRow('BALANCE', '$' + fmt(Number(d.balance) || 0), 'var(--neon)'));
+  tg.appendChild(profStatRow('ROUNDS', Number(d.rounds) || 0));
+  tg.appendChild(profStatRow('WON', won, 'var(--neon)'));
+  tg.appendChild(profStatRow('LOST', lost, 'var(--red)'));
+  tg.appendChild(profStatRow('WIN / LOSS', (won / Math.max(1, lost)).toFixed(2), 'var(--gold)'));
+  tg.appendChild(profStatRow('PROFIT', (profit >= 0 ? '+$' : '-$') + fmt(Math.abs(profit)), profit >= 0 ? 'var(--neon)' : 'var(--red)'));
+  tg.appendChild(profStatRow('BADGES', Object.keys(unlocked).length + ' / ' + ACHIEVEMENTS.length, 'var(--gold)'));
+  totals.appendChild(tg);
+  grid.appendChild(totals);
+
+  const per = document.createElement('div');
+  per.className = 'panel';
+  const ph = document.createElement('div'); ph.className = 'panel-title'; ph.textContent = '► PER GAME';
+  per.appendChild(ph);
+  const pg = document.createElement('div'); pg.className = 'stats-grid';
+  const st = (d.stats && typeof d.stats === 'object') ? d.stats : {};
+  let any = false;
+  for (const g of GAMES) {
+    const row = st[g];
+    if (!row || !(Number(row.rounds) > 0)) continue;
+    any = true;
+    const p = Number(row.profit) || 0;
+    pg.appendChild(profStatRow(GAME_LABEL[g] || g.toUpperCase(),
+      (Number(row.rounds) || 0) + ' · ' + (p >= 0 ? '+$' : '-$') + fmt(Math.abs(p)),
+      p >= 0 ? 'var(--neon)' : 'var(--red)'));
+  }
+  if (!any) pg.appendChild(profStatRow('—', 'no rounds played yet'));
+  per.appendChild(pg);
+  grid.appendChild(per);
+  host.appendChild(grid);
+
+  // ---------- alle badges ----------
+  const head = document.createElement('div');
+  head.className = 'section-heading';
+  const h2 = document.createElement('h2'); h2.textContent = 'BADGES';
+  const cnt = document.createElement('span'); cnt.className = 'count';
+  cnt.textContent = mine ? 'CLICK TO SHOW UP TO THREE' : Object.keys(unlocked).length + ' EARNED';
+  const div = document.createElement('div'); div.className = 'divider';
+  head.appendChild(h2); head.appendChild(cnt); head.appendChild(div);
+  host.appendChild(head);
+
+  const badges = document.createElement('div');
+  badges.className = 'ach-grid';
+  const order = { gold: 0, silver: 1, bronze: 2 };
+  const list = [...ACHIEVEMENTS].sort((a, b) => (!!unlocked[b.id] - !!unlocked[a.id]) || order[a.tier] - order[b.tier]);
+  for (const a of list) {
+    const done = !!unlocked[a.id];
+    const card = document.createElement('div');
+    card.className = 'ach-card ' + a.tier + (done ? ' done' : '') +
+      (featured.includes(a.id) ? ' shown' : '') + (mine && done ? ' pickable' : '');
+    const ic = document.createElement('div'); ic.className = 'ach-icon'; ic.textContent = done ? a.icon : '🔒';
+    const body = document.createElement('div');
+    const t = document.createElement('div'); t.className = 'ach-title'; t.textContent = a.title;
+    const ds = document.createElement('div'); ds.className = 'ach-desc'; ds.textContent = a.desc;
+    body.appendChild(t); body.appendChild(ds);
+    const tier = document.createElement('div'); tier.className = 'ach-tier';
+    tier.textContent = featured.includes(a.id) ? 'shown' : a.tier;
+    card.appendChild(ic); card.appendChild(body); card.appendChild(tier);
+    if (mine && done) card.addEventListener('click', () => profToggleFeatured(a.id));
+    badges.appendChild(card);
+  }
+  host.appendChild(badges);
+}
+
+function profNote(text) {
+  const d = document.createElement('div');
+  d.className = 'odds-note';
+  d.textContent = text;
+  return d;
 }
 
 // =================== MAIN LOOP ===================
@@ -6807,7 +7100,7 @@ function bootGame() {
         // Could not reach the server at all: keep playing on the local snapshot.
         if (r === 'offline') { AUTH.disconnected = true; lbSetStatus(false, 'no connection, progress is kept on this device'); return; }
         // Close first, pull second: the pull then already carries the season bonus.
-        return seasonClose().then(profilePull).then(claimAwards).then(vipPull).then(() => { AUTH.profileAt = Date.now(); });
+        return seasonClose().then(seasonReset).then(profilePull).then(vipPull).then(() => { AUTH.profileAt = Date.now(); });
       })
       .catch(() => {
         // api() already expires on a genuine 401/403; anything else is a connection problem.
@@ -6822,6 +7115,11 @@ function bootGame() {
         $('authView').hidden = true;
         authMsg('');
         settleInterruptedRounds();
+        if (MP.resetNotice) {
+          const n = MP.resetNotice;
+          MP.resetNotice = null;
+          flash(`NEW SEASON · $${fmt(n.before)} → $${fmt(n.after)} (you keep 10% above $1000)`, 'gold', 'homeToasts');
+        }
         if (AUTH.profileAt) profilePush();
         liveStart();
       });
