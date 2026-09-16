@@ -2377,6 +2377,7 @@
       <div class="panel">
         <div class="panel-title">► ODDS</div>
         <div class="odds-note">RTP <b>97%</b>. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x. Auto cash-out pays exactly at your target.</div>
+        <div class="odds-note" id="mpFair" hidden></div>
       </div>
     </aside>
 
@@ -3209,7 +3210,8 @@ function saveState() {
 // be a free roll once the result is visible): see pendingPayouts().
 function pendingStakes() {
   let p = 0;
-  if (state.hasBet && !state.cashedOut && state.phase !== 'crashed') p += state.betAmount;
+  // Online houdt de server de inzet vast; die is hier niet terug te betalen.
+  if (!MP.on && state.hasBet && !state.cashedOut && state.phase !== 'crashed') p += state.betAmount;
   if (!RL.spinning) p += rlTotal();
   if (TW.active) p += TW.bet;
   if (MN.active) p += MN.bet;
@@ -3687,7 +3689,8 @@ function render() {
 
 function crashTick() {
   updateClouds();
-  if (state.phase === 'flying') {
+  if (MP.on) mpFrame();
+  else if (state.phase === 'flying') {
     const elapsed = (performance.now() - state.startTime) / 1000;
     let m = multiplierAt(elapsed);
     const crashing = m >= state.crashAt;
@@ -3713,6 +3716,8 @@ function crashTick() {
 }
 
 function startWaiting() {
+  // Online vliegt iedereen dezelfde ronde; die komt van de server, niet van hier.
+  if (MP.on) return;
   state.phase = 'waiting';
   state.multiplier = 1.0;
   state.pathPoints = [];
@@ -3732,6 +3737,8 @@ function startWaiting() {
 }
 
 function startFlying() {
+  // Een aftelling die nog liep toen de gedeelde ronde het overnam, mag niet alsnog starten.
+  if (MP.on) return;
   state.phase = 'flying';
   state.startTime = performance.now();
   state.multiplier = 1.0;
@@ -3803,8 +3810,8 @@ function renderHistory() {
 function renderPlayers() {
   const list = $('playersList');
   list.innerHTML = '';
-  const all = [...state.players];
-  if (state.hasBet) {
+  const all = MP.on ? mpPlayers() : [...state.players];
+  if (!MP.on && state.hasBet) {
     all.unshift({
       name: 'YOU',
       bet: state.betAmount,
@@ -3818,7 +3825,9 @@ function renderPlayers() {
   if (!all.length) {
     const empty = document.createElement('div');
     empty.className = 'odds-note';
-    empty.textContent = 'No bet this round yet. Place one to show up here.';
+    empty.textContent = MP.on
+      ? 'Nobody has bet on this round yet. Be the first.'
+      : 'No bet this round yet. Place one to show up here.';
     list.appendChild(empty);
     return;
   }
@@ -3907,7 +3916,7 @@ function updateButton() {
   if (state.phase === 'waiting') {
     if (state.hasBet) {
       btn.classList.add('btn-waiting');
-      btn.textContent = 'WACHTEN...';
+      btn.textContent = 'WAITING…';
       btn.disabled = true;
     } else {
       btn.classList.add('btn-bet');
@@ -3930,8 +3939,8 @@ function updateButton() {
 }
 
 $('actionBtn').addEventListener('click', () => {
-  if (state.phase === 'waiting' && !state.hasBet) placeBet();
-  else if (state.phase === 'flying' && state.hasBet && !state.cashedOut) cashOut();
+  if (state.phase === 'waiting' && !state.hasBet) { MP.on ? mpPlaceBet() : placeBet(); }
+  else if (state.phase === 'flying' && state.hasBet && !state.cashedOut) { MP.on ? mpCashOut(false) : cashOut(); }
 });
 
 document.querySelector('.toggle-row').addEventListener('click', () => {
@@ -4890,6 +4899,7 @@ const BK = { running: false, t0: 0, gen: 0, MIN: 10, MAX: 40, PERIOD: 1.1 };
 // Any money in play, decided or not: refundable stakes, decided-but-animating rounds, open hands.
 function roundInProgress() {
   return pendingStakes() > 0 || pendingPayouts() > 0 || RL.spinning || HR.racing || PK.balls.length > 0 ||
+    (MP.on && state.hasBet && !state.cashedOut && state.phase !== 'crashed') ||
     SC.active || SL.spinning || WH.spinning || BU.active ||
     BJ.phase === 'player' || BJ.phase === 'dealer' || (state.hasBet && state.phase !== 'crashed');
 }
@@ -5374,6 +5384,256 @@ function buCashOut(full) {
 $('buStartBtn').addEventListener('click', buStart);
 $('buCashBtn').addEventListener('click', () => buCashOut(false));
 
+// =================== SHARED CRASH ROUNDS (multiplayer) ===================
+// Online, every player flies the same round. The server draws the crash point, keeps it
+// secret until the flight is over, and settles the bet and the cash-out itself by reading
+// its own clock — so a player cannot cash out on a multiplier they never reached, and the
+// stake never leaves the browser's word for it.
+const MP = {
+  on: false,        // is this browser flying the shared round?
+  round: null,      // { id, commit, startsAt, endsAt, crashAt, seed }
+  bets: [],         // everyone's bets in this round
+  offset: 0,        // server clock minus this browser's clock, in ms
+  settled: 0,       // the last round id whose result was written to the statistics
+  ticking: false,
+  timer: null,
+  error: '',
+  paid: 0,
+};
+
+const MP_RATE = 0.103995; // m = e^(RATE * seconds), the same curve as the solo flight
+function mpNow() { return Date.now() + MP.offset; }
+function mpMultAt(ms) { return Math.exp(MP_RATE * Math.max(0, ms) / 1000); }
+
+async function mpTick() {
+  if (MP.ticking) return;
+  MP.ticking = true;
+  try { await api('/rest/v1/rpc/crash_tick', { method: 'POST', body: {} }); }
+  catch { /* iemand anders is ons voor, of de tabel bestaat nog niet */ }
+  finally { MP.ticking = false; }
+}
+
+async function mpPull() {
+  if (!online()) { if (MP.on) mpStop(); return; }
+  try {
+    const rows = await api('/rest/v1/crash_live?select=*&order=id.desc&limit=1', { auth: false });
+    const r = Array.isArray(rows) ? rows[0] : null;
+    if (!r) { MP.error = ''; await mpTick(); return; }
+    // De klok van de server is de enige die telt.
+    const srv = Date.parse(r.server_now);
+    if (Number.isFinite(srv)) MP.offset = srv - Date.now();
+    const id = Number(r.id);
+    const fresh = !MP.round || MP.round.id !== id;
+    MP.round = {
+      id,
+      commit: String(r.commit_hash || ''),
+      startsAt: Date.parse(r.starts_at),
+      endsAt: Date.parse(r.ends_at),
+      crashAt: r.crash_at == null ? null : Number(r.crash_at),
+      seed: r.seed || null,
+    };
+    if (fresh) mpNewRound();
+    MP.on = true;
+    MP.error = '';
+    const bets = await api('/rest/v1/crash_bets?select=username,amount,cashed_at,payout&round_id=eq.' +
+      id + '&order=amount.desc&limit=50', { auth: false });
+    MP.bets = Array.isArray(bets) ? bets : [];
+    if (currentRoute === 'crash') { renderPlayers(); mpFairRender(); }
+    // De volgende ronde komt er niet vanzelf: wie als eerste merkt dat deze klaar is, vraagt hem aan.
+    if (mpNow() >= MP.round.endsAt + 5200) mpTick();
+  } catch (e) {
+    MP.error = e.message || 'geen verbinding';
+    // Zonder gedeelde rondes speelt de crash-tafel gewoon weer solo verder.
+    if (MP.on && /404|does not exist|relation/i.test(MP.error)) mpStop();
+  }
+}
+
+// De speler stapt over op een nieuwe ronde: niets van de vorige blijft staan.
+function mpNewRound() {
+  state.hasBet = false;
+  state.cashedOut = false;
+  state.cashOutAt = 0;
+  state.betAmount = 0;
+  state.pathPoints = [];
+  state.multiplier = 1;
+  MP.paid = 0;
+  updateButton();
+}
+
+function mpStop() {
+  MP.on = false;
+  MP.round = null;
+  MP.bets = [];
+  mpFairRender();
+  state.hasBet = false;
+  state.cashedOut = false;
+  startWaiting();
+}
+
+function mpStart() {
+  clearInterval(MP.timer);
+  if (!online()) return;
+  mpPull();
+  MP.timer = setInterval(() => { if (!document.hidden) mpPull(); }, 2000);
+}
+
+// Elke ronde loopt af op de klok van de server; dit zet de tafel op dat moment.
+function mpFrame() {
+  const r = MP.round;
+  if (!r) return;
+  const t = mpNow();
+  const was = state.phase;
+  if (t < r.startsAt) {
+    state.phase = 'waiting';
+    state.multiplier = 1;
+    state.countdown = Math.max(0, Math.ceil((r.startsAt - t) / 1000));
+    if (was !== 'waiting') updateButton();
+    return;
+
+  }
+  if (t < r.endsAt) {
+    if (was !== 'flying') { state.phase = 'flying'; state.startTime = performance.now(); state.pathPoints = []; updateButton(); }
+    state.multiplier = mpMultAt(t - r.startsAt);
+    if (r.crashAt != null && state.multiplier > r.crashAt) state.multiplier = r.crashAt;
+    // Auto-cashout vraagt de server om af te rekenen zodra het doel gehaald is.
+    if (state.hasBet && !state.cashedOut && state.autoEnabled && state.multiplier >= state.autoMultiplier) mpCashOut(true);
+    updatePathPoints();
+    return;
+  }
+  if (state.phase !== 'crashed') {
+    state.phase = 'crashed';
+    state.crashTime = performance.now();
+    mpSettle();
+    setTimeout(mpPull, 300);
+  }
+  if (r.crashAt != null) state.multiplier = r.crashAt;
+}
+
+// De ronde is voorbij: het geld staat al goed, dit werkt alleen de statistieken bij.
+function mpSettle() {
+  const r = MP.round;
+  if (!r || MP.settled === r.id) return;
+  MP.settled = r.id;
+  if (r.crashAt != null) {
+    state.crashAt = r.crashAt;
+    state.history.unshift(r.crashAt);
+    if (state.history.length > 15) state.history.pop();
+    renderHistory();
+  }
+  if (state.hasBet && !state.cashedOut) {
+    flash(`LOST $${fmt(state.betAmount)} @ ${fmt(r.crashAt != null ? r.crashAt : state.multiplier)}x`, 'red');
+    recordRound('crash', state.betAmount, 0, 0);
+  }
+  updateButton();
+  renderPlayers();
+}
+
+// Een lopende opslag mag niet over het saldo heen schrijven dat de server net heeft gezet.
+async function mpFlush() {
+  clearTimeout(pushTimer);
+  try { await pushInFlight; } catch {}
+}
+
+function mpAdopt(d) {
+  const b = Number(d && d.balance);
+  if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
+}
+
+async function mpPlaceBet() {
+  if (state.hasBet) return;
+  // De poll loopt tot twee seconden achter. Ziet deze browser een ronde die al vertrokken
+  // lijkt, dan kan er intussen een nieuwe zijn begonnen: eerst kijken, dan weigeren.
+  if (!MP.round || mpNow() >= MP.round.startsAt) await mpPull();
+  const r = MP.round;
+  if (!r) { flash('NO ROUND YET', 'red'); return; }
+  if (mpNow() >= r.startsAt) { flash('BETTING IS CLOSED', 'red'); return; }
+  const amt = round2(getCrashBet());
+  if (!(amt >= MIN_BET)) { flash(`MINIMUM STAKE $${fmt(MIN_BET)}`, 'red'); return; }
+  if (amt > state.balance + 1e-9) { flash('NOT ENOUGH BALANCE', 'red'); return; }
+  await mpFlush();
+  try {
+    const d = await api('/rest/v1/rpc/crash_place_bet', { method: 'POST', body: { p_amount: amt } });
+    mpAdopt(d);
+    state.betAmount = amt;
+    state.hasBet = true;
+    state.cashedOut = false;
+    updateButton();
+    saveState();
+    mpPull();
+  } catch (e) {
+    flash(String(e.message || 'BET REFUSED').toUpperCase(), 'red');
+    mpPull();
+  }
+}
+
+async function mpCashOut(auto) {
+  const r = MP.round;
+  if (!r || !state.hasBet || state.cashedOut || MP.cashing) return;
+  MP.cashing = true;
+  // Meteen dicht: de knop mag niet twee keer afgaan terwijl de server nog antwoordt.
+  state.cashedOut = true;
+  updateButton();
+  await mpFlush();
+  try {
+    const d = await api('/rest/v1/rpc/crash_cash_out', { method: 'POST', body: {} });
+    mpAdopt(d);
+    const m = Number(d && d.mult) || 1;
+    MP.paid = round2(Number(d && d.payout) || 0);
+    state.cashOutAt = m;
+    flash(`+$${fmt(MP.paid)} @ ${fmt(m)}x${auto ? ' · AUTO' : ''}`, 'green');
+    recordRound('crash', state.betAmount, MP.paid, m);
+    updateButton();
+    mpPull();
+  } catch (e) {
+    // Te laat, of de vlucht was al voorbij: de inzet is weg, net als bij een gemiste cashout.
+    state.cashedOut = false;
+    updateButton();
+    flash(String(e.message || 'TOO LATE').toUpperCase(), 'red');
+    mpPull();
+  } finally { MP.cashing = false; }
+}
+
+// Wat er over deze ronde te controleren valt. De commit staat er voordat de vlucht begint;
+// de seed komt erbij zodra hij voorbij is, en daar volgt het crashpunt uit.
+function mpFairRender() {
+  const el = $('mpFair');
+  if (!el) return;
+  const r = MP.round;
+  if (!MP.on || !r) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = '';
+  const head = document.createElement('div');
+  head.innerHTML = '<b>Shared round #' + r.id + '</b> · the server drew the crash point before betting opened.';
+  el.appendChild(head);
+  const line = (label, value) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'font-family: var(--font-num); font-size: 10px; word-break: break-all; margin-top: 4px; color: var(--muted);';
+    d.textContent = label + ' ' + value;
+    el.appendChild(d);
+  };
+  line('commit', r.commit.slice(0, 32) + (r.commit.length > 32 ? '…' : ''));
+  if (r.seed) {
+    line('seed', r.seed.slice(0, 32) + (r.seed.length > 32 ? '…' : ''));
+    if (r.crashAt != null) line('crashed at', fmt(r.crashAt) + 'x');
+  } else {
+    line('seed', 'revealed when the flight is over');
+  }
+}
+
+// De lobby: iedereen die deze ronde meevliegt.
+function mpPlayers() {
+  const me = AUTH.session ? AUTH.session.username : null;
+  const crashed = state.phase === 'crashed';
+  return MP.bets.map(b => ({
+    name: b.username === me ? 'YOU' : String(b.username || '?').slice(0, 16),
+    bet: round2(Number(b.amount) || 0),
+    cashedOut: b.cashed_at != null,
+    cashoutAt: Number(b.cashed_at) || 0,
+    lost: crashed && b.cashed_at == null,
+    self: b.username === me,
+  }));
+}
+
 // =================== BACKEND (accounts, progression, live leaderboard) ===================
 // Passwords never reach this file: they go straight to the auth endpoint, which stores
 // only a bcrypt hash. Progression (balance + per-game stats) lives in the player's own
@@ -5391,6 +5651,8 @@ function authExpire(reason) {
   clearInterval(LB.timer);
   clearInterval(FEED.timer);
   clearInterval(VIP.timer);
+  clearInterval(MP.timer);
+  mpStop();
   try { localStorage.removeItem(SESSION_KEY); } catch {}
   lbRender();
   authShow();
@@ -5480,6 +5742,7 @@ async function authLogin(username, password) {
 
 // ---------- progression sync ----------
 let pushTimer = null;
+let pushInFlight = null;   // de opslag die op dit moment onderweg is, zodat er op gewacht kan worden
 
 function profileRow() {
   let won = 0, lost = 0, rounds = 0, profit = 0;
@@ -5501,11 +5764,12 @@ function profileRow() {
 function profilePush() {
   if (!online() || !AUTH.profileAt) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(async () => {
-    try {
-      await profileWrite();
-      lbSetWriteStatus(true);
-    } catch (e) { lbSetWriteStatus(false, e.message); }
+  pushTimer = setTimeout(() => {
+    pushInFlight = (async () => {
+      try { await profileWrite(); lbSetWriteStatus(true); }
+      catch (e) { lbSetWriteStatus(false, e.message); }
+      finally { pushInFlight = null; }
+    })();
   }, 1200);
 }
 
@@ -5753,7 +6017,9 @@ function liveStart() {
   clearInterval(LB.timer);
   clearInterval(FEED.timer);
   clearInterval(VIP.timer);
-  if (!online()) { lbRender(); renderRecentWins(); vipRender(); return; }
+  clearInterval(MP.timer);
+  if (!online()) { mpStop(); lbRender(); renderRecentWins(); vipRender(); return; }
+  mpStart();
   lbPull();
   feedPull();
   seasonPull();
