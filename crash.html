@@ -501,6 +501,33 @@
     gap: 12px;
     padding: 10px 0;
   }
+  /* De gedeelde blackjacktafel: iedereen die deze ronde meespeelt. */
+  .bj-seats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+  .bj-seat {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 10px;
+    min-width: 92px;
+    background: rgba(0,0,0,0.3);
+    font-size: 10px;
+  }
+  .bj-seat.self { border-color: var(--neon); }
+  .bj-seat .who { color: var(--muted); letter-spacing: 0.5px; }
+  .bj-seat.self .who { color: var(--neon); }
+  .bj-seat .tot { font-family: var(--font-num); font-size: 15px; color: var(--text); }
+  .bj-seat .st { font-size: 9px; letter-spacing: 0.5px; }
+  .bj-seat .st.win { color: var(--neon); }
+  .bj-seat .st.lose { color: var(--red); }
+  .bj-seat .st.push { color: var(--gold); }
+  .bj-phase {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .bj-phase b { color: var(--neon); font-family: var(--font-num); }
+
   .back-btn {
     background: rgba(0,0,0,0.5);
     border: 1px solid var(--border);
@@ -2825,7 +2852,10 @@
             <div class="hand-label">YOU <span class="val" id="bjPlayerVal">—</span> <span id="bjBetLabel" style="color: var(--gold);"></span></div>
             <div class="cards" id="bjPlayer"></div>
           </div>
+          <div class="bj-phase" id="bjPhase" hidden></div>
+          <div class="bj-seats" id="bjSeats" hidden></div>
         </div>
+        <div class="odds-note" id="bjFair" hidden></div>
       </div>
     </main>
   </div>
@@ -3553,6 +3583,7 @@ function navigate(route) {
     if (route === 'wheel') whRender();
     if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
+    if (route === 'blackjack') mbjStart(); else if (MBJ.timer) clearTimeout(MBJ.timer);
     if (route === 'profile') { if (PROF.user === null) profOpen(profMine()); else profRender(); }
     if (route === 'home') seasonRender();
   });
@@ -4697,7 +4728,9 @@ function bjRenderHand(el, cards, hiddenIndex) {
 }
 
 function bjRender() {
-  const hideHole = BJ.phase === 'player';
+  // Aan de gedeelde tafel stuurt de server simpelweg één kaart tot er is afgerekend, dus
+  // daar valt niets meer te verbergen: wat binnenkomt is alles wat je mag zien.
+  const hideHole = MBJ.on ? false : BJ.phase === 'player';
   bjRenderHand($('bjDealer'), BJ.dealer, hideHole ? 1 : -1);
   bjRenderHand($('bjPlayer'), BJ.player, -1);
   const pv = ODDS.bjValue(BJ.player), dv = ODDS.bjValue(BJ.dealer);
@@ -4705,8 +4738,23 @@ function bjRender() {
   $('bjDealerVal').textContent = BJ.dealer.length ? (hideHole ? ODDS.bjValue([BJ.dealer[0]]).total : dv.total) : '—';
   $('bjBetLabel').textContent = BJ.bet ? `· STAKE $${fmt(BJ.bet)}` : '';
 
+  if (MBJ.on) {
+    // Aan de gedeelde tafel bepaalt de klok van de server wat er mag, niet de eigen fase.
+    const r = MBJ.round, me = mbjMine(), t = mbjNow();
+    const betting = !!r && !r.dealt && t < r.betsCloseAt;
+    const acting  = !!r && r.dealt && !r.settled && t < r.actsUntil && !!me && !me.stood;
+    const stake   = me ? round2(Number(me.amount)) : 0;
+    $('bjDealBtn').disabled = !betting || !!me;
+    $('bjDealBtn').textContent = me ? 'IN THIS ROUND' : 'JOIN THE TABLE';
+    $('bjHitBtn').disabled = !acting;
+    $('bjStandBtn').disabled = !acting;
+    $('bjDoubleBtn').disabled = !(acting && BJ.player.length === 2 && !me.doubled && state.balance + 1e-9 >= stake);
+    $('blackjackBet').disabled = !betting || !!me;
+    return;
+  }
   const inPlay = BJ.phase === 'player';
   $('bjDealBtn').disabled = BJ.phase === 'player' || BJ.phase === 'dealer';
+  $('bjDealBtn').textContent = 'DEAL';
   $('bjHitBtn').disabled = !inPlay;
   $('bjStandBtn').disabled = !inPlay;
   $('bjDoubleBtn').disabled = !(inPlay && BJ.player.length === 2 && state.balance + 1e-9 >= BJ.bet);
@@ -4806,10 +4854,320 @@ function bjFinish() {
   $('bjBetLabel').textContent = `· STAKE $${fmt(wager)}`;
 }
 
-$('bjDealBtn').addEventListener('click', bjDeal);
-$('bjHitBtn').addEventListener('click', bjHit);
-$('bjStandBtn').addEventListener('click', bjStand);
-$('bjDoubleBtn').addEventListener('click', bjDouble);
+
+// =================== GEDEELDE BLACKJACKTAFEL ===================
+// Iedereen speelt tegelijk tegen dezelfde dealer, dus niemand wacht op een trage speler.
+// De schoen staat op de server en komt pas na afloop vrij, samen met de dichte kaart.
+// Zonder de tabellen valt deze tafel gewoon terug op de solo-versie hierboven.
+const MBJ = {
+  on: false,
+  round: null,      // { id, commit, betsCloseAt, actsUntil, dealt, settled, dealer, seed, shoe }
+  seats: [],
+  offset: 0,        // klok van de server min die van deze browser, in ms
+  settled: 0,       // de laatste ronde waarvan het resultaat in de statistieken staat
+  ticking: false,
+  tickAt: 0,
+  timer: null,
+  error: '',
+  acting: false,
+};
+
+const MBJ_SUITS = { S: '♠', H: '♥', D: '♦', C: '♣' };
+function mbjNow() { return Date.now() + MBJ.offset; }
+
+// '10H' -> { r: '10', s: '♥' }
+function mbjCard(t) {
+  const txt = String(t || '');
+  return { r: txt.slice(0, -1), s: MBJ_SUITS[txt.slice(-1)] || txt.slice(-1) };
+}
+function mbjHand(arr) { return (Array.isArray(arr) ? arr : []).map(mbjCard); }
+function mbjMine() { return AUTH.session ? MBJ.seats.find(x => x.username === AUTH.session.username) || null : null; }
+
+// De ronde loopt door op de klok van de server. Wie als eerste merkt dat er gedeeld of
+// afgerekend moet worden, vraagt het aan; één tegelijk, met een seconde rust ertussen.
+async function mbjTick() {
+  if (MBJ.ticking || Date.now() - MBJ.tickAt < 1000) return;
+  MBJ.ticking = true;
+  MBJ.tickAt = Date.now();
+  try { await api('/rest/v1/rpc/bj_tick', { method: 'POST', body: {} }); await mbjPull(); }
+  catch (e) { MBJ.error = e.message || 'geen verbinding'; }
+  finally { MBJ.ticking = false; }
+}
+
+async function mbjPull() {
+  if (!online()) { if (MBJ.on) mbjStop(); return; }
+  try {
+    const rows = await api('/rest/v1/bj_live?select=*&order=id.desc&limit=1', { auth: false });
+    const r = Array.isArray(rows) ? rows[0] : null;
+    if (!r) { MBJ.error = ''; await mbjTick(); return; }
+    const srv = Date.parse(r.server_now);
+    if (Number.isFinite(srv)) MBJ.offset = srv - Date.now();
+    const id = Number(r.id);
+    const fresh = !MBJ.round || MBJ.round.id !== id;
+    MBJ.round = {
+      id,
+      commit: String(r.commit_hash || ''),
+      betsCloseAt: Date.parse(r.bets_close_at),
+      actsUntil: Date.parse(r.acts_until),
+      dealt: !!r.dealt,
+      settled: !!r.settled,
+      dealer: Array.isArray(r.dealer) ? r.dealer : [],
+      seed: r.seed || null,
+      shoe: Array.isArray(r.shoe) ? r.shoe : null,
+    };
+    MBJ.on = true;
+    MBJ.error = '';
+    const seats = await api('/rest/v1/bj_seats?select=username,seat_no,amount,cards,doubled,stood,payout&round_id=eq.' +
+      id + '&order=seat_no.asc&limit=50', { auth: false });
+    MBJ.seats = Array.isArray(seats) ? seats : [];
+    if (fresh) mbjNewRound();
+    mbjAdoptMine();
+    if (currentRoute === 'blackjack') mbjRender();
+    // De volgende stap komt er niet vanzelf: delen, afrekenen, of een verse ronde.
+    const t = mbjNow();
+    if ((!MBJ.round.dealt && t >= MBJ.round.betsCloseAt) ||
+        (MBJ.round.dealt && !MBJ.round.settled && t >= MBJ.round.actsUntil) ||
+        (MBJ.round.settled && t >= MBJ.round.actsUntil + 6500)) mbjTick();
+  } catch (e) {
+    MBJ.error = e.message || 'geen verbinding';
+    // Geen gedeelde tafel? Dan speelt blackjack gewoon weer solo verder.
+    if (MBJ.on && /404|does not exist|relation|schema cache/i.test(MBJ.error)) mbjStop();
+  }
+}
+
+function mbjNewRound() {
+  BJ.phase = 'idle';
+  BJ.player = [];
+  BJ.dealer = [];
+  BJ.bet = 0;
+  BJ.doubled = false;
+  BJ.pendingPayout = 0;
+}
+
+function mbjStop() {
+  MBJ.on = false;
+  MBJ.round = null;
+  MBJ.seats = [];
+  const ph = $('bjPhase'), se = $('bjSeats'), fa = $('bjFair');
+  if (ph) ph.hidden = true;
+  if (se) se.hidden = true;
+  if (fa) fa.hidden = true;
+  bjRender();
+}
+
+// Wat er van mij op de server staat is leidend: kaarten, inzet en uitslag komen daarvandaan.
+function mbjAdoptMine() {
+  const me = mbjMine();
+  const r = MBJ.round;
+  if (!r) return;
+  if (!me) { BJ.player = []; BJ.bet = 0; BJ.doubled = false; BJ.phase = r.dealt ? 'done' : 'idle'; return; }
+  BJ.player = mbjHand(me.cards);
+  BJ.bet = round2(Number(me.amount) * (me.doubled ? 2 : 1));
+  BJ.doubled = !!me.doubled;
+  BJ.dealer = mbjHand(r.dealer);
+  BJ.phase = r.settled ? 'done' : (r.dealt && !me.stood ? 'player' : 'dealer');
+  // De server heeft al uitbetaald; hier alleen nog de statistiek, precies één keer.
+  if (r.settled && me.payout != null && MBJ.settled !== r.id) {
+    MBJ.settled = r.id;
+    const staked = round2(Number(me.amount) * (me.doubled ? 2 : 1));
+    const pay = round2(Number(me.payout));
+    BJ.lastNatural = ODDS.bjIsBlackjack(BJ.player);
+    BJ.lastDoubled = !!me.doubled;
+    recordRound('blackjack', staked, pay, staked > 0 ? pay / staked : 0);
+    mpSyncBalance();
+    flash(pay > staked ? `WON · +$${fmt(pay - staked)}` : pay > 0 ? 'PUSH · STAKE RETURNED' : 'LOST',
+          pay > staked ? 'green' : pay > 0 ? 'gold' : 'red', 'blackjackToasts');
+  }
+}
+
+async function mbjPlaceBet() {
+  const r = MBJ.round;
+  if (!r) { flash('NO ROUND YET', 'red', 'blackjackToasts'); return; }
+  if (mbjMine()) { flash('YOU ARE ALREADY IN THIS ROUND', 'red', 'blackjackToasts'); return; }
+  if (mbjNow() >= r.betsCloseAt || r.dealt) { flash('BETTING IS CLOSED', 'red', 'blackjackToasts'); return; }
+  const amt = round2(getBjBet());
+  if (!(amt >= MIN_BET)) { flash(`MINIMUM STAKE $${fmt(MIN_BET)}`, 'red', 'blackjackToasts'); return; }
+  if (amt > state.balance + 1e-9) { flash('NOT ENOUGH BALANCE', 'red', 'blackjackToasts'); return; }
+  await mpFlush();
+  try {
+    const d = await api('/rest/v1/rpc/bj_place_bet', { method: 'POST', body: { p_amount: amt } });
+    const b = Number(d && d.balance);
+    if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
+    saveState();
+    await mbjPull();
+  } catch (e) {
+    flash(String(e.message || 'BET REFUSED').toUpperCase(), 'red', 'blackjackToasts');
+    await mpSyncBalance();
+    mbjPull();
+  }
+}
+
+async function mbjAct(move) {
+  const r = MBJ.round, me = mbjMine();
+  if (!r || !me || MBJ.acting) return;
+  if (!r.dealt || r.settled || mbjNow() >= r.actsUntil) { flash('TIME IS UP', 'red', 'blackjackToasts'); return; }
+  if (me.stood) return;
+  MBJ.acting = true;
+  try {
+    const d = await api('/rest/v1/rpc/bj_act', { method: 'POST', body: { p_move: move } });
+    const b = Number(d && d.balance);
+    if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
+    await mbjPull();
+  } catch (e) {
+    flash(String(e.message || 'REFUSED').toUpperCase(), 'red', 'blackjackToasts');
+    await mpSyncBalance();
+    mbjPull();
+  } finally { MBJ.acting = false; }
+}
+
+function mbjRender() {
+  const r = MBJ.round;
+  const ph = $('bjPhase'), se = $('bjSeats');
+  if (!MBJ.on || !r) { if (ph) ph.hidden = true; if (se) se.hidden = true; mbjFairRender(); return; }
+  const t = mbjNow();
+  const me = mbjMine();
+
+  if (ph) {
+    ph.hidden = false;
+    if (!r.dealt) {
+      const left = Math.max(0, Math.ceil((r.betsCloseAt - t) / 1000));
+      ph.innerHTML = 'BETTING OPEN · <b>' + left + 's</b> · ' + MBJ.seats.length +
+        ' player' + (MBJ.seats.length === 1 ? '' : 's') + ' at the table';
+    } else if (!r.settled) {
+      const left = Math.max(0, Math.ceil((r.actsUntil - t) / 1000));
+      ph.innerHTML = me && !me.stood
+        ? 'YOUR MOVE · <b>' + left + 's</b> · everyone plays at the same time'
+        : 'WAITING FOR THE TABLE · <b>' + left + 's</b>';
+    } else {
+      ph.innerHTML = 'ROUND OVER · the next one opens shortly';
+    }
+  }
+
+  if (se) {
+    se.hidden = MBJ.seats.length === 0;
+    se.innerHTML = '';
+    for (const x of MBJ.seats) {
+      const d = document.createElement('div');
+      d.className = 'bj-seat' + (me && x.username === me.username ? ' self' : '');
+      const cards = mbjHand(x.cards);
+      const tot = cards.length ? ODDS.bjValue(cards).total : null;
+      const staked = round2(Number(x.amount) * (x.doubled ? 2 : 1));
+      let st = '', cls = '';
+      if (x.payout != null) {
+        const pay = round2(Number(x.payout));
+        if (pay > staked) { st = '+$' + fmt(pay - staked); cls = 'win'; }
+        else if (pay > 0) { st = 'PUSH'; cls = 'push'; }
+        else { st = '-$' + fmt(staked); cls = 'lose'; }
+      } else if (!r.dealt) st = '$' + fmt(staked);
+      else if (tot != null && tot > 21) { st = 'BUST'; cls = 'lose'; }
+      else if (x.stood) st = 'STANDS';
+      else st = 'THINKING';
+      // Een naam komt van een andere speler, dus via textContent, nooit via innerHTML.
+      const who = document.createElement('div');
+      who.className = 'who';
+      who.textContent = String(x.username || '?').slice(0, 12);
+      const total = document.createElement('div');
+      total.className = 'tot';
+      total.textContent = (tot == null ? '\u2014' : String(tot)) + (x.doubled ? ' \u00d72' : '');
+      const status = document.createElement('div');
+      status.className = 'st' + (cls ? ' ' + cls : '');
+      status.textContent = st;
+      d.appendChild(who); d.appendChild(total); d.appendChild(status);
+      se.appendChild(d);
+    }
+  }
+  // De kaarten en de knoppen komen uit bjRender; zonder deze regel blijft het bord leeg.
+  bjRender();
+  mbjMessage();
+  mbjFairRender();
+}
+
+// De regel boven de handen vertelt wat de tafel van je verwacht.
+function mbjMessage() {
+  const r = MBJ.round, me = mbjMine();
+  if (!r) return;
+  if (!r.dealt) {
+    bjMessage(me ? 'YOU ARE IN \u00b7 WAITING FOR THE DEAL' : 'JOIN THE TABLE BEFORE BETTING CLOSES');
+  } else if (!r.settled) {
+    if (!me) bjMessage('WATCHING THIS HAND');
+    else if (me.stood) bjMessage(ODDS.bjValue(mbjHand(me.cards)).total > 21 ? 'BUST' : 'YOU STAND \u00b7 WAITING FOR THE TABLE', 
+                                 ODDS.bjValue(mbjHand(me.cards)).total > 21 ? 'lose' : '');
+    else bjMessage('HIT, STAND OR DOUBLE?');
+  } else if (me && me.payout != null) {
+    const staked = round2(Number(me.amount) * (me.doubled ? 2 : 1));
+    const pay = round2(Number(me.payout));
+    if (pay > staked) bjMessage(`WON \u00b7 +$${fmt(pay - staked)}`, 'win');
+    else if (pay > 0) bjMessage('PUSH \u00b7 STAKE RETURNED', 'push');
+    else bjMessage('LOST', 'lose');
+  } else {
+    bjMessage('HAND OVER');
+  }
+}
+
+// Wat er over deze ronde te controleren valt: de commit staat er voordat de inzetten
+// sluiten, en de seed komt erbij zodra er is afgerekend. Uit die seed volgt de hele schoen.
+function mbjFairRender() {
+  const el = $('bjFair');
+  if (!el) return;
+  const r = MBJ.round;
+  if (!MBJ.on || !r) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = '';
+  const head = document.createElement('div');
+  head.innerHTML = '<b>Shared hand #' + r.id + '</b> · the server shuffled the shoe before betting opened.';
+  el.appendChild(head);
+  const line = (label, value) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'font-family: var(--font-num); font-size: 10px; word-break: break-all; margin-top: 4px; color: var(--muted);';
+    d.textContent = label + ' ' + value;
+    el.appendChild(d);
+  };
+  line('commit', r.commit.slice(0, 32) + (r.commit.length > 32 ? '…' : ''));
+  if (r.seed) {
+    line('seed', r.seed.slice(0, 32) + (r.seed.length > 32 ? '…' : ''));
+    if (r.shoe) line('shoe', r.shoe.length + ' cards revealed');
+  } else {
+    line('seed', 'stays sealed until the hand is over');
+  }
+}
+
+function mbjSchedule() {
+  clearTimeout(MBJ.timer);
+  const r = MBJ.round;
+  let ms = 2000;
+  if (r) {
+    const t = mbjNow();
+    if (!r.dealt) ms = t >= r.betsCloseAt - 1500 ? 700 : 2000;
+    else if (!r.settled) ms = 900;
+    else ms = 800;
+  }
+  MBJ.timer = setTimeout(mbjLoop, ms);
+}
+
+async function mbjLoop() {
+  // Eén fout mag de lus niet doden: dan lijkt de tafel voorgoed te hangen.
+  try { if (!document.hidden && currentRoute === 'blackjack') await mbjPull(); }
+  catch (e) { MBJ.error = e && e.message ? e.message : 'geen verbinding'; }
+  mbjSchedule();
+}
+
+function mbjStart() {
+  clearTimeout(MBJ.timer);
+  if (!online()) return;
+  mbjLoop();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !MBJ.on || currentRoute !== 'blackjack') return;
+  mbjPull();
+  mbjSchedule();
+});
+// =================== EINDE GEDEELDE BLACKJACKTAFEL ===================
+
+$('bjDealBtn').addEventListener('click', () => MBJ.on ? mbjPlaceBet() : bjDeal());
+$('bjHitBtn').addEventListener('click', () => MBJ.on ? mbjAct('hit') : bjHit());
+$('bjStandBtn').addEventListener('click', () => MBJ.on ? mbjAct('stand') : bjStand());
+$('bjDoubleBtn').addEventListener('click', () => MBJ.on ? mbjAct('double') : bjDouble());
 
 // =================== PAARDENRACE ===================
 const HR = { horses: [], bets: {}, racing: false, generation: 0, order: [], finish: [], t0: 0, lastPodium: [], history: [], pendingPayout: 0 };
