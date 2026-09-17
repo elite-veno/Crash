@@ -11,6 +11,20 @@
      "className": "Folder",
      "children": [
       {
+       "name": "Money",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Money/init.luau"
+       ]
+      },
+      {
+       "name": "Net",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Net/init.luau"
+       ]
+      },
+      {
        "name": "Odds",
        "className": "ModuleScript",
        "filePaths": [
@@ -41,7 +55,23 @@
    "children": [
     {
      "name": "Server",
-     "className": "Folder"
+     "className": "Folder",
+     "children": [
+      {
+       "name": "Games",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Games/init.luau"
+       ]
+      },
+      {
+       "name": "Profiles",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Profiles/init.luau"
+       ]
+      }
+     ]
     }
    ]
   },
@@ -55,7 +85,13 @@
      "children": [
       {
        "name": "Client",
-       "className": "Folder"
+       "className": "Folder",
+       "children": [
+        {
+         "name": "Views",
+         "className": "Folder"
+        }
+       ]
       }
      ]
     }

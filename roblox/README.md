@@ -31,8 +31,8 @@ LUAU=./luaubin/luau ANALYZE=./luaubin/luau-analyze bash tools/run_tests.sh
 | 0 | skelet, Rojo, testharnas | af |
 | 1 | Odds: alle elf spellen | af, 734 bewijzen |
 | 2 | thema en UI-bouwstenen | af |
-| 3 | schil: navigatie en schermen | volgt |
-| 4 | profiel op DataStore | volgt |
+| 3 | netwerklaag en geldregels | af |
+| 4 | profiel op DataStore, spellen in een beurt | af |
 | 5 | de elf spellen | volgt |
 | 6 | seizoenen, VIP, prestaties | volgt |
 | 7 | vrienden, lobby's, gedeelde tafels | volgt |
