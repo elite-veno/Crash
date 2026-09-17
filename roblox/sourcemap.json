@@ -1,0 +1,65 @@
+{
+ "name": "NeonCasino",
+ "className": "DataModel",
+ "children": [
+  {
+   "name": "ReplicatedStorage",
+   "className": "ReplicatedStorage",
+   "children": [
+    {
+     "name": "Shared",
+     "className": "Folder",
+     "children": [
+      {
+       "name": "Odds",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Odds/init.luau"
+       ]
+      },
+      {
+       "name": "Theme",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Theme/init.luau"
+       ]
+      },
+      {
+       "name": "UI",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/UI/init.luau"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "ServerScriptService",
+   "className": "ServerScriptService",
+   "children": [
+    {
+     "name": "Server",
+     "className": "Folder"
+    }
+   ]
+  },
+  {
+   "name": "StarterPlayer",
+   "className": "StarterPlayer",
+   "children": [
+    {
+     "name": "StarterPlayerScripts",
+     "className": "StarterPlayerScripts",
+     "children": [
+      {
+       "name": "Client",
+       "className": "Folder"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

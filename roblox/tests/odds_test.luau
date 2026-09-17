@@ -3,9 +3,15 @@
 local Odds = require("../src/shared/Odds")
 local h = require("./harness")
 
-local function pct(x: number): string
-	return string.format("%.4f%%", x * 100)
+-- Een vaste trekker, zodat elke run precies dezelfde controles doet. Een test waarvan het
+-- aantal bewijzen per keer verschilt is lastiger te vertrouwen.
+local zaad = 20260917
+local function volgende(): number
+	-- kleine lineaire congruentie, genoeg voor een reproduceerbare reeks
+	zaad = (zaad * 1103515245 + 12345) % 2147483648
+	return zaad / 2147483648
 end
+Odds.setRandom(volgende)
 
 -- ---------- crash ----------
 -- P(crash >= M) = 0.97 / M. Met u gelijkmatig over [0,1) is de verwachte uitbetaling bij
@@ -186,7 +192,10 @@ do
 		-- pak een kaart die de call haalt, zodat we door kunnen
 		local idx = nil
 		for i, c in deck do
-			if Odds.busHit(c, step, keuze, shown) then idx = i break end
+			if Odds.busHit(c, step, keuze, shown) then
+				idx = i
+				break
+			end
 		end
 		if not idx then break end
 		table.insert(shown, table.remove(deck, idx) :: Odds.Card)
