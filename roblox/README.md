@@ -8,11 +8,17 @@ Belangrijk: wat hier in de repo staat, komt **niet vanzelf** in je place terecht
 Roblox-place is een bestand op Roblox' servers; deze map is code op GitHub. Er moet een
 keer iets van hier naar daar. Twee manieren:
 
-### Een keer plakken in Studio (het snelst)
+### Een keer plakken, daarna een knop
 
-View > **Command Bar**, en plak de inhoud van `tools/studio_install.luau`. Studio haalt
-de laatste code zelf van GitHub en zet hem op zijn plek. Nog een keer plakken werkt alles
-bij: de oude mappen gaan eerst weg. Er hoeft niets gedownload te worden.
+View > **Command Bar**, en plak de inhoud van `tools/studio_install.luau`. Studio haalt de
+laatste code zelf van GitHub en zet hem op zijn plek. Er hoeft niets gedownload te worden.
+
+Diezelfde paste legt ook een plugin klaar in **ServerStorage**, `NeonSync`. Rechtsklik die
+en kies **Save as Local Plugin**. Vanaf dat moment staat er een **Sync**-knop in je
+werkbalk: één klik haalt de laatste versie op, en plakken hoeft nooit meer. De knop
+**Auto** ernaast zet automatisch synchroniseren aan zodra Studio de place opent; die staat
+met opzet uit, zodat de plugin nooit zomaar overschrijft waar je net aan werkte. Een sync
+gaat in één ongedaanmaakstap, dus ctrl-z draait hem in zijn geheel terug.
 
 Dat script staat er met opzet zo uit. De command bar is een invoerveld van **een regel**:
 bij plakken worden de regels aan elkaar geplakt. Alle uitleg staat daarom in

@@ -11,6 +11,7 @@ default.project.json en schrijft het XML zelf, zodat het ook werkt als Rojo er n
 """
 import json
 import os
+import pathlib
 import sys
 
 WORTEL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -181,10 +182,19 @@ def main() -> int:
             for naam, pad, ouder in doelen
         ],
     }
+
+    # De Studio-plugin gaat mee in hetzelfde bestand. De installer zet hem in ServerStorage
+    # klaar; daarna is het een keer rechtsklikken en "Save as Local Plugin", en hoeft er
+    # nooit meer iets geplakt te worden.
+    pluginPad = pathlib.Path(WORTEL) / "tools" / "plugin" / "NeonSync.server.luau"
+    if pluginPad.exists():
+        with open(pluginPad, encoding="utf-8") as f:
+            plan["plugin"] = {"name": "NeonSync", "class": "Script", "source": f.read()}
     uitJson = os.path.join(uitmap, "install.json")
     with open(uitJson, "w", encoding="utf-8") as f:
         json.dump(plan, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"build/install.json geschreven -- {os.path.getsize(uitJson) // 1024} KB")
+    print(f"build/install.json geschreven -- {os.path.getsize(uitJson) // 1024} KB"
+          + (" (met de plugin erin)" if "plugin" in plan else ""))
 
     for naam, _pad, ouder in doelen:
         print(f"    {naam} hoort in {ouder}")

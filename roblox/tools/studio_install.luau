@@ -1,14 +1,15 @@
---[[ NEON CASINO -- installeren in Studio.
-     Plak dit hele bestand in de command bar (View > Command Bar) en druk op enter.
-     Het haalt de laatste code van GitHub en zet hem op zijn plek. Nog een keer plakken
-     werkt alles bij; de oude mappen gaan eerst weg.
+--[[ NEON CASINO installeren. Plak dit hele blok in de command bar van Studio
+     (View > Command Bar) en druk op enter.
 
-     Alle uitleg staat met opzet in blokcommentaar zoals dit, en de code eronder staat op
-     een handvol regels zonder losse -- commentaren. De command bar is namelijk een
-     invoerveld van een regel: bij plakken worden de regels aan elkaar geplakt, en dan zou
-     een -- commentaar de rest van het script opeten.
+     Het zet de game in je place en legt daarnaast een plugin klaar in ServerStorage.
+     Rechtsklik die plugin en kies "Save as Local Plugin"; daarna staat er een Sync-knop in
+     je werkbalk en hoef je dit nooit meer te plakken.
 
-     Werkt het niet, dan staat HTTP waarschijnlijk uit:
+     Alle uitleg staat in blokcommentaar en er staat nergens een los -- commentaar. De
+     command bar is een veld van een regel: bij plakken worden de regels aan elkaar geplakt,
+     en dan zou een -- commentaar de rest van het script opeten.
+
+     Werkt het niet, dan staat HTTP uit:
      File > Game Settings > Security > Allow HTTP Requests. Daarna opnieuw plakken. ]]
 
 local Http = game:GetService("HttpService")
@@ -23,4 +24,5 @@ local n = 0
 for _, wortel in ipairs(plan.roots) do local ouder = zoek(wortel.parent) local oud = ouder:FindFirstChild(wortel.node.name) if oud then oud:Destroy() end bouw(wortel.node, ouder) n = n + 1 print("  " .. wortel.node.name .. " -> " .. wortel.parent) end
 local rommel = workspace:FindFirstChild(plan.name)
 if rommel then rommel:Destroy() end
+if plan.plugin then local opslag = game:GetService("ServerStorage") local oud = opslag:FindFirstChild(plan.plugin.name) if oud then oud:Destroy() end bouw(plan.plugin, opslag) print("Plugin klaargezet in ServerStorage: rechtsklik NeonSync en kies Save as Local Plugin. Daarna nooit meer plakken.") end
 print("Neon Casino geinstalleerd (" .. n .. " mappen). Druk op Play.")
