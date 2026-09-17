@@ -501,6 +501,72 @@
     gap: 12px;
     padding: 10px 0;
   }
+  /* Vrienden en lobby's. */
+  .fr-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .fr-row:last-child { border-bottom: 0; }
+  .fr-name { flex: 1; font-size: 12px; color: var(--text); }
+  .fr-name .sub { display: block; font-size: 10px; color: var(--muted); letter-spacing: 0.4px; }
+  .fr-btn {
+    background: rgba(0,0,0,0.5); border: 1px solid var(--border); color: var(--text);
+    font-family: inherit; font-size: 10px; letter-spacing: 0.5px; padding: 6px 10px;
+    border-radius: 3px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .fr-btn:hover:not(:disabled) { border-color: var(--neon); color: var(--neon); }
+  .fr-btn.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+  .fr-btn:disabled { opacity: 0.4; cursor: default; }
+  .fr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex: none; }
+  .fr-dot.on { background: var(--neon); box-shadow: 0 0 6px var(--neon-glow); }
+  .fr-add { display: flex; gap: 8px; margin-bottom: 4px; }
+  .fr-add input { flex: 1; min-width: 0; }
+  .fr-empty { color: var(--muted); font-size: 11px; padding: 10px 0; }
+
+  .lobby-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 12px; margin-bottom: 12px;
+    border: 1px solid var(--border); border-radius: 3px; background: rgba(0,0,0,0.3);
+  }
+  .lobby-bar .code {
+    font-family: var(--font-num); font-size: 14px; letter-spacing: 2px; color: var(--gold);
+  }
+  .lobby-bar input[type="text"] { font-size: 12px; padding: 7px 9px; }
+  .fr-add input[type="text"] { font-family: var(--font-ui); font-size: 13px; }
+  .lobby-bar .tag {
+    font-size: 9px; letter-spacing: 0.6px; padding: 2px 6px; border-radius: 2px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .lobby-bar .who { flex: 1 1 100%; font-size: 10px; color: var(--muted); }
+  @media (max-width: 560px) { .lobby-bar .fr-btn { flex: 1 1 0; text-align: center; } }
+
+  /* De gedeelde blackjacktafel: iedereen die deze ronde meespeelt. */
+  .bj-seats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+  .bj-seat {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 10px;
+    min-width: 92px;
+    background: rgba(0,0,0,0.3);
+    font-size: 10px;
+  }
+  .bj-seat.self { border-color: var(--neon); }
+  .bj-seat .who { color: var(--muted); letter-spacing: 0.5px; }
+  .bj-seat.self .who { color: var(--neon); }
+  .bj-seat .tot { font-family: var(--font-num); font-size: 15px; color: var(--text); }
+  .bj-seat .st { font-size: 9px; letter-spacing: 0.5px; }
+  .bj-seat .st.win { color: var(--neon); }
+  .bj-seat .st.lose { color: var(--red); }
+  .bj-seat .st.push { color: var(--gold); }
+  .bj-phase {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .bj-phase b { color: var(--neon); font-family: var(--font-num); }
+
   .back-btn {
     background: rgba(0,0,0,0.5);
     border: 1px solid var(--border);
@@ -550,7 +616,8 @@
   }
   .field-label .hint { color: var(--neon); opacity: 0.7; }
 
-  input[type="number"] {
+  /* De vrienden- en lobbyvelden krijgen dezelfde jas als de inzetvelden. */
+  input[type="number"], .fr-add input[type="text"], .lobby-bar input[type="text"] {
     width: 100%;
     background: rgba(0,0,0,0.6);
     border: 1px solid var(--border);
@@ -562,7 +629,7 @@
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
-  input[type="number"]:focus {
+  input[type="number"]:focus, .fr-add input[type="text"]:focus, .lobby-bar input[type="text"]:focus {
     border-color: var(--neon);
     box-shadow: 0 0 0 2px var(--neon-glow);
   }
@@ -575,6 +642,11 @@
     gap: 4px;
     margin-top: 6px;
   }
+  /* Op een telefoon geeft een cijferveld een paneel zonder return- of klaar-toets, dus
+     zonder deze knop is de enige uitweg de inzetknop zelf. Hij staat er alleen als er
+     ook echt getypt wordt, zodat hij verder niet in de weg zit. */
+  .chip-done { display: none; grid-column: 1 / -1; border-color: var(--neon); color: var(--neon); }
+  body.typing .chip-done { display: block; }
   .chip {
     background: rgba(0,0,0,0.5);
     border: 1px solid var(--border);
@@ -1183,6 +1255,19 @@
   .prof-slot.filled.gold { border-color: rgba(224,181,85,0.55); }
   .prof-slot.filled.silver { border-color: rgba(200,208,220,0.45); }
   .prof-slot.filled.bronze { border-color: rgba(62,207,142,0.4); }
+  /* Een gevuld vakje op je eigen profiel legt de badge weer af als je erop klikt. */
+  .prof-slot.takeoff { cursor: pointer; position: relative; transition: border-color 0.15s, background 0.15s; }
+  .prof-slot.takeoff:hover { border-color: var(--red); background: rgba(224,97,110,0.08); }
+  .prof-slot.takeoff .x {
+    position: absolute; top: 6px; right: 8px;
+    font-size: 13px; line-height: 1; color: var(--muted); opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .prof-slot.takeoff:hover .x { opacity: 1; color: var(--red); }
+  /* Op een aanraakscherm is er geen hover, dus daar staat het kruisje er gewoon. */
+  @media (hover: none) { .prof-slot.takeoff .x { opacity: 0.55; } }
+  .prof-slot.takeoff:hover .nm::after { content: ' \2014 tap to remove'; color: var(--red); font-weight: 400; }
+  @media (max-width: 900px) { .prof-slot.takeoff:hover .nm::after { content: ''; } }
   .prof-slot .ic { font-size: 30px; }
   .prof-slot .nm { font-size: 12px; font-weight: 600; }
   .prof-slot:not(.filled) .nm { font-weight: 400; }
@@ -1526,6 +1611,30 @@
     /* the table before the chips: otherwise the board sits below the fold while you play */
     .game-main { order: -1; }
     aside.game-aside { order: 0; }
+    /* Daardoor belandde de kop met de terugknop onder het hele bord, honderden pixels
+       naar beneden, en bij roulette lag de spinknop er nog overheen ook. Op een telefoon
+       hoort die kop gewoon bovenaan te blijven staan: welk spel je speelt en hoe je
+       terugkomt moet altijd binnen bereik zijn. */
+    .game-view.active .crash-header {
+      position: fixed;
+      top: 0;
+      left: 64px;
+      right: 0;
+      z-index: 70;                 /* boven de vaste inzetknop, die op 60 staat */
+      margin: 0;
+      padding: 9px 14px;
+      gap: 10px;
+      background: rgba(14, 17, 22, 0.97);
+      border-bottom: 1px solid var(--border);
+    }
+    .game-view.active .crash-header-title {
+      font-size: 17px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .game-view.active .back-btn { flex: none; }
+    .game-view.active { padding-top: 52px; }
     /* and the one button that matters stays within thumb reach while you watch */
     .game-view.active .btn-primary {
       position: fixed;
@@ -1735,6 +1844,18 @@
     </div>
     <div class="nav-label">VIP ZONE</div>
     <div class="nav-badge" style="background: rgba(224,181,85,0.12); color: var(--gold); border-color: rgba(224,181,85,0.35);">🔒</div>
+  </div>
+
+  <div class="nav-item" data-route="friends">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="9" cy="8" r="3.2"/>
+        <path d="M2.5 20c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5"/>
+        <path d="M16.5 5.5a3.2 3.2 0 0 1 0 6M18 14.6c2.3.5 3.9 1.9 3.9 4.4"/>
+      </svg>
+    </div>
+    <div class="nav-label">FRIENDS</div>
+    <div class="nav-badge" id="frNavBadge" hidden style="background: rgba(224,181,85,0.12); color: var(--gold); border-color: rgba(224,181,85,0.35);">0</div>
   </div>
 
   <div class="nav-item" data-route="achievements">
@@ -2130,12 +2251,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>PRICE PER CARD</span><span class="hint">$</span></div>
-          <input type="number" id="scratchBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="scratchBet" value="10" min="1" step="1">
           <div class="chips" data-for="scratch">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="payout-line"><span id="scStatusLabel">TO GO</span><span class="v" id="scStatus">—</span></div>
@@ -2252,12 +2374,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="slotsBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="slotsBet" value="10" min="1" step="1">
           <div class="chips" data-for="slots">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <button class="btn-primary btn-bet" id="slSpinBtn">SPIN</button>
@@ -2312,12 +2435,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="wheelBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="wheelBet" value="10" min="1" step="1">
           <div class="chips" data-for="wheel">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <button class="btn-primary btn-bet" id="whSpinBtn">SPIN THE WHEEL</button>
@@ -2361,12 +2485,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="busBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="busBet" value="10" min="1" step="1">
           <div class="chips" data-for="bus">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="payout-line"><span>CALL</span><span class="v" id="buStep">—</span></div>
@@ -2409,6 +2534,37 @@
   </div>
 
   <!-- =================== ACHIEVEMENTS VIEW =================== -->
+  <!-- =================== FRIENDS VIEW =================== -->
+  <div class="view" id="friendsView" style="overflow-y: auto; padding: 40px 50px;">
+    <div class="toast-host" id="friendsToasts"></div>
+    <div class="home-hero" style="margin-bottom: 30px;">
+      <h1 class="home-title" style="font-size: 40px;">FRIENDS</h1>
+      <div class="home-subtitle">► ADD PEOPLE BY NAME · INVITE THEM TO A PRIVATE TABLE</div>
+    </div>
+
+    <div class="lb-grid">
+      <div class="panel lb-panel">
+        <div class="panel-title"><span>► ADD A FRIEND</span></div>
+        <div class="fr-add">
+          <input type="text" id="frName" placeholder="their username" maxlength="16" autocomplete="off">
+          <button class="fr-btn" id="frAdd">SEND REQUEST</button>
+        </div>
+        <div class="odds-note">They have to accept before you can invite them anywhere.</div>
+
+        <div class="panel-title" style="margin-top: 22px;"><span>► REQUESTS</span></div>
+        <div id="frRequests"></div>
+
+        <div class="panel-title" style="margin-top: 22px;"><span>► TABLE INVITES</span></div>
+        <div id="frInvites"></div>
+      </div>
+
+      <div class="panel lb-panel">
+        <div class="panel-title"><span>► YOUR FRIENDS</span><span class="sub" id="frCount"></span></div>
+        <div id="frList"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="view" id="achievementsView" style="overflow-y: auto; padding: 40px 50px;">
     <div class="toast-host" id="achievementsToasts"></div>
     <div class="home-hero" style="margin-bottom: 30px;">
@@ -2459,12 +2615,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="crashBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="crashBet" value="10" min="1" step="1">
           <div class="chips" data-for="crash">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
 
@@ -2475,7 +2632,7 @@
 
         <div class="field-group" id="autoField" style="opacity: 0.4; pointer-events: none;">
           <div class="field-label"><span>CASH OUT AT</span><span class="hint">×</span></div>
-          <input type="number" id="autoMultiplier" value="2.00" min="1.01" step="0.1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="autoMultiplier" value="2.00" min="1.01" step="0.1">
         </div>
 
         <button class="btn-primary btn-bet" id="actionBtn">PLACE BET</button>
@@ -2596,12 +2753,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="towerBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="towerBet" value="10" min="1" step="1">
           <div class="chips" data-for="tower">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-group">
@@ -2657,17 +2815,18 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="minesBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="minesBet" value="10" min="1" step="1">
           <div class="chips" data-for="mines">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-group">
           <div class="field-label"><span>NUMBER OF MINES</span><span class="hint">1 – 24</span></div>
-          <input type="number" id="minesCount" value="3" min="1" max="24" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="minesCount" value="3" min="1" max="24" step="1">
           <div class="seg" id="mnQuickSeg">
             <button data-m="1">1</button>
             <button data-m="3" class="on">3</button>
@@ -2719,12 +2878,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="plinkoBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="plinkoBet" value="10" min="1" step="1">
           <div class="chips" data-for="plinko">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-group">
@@ -2785,12 +2945,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="blackjackBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="blackjackBet" value="10" min="1" step="1">
           <div class="chips" data-for="blackjack">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <button class="btn-primary btn-bet" id="bjDealBtn">DEAL</button>
@@ -2815,6 +2976,7 @@
     <main class="game-main">
       <div class="panel board">
         <div class="toast-host" id="blackjackToasts"></div>
+        <div class="lobby-bar" id="lobbyBar"></div>
         <div class="bj-table">
           <div class="hand">
             <div class="hand-label">DEALER <span class="val" id="bjDealerVal">—</span></div>
@@ -2825,7 +2987,10 @@
             <div class="hand-label">YOU <span class="val" id="bjPlayerVal">—</span> <span id="bjBetLabel" style="color: var(--gold);"></span></div>
             <div class="cards" id="bjPlayer"></div>
           </div>
+          <div class="bj-phase" id="bjPhase" hidden></div>
+          <div class="bj-seats" id="bjSeats" hidden></div>
         </div>
+        <div class="odds-note" id="bjFair" hidden></div>
       </div>
     </main>
   </div>
@@ -2848,12 +3013,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE PER HORSE</span><span class="hint">$</span></div>
-          <input type="number" id="horseBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="horseBet" value="10" min="1" step="1">
           <div class="chips" data-for="horse">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-label"><span>HORSES &amp; ODDS</span><span class="hint">win chance</span></div>
@@ -2893,6 +3059,7 @@
   <div class="panel modal-panel">
     <div class="panel-title">► SAFETY NET</div>
     <div class="odds-note">You are broke. Stop the marker as close to the middle as you can. <b>$10</b> is guaranteed; a perfect stop is worth <b>$40</b>.</div>
+    <div class="odds-note" id="bkHint" style="margin-top: -4px;">Hit <b>SPACE</b> or tap STOP.</div>
     <div class="bk-bar"><div class="bk-marker" id="bkMarker"></div></div>
     <div class="bk-scale"><span>$10</span><span>$40</span><span>$10</span></div>
     <div class="bk-result" id="bkResult"></div>
@@ -3498,6 +3665,8 @@ function bindBet(game) {
   inp.addEventListener('input', () => { lastBets[game] = parseFloat(inp.value) || 0; saveState(); });
   document.querySelectorAll(`.chips[data-for="${game}"] .chip`).forEach(btn => {
     btn.addEventListener('click', () => {
+      // KLAAR doet niets met het bedrag: hij is er alleen om het toetsenbord te sluiten.
+      if (btn.dataset.action === 'done') { inp.blur(); return; }
       let v = parseFloat(inp.value) || 0;
       switch (btn.dataset.action) {
         case 'half':   v = Math.max(1, round2(v / 2)); break;
@@ -3553,6 +3722,8 @@ function navigate(route) {
     if (route === 'wheel') whRender();
     if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
+    if (route === 'blackjack') mbjStart(); else if (MBJ.timer) clearTimeout(MBJ.timer);
+    if (route === 'friends') { friendsRender(); friendsPull(); }
     if (route === 'profile') { if (PROF.user === null) profOpen(profMine()); else profRender(); }
     if (route === 'home') seasonRender();
   });
@@ -4697,7 +4868,9 @@ function bjRenderHand(el, cards, hiddenIndex) {
 }
 
 function bjRender() {
-  const hideHole = BJ.phase === 'player';
+  // Aan de gedeelde tafel stuurt de server simpelweg één kaart tot er is afgerekend, dus
+  // daar valt niets meer te verbergen: wat binnenkomt is alles wat je mag zien.
+  const hideHole = MBJ.on ? false : BJ.phase === 'player';
   bjRenderHand($('bjDealer'), BJ.dealer, hideHole ? 1 : -1);
   bjRenderHand($('bjPlayer'), BJ.player, -1);
   const pv = ODDS.bjValue(BJ.player), dv = ODDS.bjValue(BJ.dealer);
@@ -4705,8 +4878,23 @@ function bjRender() {
   $('bjDealerVal').textContent = BJ.dealer.length ? (hideHole ? ODDS.bjValue([BJ.dealer[0]]).total : dv.total) : '—';
   $('bjBetLabel').textContent = BJ.bet ? `· STAKE $${fmt(BJ.bet)}` : '';
 
+  if (MBJ.on) {
+    // Aan de gedeelde tafel bepaalt de klok van de server wat er mag, niet de eigen fase.
+    const r = MBJ.round, me = mbjMine(), t = mbjNow();
+    const betting = !!r && !r.dealt && t < r.betsCloseAt;
+    const acting  = !!r && r.dealt && !r.settled && t < r.actsUntil && !!me && !me.stood;
+    const stake   = me ? round2(Number(me.amount)) : 0;
+    $('bjDealBtn').disabled = !betting || !!me;
+    $('bjDealBtn').textContent = me ? 'IN THIS ROUND' : 'JOIN THE TABLE';
+    $('bjHitBtn').disabled = !acting;
+    $('bjStandBtn').disabled = !acting;
+    $('bjDoubleBtn').disabled = !(acting && BJ.player.length === 2 && !me.doubled && state.balance + 1e-9 >= stake);
+    $('blackjackBet').disabled = !betting || !!me;
+    return;
+  }
   const inPlay = BJ.phase === 'player';
   $('bjDealBtn').disabled = BJ.phase === 'player' || BJ.phase === 'dealer';
+  $('bjDealBtn').textContent = 'DEAL';
   $('bjHitBtn').disabled = !inPlay;
   $('bjStandBtn').disabled = !inPlay;
   $('bjDoubleBtn').disabled = !(inPlay && BJ.player.length === 2 && state.balance + 1e-9 >= BJ.bet);
@@ -4806,10 +4994,627 @@ function bjFinish() {
   $('bjBetLabel').textContent = `· STAKE $${fmt(wager)}`;
 }
 
-$('bjDealBtn').addEventListener('click', bjDeal);
-$('bjHitBtn').addEventListener('click', bjHit);
-$('bjStandBtn').addEventListener('click', bjStand);
-$('bjDoubleBtn').addEventListener('click', bjDouble);
+
+// =================== VRIENDEN EN LOBBY'S ===================
+// Blackjack draait altijd in een lobby. Quick play zet je bij een openbare tafel, een
+// privelobby heeft een code die je aan vrienden geeft. Zonder deze tabellen op de server
+// blijft alles gewoon werken: de tafel valt dan terug op de solo-versie.
+const FRIENDS = { list: [], invites: [], loaded: false, busy: false, error: '' };
+const LOBBY = { id: null, code: '', private: true, host: false, members: [], busy: false, error: '', beat: 0 };
+
+// Een naam van een ander gaat nooit via innerHTML.
+function frText(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  el.textContent = text;
+  return el;
+}
+function frButton(label, cls, onClick) {
+  const b = document.createElement('button');
+  b.className = 'fr-btn' + (cls ? ' ' + cls : '');
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+// Wie de afgelopen twee minuten iets deed telt als aanwezig.
+function frOnline(lastSeen) {
+  const t = Date.parse(lastSeen || 0) || 0;
+  return t > 0 && Date.now() - t < 120000;
+}
+
+async function friendsPull() {
+  if (!online() || !AUTH.session) { FRIENDS.list = []; FRIENDS.invites = []; return; }
+  try {
+    const [list, inv] = await Promise.all([
+      api('/rest/v1/my_friends?select=*&order=username.asc&limit=200'),
+      api('/rest/v1/my_invites?select=*&order=created_at.desc&limit=20'),
+    ]);
+    FRIENDS.list = Array.isArray(list) ? list : [];
+    FRIENDS.invites = Array.isArray(inv) ? inv : [];
+    FRIENDS.loaded = true;
+    FRIENDS.error = '';
+  } catch (e) {
+    FRIENDS.error = e.message || 'geen verbinding';
+    // Zonder de tabellen bestaat deze pagina gewoon niet; dan laten we hem leeg.
+    if (/404|does not exist|relation|schema cache/i.test(FRIENDS.error)) { FRIENDS.list = []; FRIENDS.invites = []; }
+  }
+  frBadge();
+  if (currentRoute === 'friends') friendsRender();
+}
+
+// Het bolletje in het menu telt wat er op je ligt te wachten.
+function frBadge() {
+  const el = $('frNavBadge');
+  if (!el) return;
+  const n = FRIENDS.list.filter(f => f.status === 'pending' && f.direction === 'in').length + FRIENDS.invites.length;
+  el.hidden = n === 0;
+  el.textContent = String(n);
+}
+
+async function friendAdd() {
+  const input = $('frName');
+  const name = (input.value || '').trim();
+  if (!name) return;
+  if (FRIENDS.busy) return;
+  FRIENDS.busy = true;
+  try {
+    const d = await api('/rest/v1/rpc/friend_request', { method: 'POST', body: { p_username: name } });
+    input.value = '';
+    flash(d && d.status === 'accepted' ? 'YOU ARE NOW FRIENDS' : 'REQUEST SENT', 'green', 'friendsToasts');
+    await friendsPull();
+  } catch (e) {
+    flash(String(e.message || 'COULD NOT SEND').toUpperCase(), 'red', 'friendsToasts');
+  } finally { FRIENDS.busy = false; }
+}
+
+async function friendRespond(id, accept) {
+  try {
+    await api('/rest/v1/rpc/friend_respond', { method: 'POST', body: { p_id: id, p_accept: accept } });
+    await friendsPull();
+  } catch (e) { flash(String(e.message || 'FAILED').toUpperCase(), 'red', 'friendsToasts'); }
+}
+
+async function friendRemove(id) {
+  try {
+    await api('/rest/v1/rpc/friend_remove', { method: 'POST', body: { p_id: id } });
+    await friendsPull();
+  } catch (e) { flash(String(e.message || 'FAILED').toUpperCase(), 'red', 'friendsToasts'); }
+}
+
+function friendsRender() {
+  const listEl = $('frList'), reqEl = $('frRequests'), invEl = $('frInvites'), cnt = $('frCount');
+  if (!listEl) return;
+  if (!online() || !AUTH.session) {
+    listEl.innerHTML = ''; reqEl.innerHTML = ''; invEl.innerHTML = '';
+    listEl.appendChild(frText('div', 'fr-empty', 'Sign in to keep a friends list.'));
+    return;
+  }
+
+  const accepted = FRIENDS.list.filter(f => f.status === 'accepted');
+  const incoming = FRIENDS.list.filter(f => f.status === 'pending' && f.direction === 'in');
+  const outgoing = FRIENDS.list.filter(f => f.status === 'pending' && f.direction === 'out');
+  if (cnt) cnt.textContent = accepted.length ? accepted.length + (accepted.length === 1 ? ' FRIEND' : ' FRIENDS') : '';
+
+  listEl.innerHTML = '';
+  if (!accepted.length) {
+    listEl.appendChild(frText('div', 'fr-empty', FRIENDS.error && !FRIENDS.loaded
+      ? 'Could not reach the server.' : 'Nobody yet. Add someone by their username.'));
+  }
+  for (const f of accepted) {
+    const row = document.createElement('div');
+    row.className = 'fr-row';
+    const dot = document.createElement('span');
+    dot.className = 'fr-dot' + (frOnline(f.last_seen) ? ' on' : '');
+    const name = frText('div', 'fr-name', f.username);
+    name.appendChild(frText('span', 'sub', frOnline(f.last_seen) ? 'online now' : (f.title || 'offline')));
+    row.appendChild(dot);
+    row.appendChild(name);
+    if (LOBBY.id) row.appendChild(frButton('INVITE', '', () => lobbyInvite(f.username)));
+    row.appendChild(frButton('REMOVE', 'danger', () => friendRemove(f.id)));
+    listEl.appendChild(row);
+  }
+
+  reqEl.innerHTML = '';
+  if (!incoming.length && !outgoing.length) reqEl.appendChild(frText('div', 'fr-empty', 'No open requests.'));
+  for (const f of incoming) {
+    const row = document.createElement('div');
+    row.className = 'fr-row';
+    const name = frText('div', 'fr-name', f.username);
+    name.appendChild(frText('span', 'sub', 'wants to be friends'));
+    row.appendChild(name);
+    row.appendChild(frButton('ACCEPT', '', () => friendRespond(f.id, true)));
+    row.appendChild(frButton('DECLINE', 'danger', () => friendRespond(f.id, false)));
+    reqEl.appendChild(row);
+  }
+  for (const f of outgoing) {
+    const row = document.createElement('div');
+    row.className = 'fr-row';
+    const name = frText('div', 'fr-name', f.username);
+    name.appendChild(frText('span', 'sub', 'waiting for them to accept'));
+    row.appendChild(name);
+    row.appendChild(frButton('CANCEL', 'danger', () => friendRemove(f.id)));
+    reqEl.appendChild(row);
+  }
+
+  invEl.innerHTML = '';
+  if (!FRIENDS.invites.length) invEl.appendChild(frText('div', 'fr-empty', 'No table invites.'));
+  for (const i of FRIENDS.invites) {
+    const row = document.createElement('div');
+    row.className = 'fr-row';
+    const name = frText('div', 'fr-name', i.from_username);
+    name.appendChild(frText('span', 'sub', 'table ' + i.code + ' · ' + i.players +
+      (Number(i.players) === 1 ? ' player' : ' players')));
+    row.appendChild(name);
+    row.appendChild(frButton('JOIN', '', () => lobbyJoin(i.code, true)));
+    invEl.appendChild(row);
+  }
+}
+
+// ---------- de lobby zelf ----------
+async function lobbyPull() {
+  if (!online() || !AUTH.session) { LOBBY.id = null; return; }
+  try {
+    const rows = await api('/rest/v1/my_lobby?select=*&limit=1');
+    const r = Array.isArray(rows) ? rows[0] : null;
+    if (!r) { LOBBY.id = null; LOBBY.code = ''; LOBBY.members = []; }
+    else {
+      LOBBY.id = Number(r.id);
+      LOBBY.code = String(r.code || '');
+      LOBBY.private = !!r.is_private;
+      LOBBY.host = !!r.is_host;
+      LOBBY.members = Array.isArray(r.members) ? r.members : [];
+    }
+    LOBBY.error = '';
+  } catch (e) {
+    LOBBY.error = e.message || 'geen verbinding';
+    if (/404|does not exist|relation|schema cache/i.test(LOBBY.error)) LOBBY.id = null;
+  }
+  lobbyRender();
+}
+
+async function lobbyCall(path, body, msg) {
+  if (LOBBY.busy) return null;
+  LOBBY.busy = true;
+  lobbyRender();
+  try {
+    // Eerst wat nog niet opgeslagen is doorsturen, want de server kan zo meteen zelf het
+    // saldo verzetten: een tafel die leegloopt betaalt de openstaande inzetten terug.
+    await mpFlush();
+    const d = await api('/rest/v1/rpc/' + path, { method: 'POST', body: body || {} });
+    // En daarna overnemen wat de server ervan maakte. Zonder dit schrijft de eerstvolgende
+    // opslag het saldo van voor de terugbetaling er weer overheen, en is het geld alsnog weg.
+    await mpSyncBalance();
+    await lobbyPull();
+    if (msg) flash(msg, 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    // Een andere tafel betekent een andere ronde: alles van de vorige moet weg.
+    MBJ.round = null; MBJ.seats = []; MBJ.settled = 0;
+    if (currentRoute === 'blackjack') await mbjPull();
+    return d;
+  } catch (e) {
+    flash(String(e.message || 'FAILED').toUpperCase(), 'red',
+          currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    return null;
+  } finally { LOBBY.busy = false; lobbyRender(); }
+}
+
+const lobbyQuick   = () => lobbyCall('lobby_quick', {}, 'JOINED A PUBLIC TABLE');
+const lobbyPrivate = () => lobbyCall('lobby_create', { p_private: true }, 'PRIVATE TABLE OPENED');
+const lobbyLeave   = () => lobbyCall('lobby_leave', {}, 'LEFT THE TABLE');
+async function lobbyJoin(code, goThere) {
+  const d = await lobbyCall('lobby_join', { p_code: String(code || '').trim().toUpperCase() }, 'JOINED THE TABLE');
+  if (d && goThere) navigate('blackjack');
+  return d;
+}
+async function lobbyInvite(username) {
+  try {
+    await api('/rest/v1/rpc/lobby_invite', { method: 'POST', body: { p_username: username } });
+    flash('INVITED ' + String(username).toUpperCase(), 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+  } catch (e) {
+    flash(String(e.message || 'COULD NOT INVITE').toUpperCase(), 'red',
+          currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+  }
+}
+
+// Een teken van leven, zodat je stoel niet wordt opgeruimd terwijl je gewoon zit te spelen.
+async function lobbyBeat() {
+  if (!online() || !AUTH.session || !LOBBY.id) return;
+  if (Date.now() - LOBBY.beat < 20000) return;
+  LOBBY.beat = Date.now();
+  try { await api('/rest/v1/rpc/lobby_heartbeat', { method: 'POST', body: {} }); } catch {}
+}
+
+function lobbyRender() {
+  const bar = $('lobbyBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  if (!online() || !AUTH.session) { bar.hidden = true; return; }
+  bar.hidden = false;
+
+  if (!LOBBY.id) {
+    bar.appendChild(frText('span', 'tag', 'NO TABLE'));
+    const quick = frButton('QUICK PLAY', '', lobbyQuick);
+    const priv  = frButton('PRIVATE TABLE', '', lobbyPrivate);
+    const codeIn = document.createElement('input');
+    codeIn.type = 'text'; codeIn.id = 'lobbyCode'; codeIn.placeholder = 'CODE';
+    codeIn.maxLength = 6;
+    codeIn.style.cssText = 'width: 90px; text-transform: uppercase; font-family: var(--font-num);';
+    const joinBtn = frButton('JOIN', '', () => lobbyJoin(codeIn.value, false));
+    quick.disabled = priv.disabled = joinBtn.disabled = LOBBY.busy;
+    bar.appendChild(quick); bar.appendChild(priv); bar.appendChild(codeIn); bar.appendChild(joinBtn);
+    bar.appendChild(frText('div', 'who', 'Quick play drops you at a public table. A private table has a code you hand to friends.'));
+    return;
+  }
+
+  bar.appendChild(frText('span', 'tag', LOBBY.private ? 'PRIVATE' : 'PUBLIC'));
+  bar.appendChild(frText('span', 'code', LOBBY.code));
+  if (LOBBY.host) bar.appendChild(frText('span', 'tag', 'HOST'));
+  const copy = frButton('COPY CODE', '', async () => {
+    try { await navigator.clipboard.writeText(LOBBY.code); flash('CODE COPIED', 'green', 'blackjackToasts'); }
+    catch { flash('CODE: ' + LOBBY.code, 'gold', 'blackjackToasts'); }
+  });
+  bar.appendChild(copy);
+  bar.appendChild(frButton('FRIENDS', '', () => navigate('friends')));
+  const leave = frButton('LEAVE', 'danger', lobbyLeave);
+  leave.disabled = LOBBY.busy;
+  bar.appendChild(leave);
+  const names = LOBBY.members.map(m => m.username + (m.host ? ' (host)' : '')).join(', ');
+  bar.appendChild(frText('div', 'who', LOBBY.members.length +
+    (LOBBY.members.length === 1 ? ' player: ' : ' players: ') + names));
+}
+// =================== EINDE VRIENDEN EN LOBBY'S ===================
+
+// =================== GEDEELDE BLACKJACKTAFEL ===================
+// Iedereen speelt tegelijk tegen dezelfde dealer, dus niemand wacht op een trage speler.
+// De schoen staat op de server en komt pas na afloop vrij, samen met de dichte kaart.
+// Zonder de tabellen valt deze tafel gewoon terug op de solo-versie hierboven.
+const MBJ = {
+  on: false,
+  round: null,      // { id, commit, betsCloseAt, actsUntil, dealt, settled, dealer, seed, shoe }
+  seats: [],
+  offset: 0,        // klok van de server min die van deze browser, in ms
+  settled: 0,       // de laatste ronde waarvan het resultaat in de statistieken staat
+  ticking: false,
+  tickAt: 0,
+  timer: null,
+  error: '',
+  acting: false,
+};
+
+const MBJ_SUITS = { S: '♠', H: '♥', D: '♦', C: '♣' };
+function mbjNow() { return Date.now() + MBJ.offset; }
+
+// '10H' -> { r: '10', s: '♥' }
+function mbjCard(t) {
+  const txt = String(t || '');
+  return { r: txt.slice(0, -1), s: MBJ_SUITS[txt.slice(-1)] || txt.slice(-1) };
+}
+function mbjHand(arr) { return (Array.isArray(arr) ? arr : []).map(mbjCard); }
+function mbjMine() { return AUTH.session ? MBJ.seats.find(x => x.username === AUTH.session.username) || null : null; }
+
+// De ronde loopt door op de klok van de server. Wie als eerste merkt dat er gedeeld of
+// afgerekend moet worden, vraagt het aan; één tegelijk, met een seconde rust ertussen.
+async function mbjTick() {
+  if (MBJ.ticking || Date.now() - MBJ.tickAt < 1000) return;
+  MBJ.ticking = true;
+  MBJ.tickAt = Date.now();
+  try { await api('/rest/v1/rpc/bj_tick', { method: 'POST', body: {} }); await mbjPull(); }
+  catch (e) { MBJ.error = e.message || 'geen verbinding'; }
+  finally { MBJ.ticking = false; }
+}
+
+async function mbjPull() {
+  if (!online()) { if (MBJ.on) mbjStop(); return; }
+  try {
+    // Zonder lobby is er geen tafel om te tonen: dan staat de solo-versie klaar.
+    if (!LOBBY.id) { if (MBJ.on) mbjStop(); return; }
+    const rows = await api('/rest/v1/bj_live?select=*&lobby_id=eq.' + LOBBY.id +
+      '&order=id.desc&limit=1', { auth: false });
+    const r = Array.isArray(rows) ? rows[0] : null;
+    if (!r) { MBJ.error = ''; await mbjTick(); return; }
+    const srv = Date.parse(r.server_now);
+    if (Number.isFinite(srv)) MBJ.offset = srv - Date.now();
+    const id = Number(r.id);
+    const fresh = !MBJ.round || MBJ.round.id !== id;
+    MBJ.round = {
+      id,
+      commit: String(r.commit_hash || ''),
+      betsCloseAt: Date.parse(r.bets_close_at),
+      actsUntil: Date.parse(r.acts_until),
+      dealt: !!r.dealt,
+      settled: !!r.settled,
+      dealer: Array.isArray(r.dealer) ? r.dealer : [],
+      seed: r.seed || null,
+      shoe: Array.isArray(r.shoe) ? r.shoe : null,
+    };
+    MBJ.on = true;
+    MBJ.error = '';
+    const seats = await api('/rest/v1/bj_seats?select=username,seat_no,amount,cards,doubled,stood,payout&round_id=eq.' +
+      id + '&order=seat_no.asc&limit=50', { auth: false });
+    MBJ.seats = Array.isArray(seats) ? seats : [];
+    if (fresh) mbjNewRound();
+    mbjAdoptMine();
+    if (currentRoute === 'blackjack') mbjRender();
+    // De volgende stap komt er niet vanzelf: delen, afrekenen, of een verse ronde.
+    const t = mbjNow();
+    if ((!MBJ.round.dealt && t >= MBJ.round.betsCloseAt) ||
+        (MBJ.round.dealt && !MBJ.round.settled && t >= MBJ.round.actsUntil) ||
+        (MBJ.round.settled && t >= MBJ.round.actsUntil + 6500)) mbjTick();
+  } catch (e) {
+    MBJ.error = e.message || 'geen verbinding';
+    // Geen gedeelde tafel? Dan speelt blackjack gewoon weer solo verder.
+    if (MBJ.on && /404|does not exist|relation|schema cache/i.test(MBJ.error)) mbjStop();
+  }
+}
+
+function mbjNewRound() {
+  BJ.phase = 'idle';
+  BJ.player = [];
+  BJ.dealer = [];
+  BJ.bet = 0;
+  BJ.doubled = false;
+  BJ.pendingPayout = 0;
+}
+
+function mbjStop() {
+  MBJ.on = false;
+  MBJ.round = null;
+  MBJ.seats = [];
+  const ph = $('bjPhase'), se = $('bjSeats'), fa = $('bjFair');
+  if (ph) ph.hidden = true;
+  if (se) se.hidden = true;
+  if (fa) fa.hidden = true;
+  bjRender();
+}
+
+// Wat er van mij op de server staat is leidend: kaarten, inzet en uitslag komen daarvandaan.
+function mbjAdoptMine() {
+  const me = mbjMine();
+  const r = MBJ.round;
+  if (!r) return;
+  if (!me) { BJ.player = []; BJ.bet = 0; BJ.doubled = false; BJ.phase = r.dealt ? 'done' : 'idle'; return; }
+  BJ.player = mbjHand(me.cards);
+  BJ.bet = round2(Number(me.amount) * (me.doubled ? 2 : 1));
+  BJ.doubled = !!me.doubled;
+  BJ.dealer = mbjHand(r.dealer);
+  BJ.phase = r.settled ? 'done' : (r.dealt && !me.stood ? 'player' : 'dealer');
+  // De server heeft al uitbetaald; hier alleen nog de statistiek, precies één keer.
+  if (r.settled && me.payout != null && MBJ.settled !== r.id) {
+    MBJ.settled = r.id;
+    const staked = round2(Number(me.amount) * (me.doubled ? 2 : 1));
+    const pay = round2(Number(me.payout));
+    BJ.lastNatural = ODDS.bjIsBlackjack(BJ.player);
+    BJ.lastDoubled = !!me.doubled;
+    recordRound('blackjack', staked, pay, staked > 0 ? pay / staked : 0);
+    mpSyncBalance();
+    flash(pay > staked ? `WON · +$${fmt(pay - staked)}` : pay > 0 ? 'PUSH · STAKE RETURNED' : 'LOST',
+          pay > staked ? 'green' : pay > 0 ? 'gold' : 'red', 'blackjackToasts');
+  }
+}
+
+async function mbjPlaceBet() {
+  const r = MBJ.round;
+  if (!r) { flash('NO ROUND YET', 'red', 'blackjackToasts'); return; }
+  if (mbjMine()) { flash('YOU ARE ALREADY IN THIS ROUND', 'red', 'blackjackToasts'); return; }
+  if (mbjNow() >= r.betsCloseAt || r.dealt) { flash('BETTING IS CLOSED', 'red', 'blackjackToasts'); return; }
+  const amt = round2(getBjBet());
+  if (!(amt >= MIN_BET)) { flash(`MINIMUM STAKE $${fmt(MIN_BET)}`, 'red', 'blackjackToasts'); return; }
+  if (amt > state.balance + 1e-9) { flash('NOT ENOUGH BALANCE', 'red', 'blackjackToasts'); return; }
+  await mpFlush();
+  try {
+    const d = await api('/rest/v1/rpc/bj_place_bet', { method: 'POST', body: { p_amount: amt } });
+    const b = Number(d && d.balance);
+    if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
+    saveState();
+    await mbjPull();
+  } catch (e) {
+    flash(String(e.message || 'BET REFUSED').toUpperCase(), 'red', 'blackjackToasts');
+    await mpSyncBalance();
+    mbjPull();
+  }
+}
+
+async function mbjAct(move) {
+  const r = MBJ.round, me = mbjMine();
+  if (!r || !me || MBJ.acting) return;
+  if (!r.dealt || r.settled || mbjNow() >= r.actsUntil) { flash('TIME IS UP', 'red', 'blackjackToasts'); return; }
+  if (me.stood) return;
+  MBJ.acting = true;
+  try {
+    const d = await api('/rest/v1/rpc/bj_act', { method: 'POST', body: { p_move: move } });
+    const b = Number(d && d.balance);
+    if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
+    await mbjPull();
+  } catch (e) {
+    flash(String(e.message || 'REFUSED').toUpperCase(), 'red', 'blackjackToasts');
+    await mpSyncBalance();
+    mbjPull();
+  } finally { MBJ.acting = false; }
+}
+
+function mbjRender() {
+  const r = MBJ.round;
+  const ph = $('bjPhase'), se = $('bjSeats');
+  if (!MBJ.on || !r) { if (ph) ph.hidden = true; if (se) se.hidden = true; mbjFairRender(); return; }
+  const t = mbjNow();
+  const me = mbjMine();
+
+  if (ph) {
+    ph.hidden = false;
+    if (!r.dealt) {
+      const left = Math.max(0, Math.ceil((r.betsCloseAt - t) / 1000));
+      ph.innerHTML = 'BETTING OPEN · <b>' + left + 's</b> · ' + MBJ.seats.length +
+        ' player' + (MBJ.seats.length === 1 ? '' : 's') + ' at the table';
+    } else if (!r.settled) {
+      const left = Math.max(0, Math.ceil((r.actsUntil - t) / 1000));
+      ph.innerHTML = me && !me.stood
+        ? 'YOUR MOVE · <b>' + left + 's</b> · everyone plays at the same time'
+        : 'WAITING FOR THE TABLE · <b>' + left + 's</b>';
+    } else {
+      ph.innerHTML = 'ROUND OVER · the next one opens shortly';
+    }
+  }
+
+  if (se) {
+    se.hidden = MBJ.seats.length === 0;
+    se.innerHTML = '';
+    for (const x of MBJ.seats) {
+      const d = document.createElement('div');
+      d.className = 'bj-seat' + (me && x.username === me.username ? ' self' : '');
+      const cards = mbjHand(x.cards);
+      const tot = cards.length ? ODDS.bjValue(cards).total : null;
+      const staked = round2(Number(x.amount) * (x.doubled ? 2 : 1));
+      let st = '', cls = '';
+      if (x.payout != null) {
+        const pay = round2(Number(x.payout));
+        if (pay > staked) { st = '+$' + fmt(pay - staked); cls = 'win'; }
+        else if (pay > 0) { st = 'PUSH'; cls = 'push'; }
+        else { st = '-$' + fmt(staked); cls = 'lose'; }
+      } else if (!r.dealt) st = '$' + fmt(staked);
+      else if (tot != null && tot > 21) { st = 'BUST'; cls = 'lose'; }
+      else if (x.stood) st = 'STANDS';
+      else st = 'THINKING';
+      // Een naam komt van een andere speler, dus via textContent, nooit via innerHTML.
+      const who = document.createElement('div');
+      who.className = 'who';
+      who.textContent = String(x.username || '?').slice(0, 12);
+      const total = document.createElement('div');
+      total.className = 'tot';
+      total.textContent = (tot == null ? '\u2014' : String(tot)) + (x.doubled ? ' \u00d72' : '');
+      const status = document.createElement('div');
+      status.className = 'st' + (cls ? ' ' + cls : '');
+      status.textContent = st;
+      d.appendChild(who); d.appendChild(total); d.appendChild(status);
+      se.appendChild(d);
+    }
+  }
+  // De kaarten en de knoppen komen uit bjRender; zonder deze regel blijft het bord leeg.
+  bjRender();
+  mbjMessage();
+  mbjFairRender();
+}
+
+// De regel boven de handen vertelt wat de tafel van je verwacht.
+function mbjMessage() {
+  const r = MBJ.round, me = mbjMine();
+  if (!r) return;
+  if (!r.dealt) {
+    bjMessage(me ? 'YOU ARE IN \u00b7 WAITING FOR THE DEAL' : 'JOIN THE TABLE BEFORE BETTING CLOSES');
+  } else if (!r.settled) {
+    if (!me) bjMessage('WATCHING THIS HAND');
+    else if (me.stood) bjMessage(ODDS.bjValue(mbjHand(me.cards)).total > 21 ? 'BUST' : 'YOU STAND \u00b7 WAITING FOR THE TABLE', 
+                                 ODDS.bjValue(mbjHand(me.cards)).total > 21 ? 'lose' : '');
+    else bjMessage('HIT, STAND OR DOUBLE?');
+  } else if (me && me.payout != null) {
+    const staked = round2(Number(me.amount) * (me.doubled ? 2 : 1));
+    const pay = round2(Number(me.payout));
+    if (pay > staked) bjMessage(`WON \u00b7 +$${fmt(pay - staked)}`, 'win');
+    else if (pay > 0) bjMessage('PUSH \u00b7 STAKE RETURNED', 'push');
+    else bjMessage('LOST', 'lose');
+  } else {
+    bjMessage('HAND OVER');
+  }
+}
+
+// Wat er over deze ronde te controleren valt: de commit staat er voordat de inzetten
+// sluiten, en de seed komt erbij zodra er is afgerekend. Uit die seed volgt de hele schoen.
+function mbjFairRender() {
+  const el = $('bjFair');
+  if (!el) return;
+  const r = MBJ.round;
+  if (!MBJ.on || !r) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = '';
+  const head = document.createElement('div');
+  head.innerHTML = '<b>Shared hand #' + r.id + '</b> · the server shuffled the shoe before betting opened.';
+  el.appendChild(head);
+  const line = (label, value) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'font-family: var(--font-num); font-size: 10px; word-break: break-all; margin-top: 4px; color: var(--muted);';
+    d.textContent = label + ' ' + value;
+    el.appendChild(d);
+  };
+  line('commit', r.commit.slice(0, 32) + (r.commit.length > 32 ? '…' : ''));
+  if (r.seed) {
+    line('seed', r.seed.slice(0, 32) + (r.seed.length > 32 ? '…' : ''));
+    if (r.shoe) line('shoe', r.shoe.length + ' cards revealed');
+  } else {
+    line('seed', 'stays sealed until the hand is over');
+  }
+}
+
+function mbjSchedule() {
+  clearTimeout(MBJ.timer);
+  const r = MBJ.round;
+  let ms = 2000;
+  if (r) {
+    const t = mbjNow();
+    if (!r.dealt) ms = t >= r.betsCloseAt - 1500 ? 700 : 2000;
+    else if (!r.settled) ms = 900;
+    else ms = 800;
+  }
+  MBJ.timer = setTimeout(mbjLoop, ms);
+}
+
+async function mbjLoop() {
+  // Eén fout mag de lus niet doden: dan lijkt de tafel voorgoed te hangen.
+  try {
+    if (!document.hidden && currentRoute === 'blackjack') { await lobbyBeat(); await mbjPull(); }
+  } catch (e) { MBJ.error = e && e.message ? e.message : 'geen verbinding'; }
+  mbjSchedule();
+}
+
+function mbjStart() {
+  clearTimeout(MBJ.timer);
+  if (!online()) { lobbyRender(); return; }
+  lobbyPull().then(() => mbjLoop());
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !MBJ.on || currentRoute !== 'blackjack') return;
+  mbjPull();
+  mbjSchedule();
+});
+// =================== EINDE GEDEELDE BLACKJACKTAFEL ===================
+
+$('bjDealBtn').addEventListener('click', () => MBJ.on ? mbjPlaceBet() : bjDeal());
+// ---------- het toetsenbord weer kwijtraken ----------
+// Een cijferveld geeft op een telefoon een paneel zonder return- of klaar-toets. Zonder
+// het onderstaande is de enige uitweg de inzetknop, en dan heb je ingezet terwijl je
+// alleen een bedrag wilde intypen.
+function numericInputs() { return document.querySelectorAll('input[type="number"]'); }
+
+numericInputs().forEach(inp => {
+  // Enter of "klaar" op het toetsenbord sluit het veld. Er wordt nadrukkelijk niets ingezet.
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === 'Go' || e.key === 'Done') { e.preventDefault(); inp.blur(); }
+  });
+  // Zolang er getypt wordt staat de KLAAR-knop er; daarna verdwijnt hij weer.
+  inp.addEventListener('focus', () => document.body.classList.add('typing'));
+  inp.addEventListener('blur', () => {
+    // Even wachten: springt de aandacht naar een ander cijferveld, dan blijft de knop staan.
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || a.tagName !== 'INPUT' || a.type !== 'number') document.body.classList.remove('typing');
+    }, 0);
+  });
+});
+
+// Ergens anders tikken sluit het ook. Niet op de browser vertrouwen: op een telefoon laat
+// die de aandacht soms gewoon staan als je op iets niet-klikbaars tikt.
+document.addEventListener('pointerdown', e => {
+  const a = document.activeElement;
+  if (!a || a.tagName !== 'INPUT' || a.type !== 'number') return;
+  if (e.target === a) return;
+  // De chips horen bij het veld; die mogen de aandacht houden zodat je kunt blijven stellen.
+  if (e.target.closest && e.target.closest('.chips')) return;
+  a.blur();
+}, true);
+
+$('frAdd').addEventListener('click', friendAdd);
+$('frName').addEventListener('keydown', e => { if (e.key === 'Enter') friendAdd(); });
+$('bjHitBtn').addEventListener('click', () => MBJ.on ? mbjAct('hit') : bjHit());
+$('bjStandBtn').addEventListener('click', () => MBJ.on ? mbjAct('stand') : bjStand());
+$('bjDoubleBtn').addEventListener('click', () => MBJ.on ? mbjAct('double') : bjDouble());
 
 // =================== PAARDENRACE ===================
 const HR = { horses: [], bets: {}, racing: false, generation: 0, order: [], finish: [], t0: 0, lastPodium: [], history: [], pendingPayout: 0 };
@@ -5038,6 +5843,10 @@ function bkOpen() {
   $('bkResult').textContent = '';
   $('bkStopBtn').hidden = false;
   $('bkCloseBtn').hidden = true;
+  const hint = $('bkHint');
+  if (hint) hint.hidden = false;
+  // De knop krijgt de aandacht: zo werkt de spatiebalk ook voor wie met het toetsenbord navigeert.
+  try { $('bkStopBtn').focus({ preventScroll: true }); } catch { $('bkStopBtn').focus(); }
   const frame = () => {
     if (gen !== BK.gen || !BK.running) return;
     $('bkMarker').style.left = (bkPos() * 100) + '%';
@@ -5060,6 +5869,8 @@ function bkStop() {
   achCheck(null);
   $('bkStopBtn').hidden = true;
   $('bkCloseBtn').hidden = false;
+  const hint = $('bkHint');
+  if (hint) hint.hidden = true;
   flash(`SAFETY NET +$${fmt(reward)} · ${Math.round(accuracy * 100)}% accuracy`, 'gold', toastHost());
 }
 
@@ -5068,6 +5879,17 @@ function bkClose() {
   BK.gen++;
   $('brokeModal').hidden = true;
 }
+
+// De spatiebalk stopt de markering. Alleen terwijl hij loopt, dus een tweede tik doet
+// niets en sluit het venster ook niet per ongeluk. preventDefault houdt de pagina stil en
+// voorkomt meteen dat de knop er daarna zelf nog eens op afgaat.
+document.addEventListener('keydown', e => {
+  if (!BK.running) return;
+  if (e.key !== ' ' && e.code !== 'Space') return;
+  e.preventDefault();
+  if (e.repeat) return;
+  bkStop();
+});
 
 document.querySelectorAll('.js-broke').forEach(b => b.addEventListener('click', bkOpen));
 $('bkStopBtn').addEventListener('click', bkStop);
@@ -7169,6 +7991,21 @@ function profRender() {
       const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = a.icon;
       const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = a.title;
       slot.appendChild(ic); slot.appendChild(nm);
+      // Op je eigen profiel is het vakje zelf de manier om hem weer af te leggen: anders
+      // moet je de kaart ervan opzoeken in de lijst eronder.
+      if (mine) {
+        slot.classList.add('takeoff');
+        slot.title = 'Click to stop showing ' + a.title;
+        slot.setAttribute('role', 'button');
+        slot.tabIndex = 0;
+        const x = document.createElement('div'); x.className = 'x'; x.textContent = '\u2715';
+        slot.appendChild(x);
+        const off = () => profToggleFeatured(a.id);
+        slot.addEventListener('click', off);
+        slot.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); off(); }
+        });
+      }
     } else {
       const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = '—';
       const nm = document.createElement('div'); nm.className = 'nm';
@@ -7244,7 +8081,7 @@ function profRender() {
   head.className = 'section-heading';
   const h2 = document.createElement('h2'); h2.textContent = 'BADGES';
   const cnt = document.createElement('span'); cnt.className = 'count';
-  cnt.textContent = mine ? 'CLICK TO SHOW UP TO THREE' : Object.keys(unlocked).length + ' EARNED';
+  cnt.textContent = mine ? 'CLICK TO SHOW UP TO THREE \u00b7 CLICK A SLOT ABOVE TO REMOVE' : Object.keys(unlocked).length + ' EARNED';
   const div = document.createElement('div'); div.className = 'divider';
   head.appendChild(h2); head.appendChild(cnt); head.appendChild(div);
   host.appendChild(head);
@@ -7324,6 +8161,10 @@ buRender();
 vipRender();
 achRender();
 seasonRender();
+// De vriendenlijst en je lobby eenmaal ophalen, en daarna af en toe, zodat het bolletje
+// in het menu klopt ook als je op een ander scherm zit.
+if (online() && AUTH.session) { friendsPull(); lobbyPull(); }
+setInterval(() => { if (online() && AUTH.session && !document.hidden) friendsPull(); }, 45000);
 setInterval(() => { seasonRender(); vipRender(); }, 30000);
 
 // The casino only starts once an account is active; the gate stays up otherwise.
