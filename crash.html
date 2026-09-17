@@ -1593,6 +1593,30 @@
     /* the table before the chips: otherwise the board sits below the fold while you play */
     .game-main { order: -1; }
     aside.game-aside { order: 0; }
+    /* Daardoor belandde de kop met de terugknop onder het hele bord, honderden pixels
+       naar beneden, en bij roulette lag de spinknop er nog overheen ook. Op een telefoon
+       hoort die kop gewoon bovenaan te blijven staan: welk spel je speelt en hoe je
+       terugkomt moet altijd binnen bereik zijn. */
+    .game-view.active .crash-header {
+      position: fixed;
+      top: 0;
+      left: 64px;
+      right: 0;
+      z-index: 70;                 /* boven de vaste inzetknop, die op 60 staat */
+      margin: 0;
+      padding: 9px 14px;
+      gap: 10px;
+      background: rgba(14, 17, 22, 0.97);
+      border-bottom: 1px solid var(--border);
+    }
+    .game-view.active .crash-header-title {
+      font-size: 17px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .game-view.active .back-btn { flex: none; }
+    .game-view.active { padding-top: 52px; }
     /* and the one button that matters stays within thumb reach while you watch */
     .game-view.active .btn-primary {
       position: fixed;
