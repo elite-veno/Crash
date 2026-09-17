@@ -181,10 +181,14 @@ do
 	w.Multi.towerStart(a, 200, "easy")
 	w.Games.scratchBuy(b, 40)
 	h.check("beide inzetten zijn afgeschreven", 800, w.Profiles.get(a).balance)
+	-- Het lot is al getrokken, dus we weten wat het waard is.
+	local lot = w.Games.openOf(b)
+	local waard = w.Money.floor2(40 * w.Odds.scratchPayout(lot.cells))
 
 	for _, f in w.sluiters do f() end
 	h.check("de toren is terugbetaald voor het opslaan", 1000, w.store.data["speler_1"].balance)
-	h.check("het kraslot ook", 1000, w.store.data["speler_2"].balance)
+	-- Een kraslot wordt niet terugbetaald maar uitbetaald: de prijs zat er al in.
+	h.check("het kraslot is afgerekend, niet teruggegeven", 960 + waard, w.store.data["speler_2"].balance)
 end
 
 -- ---------- weggaan terwijl het profiel nog gelezen wordt ----------
@@ -289,6 +293,59 @@ do
 	h.check("het lot noemt alleen hoeveel vakjes er zijn", 9, koop.cells)
 	h.check("een gekocht lot verklapt de symbolen niet", "number", typeof(koop.cells))
 	h.check("en ook de prijs niet", nil, koop.prize)
+end
+
+-- ---------- weglopen van een beslist kraslot ----------
+-- Dit is het lek dat de review vond: de prijs staat vast zodra je het lot koopt, dus wie
+-- acht vakjes openkrast en dan weggaat zou elk verliezend lot gratis spelen.
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	-- Net zo lang kopen tot er een verliezend lot tussen zit.
+	local verlies = 0
+	for _ = 1, 200 do
+		p.balance = 1000
+		w.Games.scratchBuy(s, 100)
+		local lot = w.Games.openOf(s)
+		if w.Odds.scratchPayout(lot.cells) == 0 then
+			verlies += 1
+			break
+		end
+		-- geen verliezer: afmaken en opnieuw
+		for i = 1, 9 do w.Games.scratchReveal(s, i) end
+	end
+	h.check("er is een verliezend lot gevonden", 1, verlies)
+	h.check("de inzet is afgeschreven", 900, p.balance)
+
+	-- Acht vakjes open: je ziet nu dat er niets in zit.
+	for i = 1, 8 do w.Games.scratchReveal(s, i) end
+	h.check("het lot ligt nog open", true, w.Games.openOf(s) ~= nil)
+
+	w.vertrek(s)
+	h.check("weglopen van een verliezend lot geeft niets terug", 900, w.store.data["speler_1"].balance)
+end
+
+-- Een winnend lot wordt bij weglopen wel uitbetaald: de prijs zat er al in.
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+	local gevonden = false
+	for _ = 1, 300 do
+		p.balance = 1000
+		w.Games.scratchBuy(s, 100)
+		local lot = w.Games.openOf(s)
+		local mult = w.Odds.scratchPayout(lot.cells)
+		if mult > 0 then
+			gevonden = true
+			w.vertrek(s)
+			h.check("een winnend lot wordt uitbetaald bij weglopen",
+				w.Money.round2(900 + w.Money.floor2(100 * mult)), w.store.data["speler_1"].balance)
+			break
+		end
+		for i = 1, 9 do w.Games.scratchReveal(s, i) end
+	end
+	h.check("er is een winnend lot gevonden", true, gevonden)
 end
 
 h.report("SERVER")

@@ -193,8 +193,36 @@ do
 	end
 	h.check("er staat een hand open", true, r.ok ~= false and not r.done)
 	h.check("de inzet staat in het spel", 900, p.balance)
+	-- Weglopen betaalt niet terug: de hand wordt uitgespeeld alsof je past. Anders kun je
+	-- elke slechte hand gratis weggooien zodra je je kaarten hebt gezien.
+	local voor = p.balance
 	w.vertrek(s)
-	h.check("weggaan met een hand open geeft de inzet terug", 1000, w.store.data["speler_1"].balance)
+	local na = w.store.data["speler_1"].balance
+	h.check("weglopen geeft de inzet niet zomaar terug", true, na == voor or na > voor)
+	h.check("en de hand is echt afgerekend", nil, w.Blackjack.get(s))
+end
+
+-- Een verloren hand die je laat staan kost je gewoon je inzet.
+do
+	local w = wereld()
+	local s = w.speler(1, "Aap")
+	local p = w.Profiles.load(s)
+	local verloren = 0
+	for _ = 1, 300 do
+		p.balance = 1000
+		local r = w.Blackjack.deal(s, 100)
+		if r.ok ~= false and not r.done then
+			-- kijken wat passen zou opleveren, en dan weglopen
+			local voor = p.balance
+			w.Blackjack.refund(s)
+			local na = p.balance
+			if na == voor then
+				verloren += 1
+				if verloren >= 3 then break end
+			end
+		end
+	end
+	h.check("een verloren hand levert bij weglopen niets op", true, verloren >= 1)
 end
 
 do

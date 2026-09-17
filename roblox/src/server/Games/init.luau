@@ -48,13 +48,28 @@ function Games.openOf(speler: Player): Open?
 	return open[speler.UserId]
 end
 
--- Wat er nog in het spel zit als een speler weggaat: teruggeven, niet laten verdampen.
--- Profiles roept dit zelf aan, vlak voor het opslaan; zo staat de teruggave gegarandeerd
--- in het saldo dat wordt weggeschreven.
+-- Wat er nog in het spel zit als een speler weggaat. Profiles roept dit zelf aan, vlak voor
+-- het opslaan; zo staat de afhandeling gegarandeerd in het saldo dat wordt weggeschreven.
+--
+-- Een kraslot is de uitzondering, en dat is belangrijk: de prijs en het hele rooster worden
+-- getrokken op het moment dat je het lot koopt. Wie acht vakjes openkrast en dan ziet dat er
+-- niets in zit, zou met een teruggave gratis spelen -- weglopen als het tegenzit, doorkrassen
+-- als het meezit. Zo'n lot wordt daarom uitbetaald op wat er al in zat, niet terugbetaald.
+-- De webversie doet het net zo: een gekocht lot staat daar in pendingRounds(), niet in
+-- pendingStakes(), met precies deze reden erbij.
 function Games.refund(speler: Player): ()
 	local o = open[speler.UserId]
 	if not o then return end
 	open[speler.UserId] = nil
+
+	if o.game == "scratch" then
+		local mult = Odds.scratchPayout(o.cells :: { string })
+		local uit = Money.floor2(o.bet * mult)
+		if uit > 0 then Profiles.give(speler, uit) end
+		Profiles.record(speler, "scratch", o.bet, uit, mult)
+		return
+	end
+
 	Profiles.give(speler, o.bet)
 end
 

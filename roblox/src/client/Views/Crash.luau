@@ -610,22 +610,14 @@ function Crash.build(ouder: Instance): ()
 	-- ---------- de aside ----------
 	-- Eén paneel, precies zoals de markup: het inzetveld met de fiches, de schakelaar voor
 	-- automatisch uitstappen, het doelveld dat daarbij hoort, en de knop.
+	-- De volgorde in de aside is de volgorde waarin de panelen erbij komen: inzetvak,
+	-- statistieken, kansen. Common.columns zette de kop en het saldo er al boven.
 	local betBox = Common.betBox(bediening, 10)
 	local zetPaneel = betBox.panel
-	-- Common.columns zet de kop op 1 en het saldopaneel op 2. Wat er daarna bij komt heeft
-	-- LayoutOrder 0 en zou dus bóven de kop eindigen; vandaar de nummers hier.
-	zetPaneel.LayoutOrder = 3
-	-- De haarlijn van .panel::before is een gewoon kind, en de UIListLayout van het inzetvak
-	-- zet elk kind in de rij. Bovenaan dus, waar de CSS hem ook tekent.
-	local haarlijn = zetPaneel:FindFirstChild("TopLine")
-	if haarlijn and haarlijn:IsA("Frame") then
-		haarlijn.LayoutOrder = -1
-	end
 
 	-- .toggle-row: de schakelaar plus zijn etiket, samen aan te klikken.
 	local schakelRij = Instance.new("TextButton")
 	schakelRij.Name = "ToggleRow"
-	schakelRij.LayoutOrder = 1
 	schakelRij.Text = ""
 	schakelRij.AutoButtonColor = false
 	schakelRij.BackgroundTransparency = 1
@@ -664,7 +656,6 @@ function Crash.build(ouder: Instance): ()
 	-- precies dat: alles wat erin staat wordt in één keer doorzichtig.
 	local autoVak = Instance.new("CanvasGroup")
 	autoVak.Name = "AutoField"
-	autoVak.LayoutOrder = 2
 	autoVak.Size = UDim2.new(1, 0, 0, 63)
 	autoVak.BackgroundTransparency = 1
 	autoVak.GroupTransparency = 0.6
@@ -685,7 +676,6 @@ function Crash.build(ouder: Instance): ()
 	autoVeld.TextEditable = false     -- pointer-events: none zolang de schakelaar uit staat
 
 	local knop = UI.primary(zetPaneel, "PLACE BET")
-	knop.LayoutOrder = 3
 	-- .btn-bet: verloop van 135 graden, neon naar neon-dim. De knop wisselt van kleur met
 	-- de fase, net als de klassen btn-bet, btn-cashout en btn-waiting.
 	local knopVerloop = UI.gradient(knop, Theme.color.neon, Theme.color.neonDim, 135)
@@ -693,11 +683,9 @@ function Crash.build(ouder: Instance): ()
 	knopRand.Transparency = 1
 
 	-- ---------- statistieken, kansen en het bewijs ----------
-	local statsVak = Common.statsPanel(bediening, "crash")
-	statsVak.LayoutOrder = 4
+	Common.statsPanel(bediening, "crash")
 	local oddsVak = Common.oddsPanel(bediening, "odds",
 		"RTP 97%. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x. Auto cash-out pays exactly at your target.")
-	oddsVak.LayoutOrder = 5
 
 	-- #mpFair: de tweede .odds-note in hetzelfde paneel. In de CSS is "Shared round #n" goud
 	-- en de rest grijs; twee kleuren in één regel zou RichText vragen, en dat staat in dit

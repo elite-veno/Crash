@@ -228,11 +228,36 @@ function Stub.wereld(opties)
 				return r
 			end,
 		}
+		-- task.spawn draait de functie meteen, want anders doet BindToClose niets en lijkt
+		-- een test te slagen terwijl er in het geheel niets is opgeslagen. Dat het echt
+		-- doorloopt is nodig; dat het niet blijft hangen ook, want Profiles heeft een
+		-- oneindige autosave-lus. Daarom stopt task.wait binnen een spawn na een paar
+		-- beurten met een foutmelding, die de pcall opvangt.
+		local wachtTeller = 0
+		local binnenSpawn = false
+		local function spawn(f, ...)
+			local was = binnenSpawn
+			local tellerWas = wachtTeller
+			binnenSpawn = true
+			wachtTeller = 0
+			local args = table.pack(...)
+			pcall(function()
+				f(table.unpack(args, 1, args.n))
+			end)
+			binnenSpawn = was
+			wachtTeller = tellerWas
+		end
 		env.task = {
-			wait = function(_) return 0 end,
-			spawn = function(f, ...) table.insert(w.gespawnd, f) end,
-			delay = function(_, f) table.insert(w.gespawnd, f) end,
-			defer = function(f) table.insert(w.gespawnd, f) end,
+			wait = function(_)
+				if binnenSpawn then
+					wachtTeller += 1
+					if wachtTeller > 3 then error("stub: lus afgebroken", 0) end
+				end
+				return 0
+			end,
+			spawn = spawn,
+			delay = function(_, f, ...) spawn(f, ...) end,
+			defer = function(f, ...) spawn(f, ...) end,
 		}
 		return env
 	end

@@ -12,9 +12,10 @@ local Profiles = require(script.Parent.Parent.Profiles)
 
 local Blackjack = {}
 
--- Onder dit aantal kaarten gaat er een verse schoen in; zo houdt niemand de telling bij
--- over de bodem van de stapel heen.
-local HERSCHUD = 60
+-- Elke hand begint met een verse schoen van zes stapels. Dat is wat de webversie doet
+-- ("6 decks, continuously shuffled -- a fresh shoe every hand") en het is ook het enige dat
+-- kaarten tellen zinloos maakt: een schoen die tussen handen door blijft liggen geeft een
+-- speler die meetelt een echt voordeel over het huis.
 
 type Ronde = {
 	bet: number,
@@ -32,26 +33,21 @@ function Blackjack.get(speler: Player): Ronde?
 	return open[speler.UserId]
 end
 
--- Weggaan terwijl er nog een hand loopt: de inzet terug, de dubbele inzet ook.
-function Blackjack.refund(speler: Player): number
-	local r = open[speler.UserId]
-	if not r then return 0 end
-	open[speler.UserId] = nil
-	local terug = r.bet * (if r.doubled then 2 else 1)
-	Profiles.give(speler, terug)
-	return terug
+-- De hand afrekenen: de dealer speelt uit, en dan pas komt alles op tafel.
+local function schud(speler: Player): ()
+	schoenen[speler.UserId] = Odds.bjNewShoe(6)
 end
 
 local function trek(speler: Player): Odds.Card
-	local huidig = schoenen[speler.UserId]
-	local schoen: { Odds.Card }
-	if huidig and #huidig >= HERSCHUD then
-		schoen = huidig
-	else
-		schoen = Odds.bjNewShoe(6)
-		schoenen[speler.UserId] = schoen
+	local schoen = schoenen[speler.UserId]
+	-- Binnen één hand kan de schoen niet leeg raken (zes stapels, hoogstens een stuk of
+	-- twintig kaarten), maar een lege stapel zou een nil-kaart geven en dat is het soort
+	-- fout dat de hele tafel meesleept.
+	if not schoen or #schoen < 20 then
+		schud(speler)
+		schoen = schoenen[speler.UserId]
 	end
-	return table.remove(schoen) :: Odds.Card
+	return table.remove(schoen :: { Odds.Card }) :: Odds.Card
 end
 
 local function saldo(speler: Player): number
@@ -74,7 +70,6 @@ local function beeld(r: Ronde): any
 	}
 end
 
--- De hand afrekenen: de dealer speelt uit, en dan pas komt alles op tafel.
 local function afrekenen(speler: Player, r: Ronde, dealerSpeelt: boolean): any
 	if dealerSpeelt then
 		Odds.bjDealerPlay(r.dealer, function()
@@ -108,6 +103,20 @@ local function afrekenen(speler: Player, r: Ronde, dealerSpeelt: boolean): any
 	}
 end
 
+-- Weggaan terwijl er nog een hand loopt. Niet terugbetalen: je hebt je eigen kaarten en de
+-- open kaart van de dealer al gezien, dus een teruggave zou betekenen dat je elke slechte
+-- hand gratis kunt weggooien -- zestien tegen een tien, weglopen, niets verloren. De hand
+-- wordt daarom uitgespeeld alsof je past: de dealer speelt uit en er wordt afgerekend.
+--
+-- Wat er WEL wordt teruggegeven is een hand die nog niet is uitgedeeld, en dat kan hier niet
+-- voorkomen: `open` wordt pas gevuld nadat beide handen op tafel liggen.
+function Blackjack.refund(speler: Player): number
+	local r = open[speler.UserId]
+	if not r then return 0 end
+	local uitslag = afrekenen(speler, r, true)
+	return uitslag.payout or 0
+end
+
 function Blackjack.deal(speler: Player, inzet: any): any
 	local p = Profiles.get(speler)
 	if not p then return { ok = false, err = "geen profiel" } end
@@ -115,6 +124,9 @@ function Blackjack.deal(speler: Player, inzet: any): any
 	local bet = Money.cleanBet(inzet, p.balance)
 	if not bet then return { ok = false, err = "ongeldige inzet" } end
 	if not Profiles.take(speler, bet) then return { ok = false, err = "onvoldoende saldo" } end
+
+	-- Verse schoen: elke hand begint schoon.
+	schud(speler)
 
 	local r: Ronde = {
 		bet = bet,
