@@ -129,6 +129,10 @@ function Scratch.build(ouder: Instance): ()
 			end
 		end
 	end)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "scratch")
+	Common.oddsPanel(bediening, "odds", "Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP 97%, chance of a prize 21.6%.")
+
 end
 
 return Scratch

@@ -268,6 +268,10 @@ function Roulette.build(ouder: Instance): ()
 	end)
 
 	ververs()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "roulette")
+	Common.oddsPanel(bediening, "payouts", "Straight number 35:1 · Dozen / column 2:1 · Red / black / even / odd / 1-18 / 19-36 1:1. One zero, so RTP 97.3% on every bet.")
+
 end
 
 return Roulette

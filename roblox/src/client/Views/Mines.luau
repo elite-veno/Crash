@@ -193,6 +193,10 @@ function Mines.build(ouder: Instance): ()
 	leeg()
 	zetActief()
 	markeer()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "mines")
+	Common.oddsPanel(bediening, "odds", "25 tiles. Multiplier after k diamonds = 0.97 / chance(k safe in a row). RTP 97% at every cash-out. The mines are placed before your first click.")
+
 end
 
 return Mines

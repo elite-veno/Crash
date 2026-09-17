@@ -124,6 +124,10 @@ function Wheel.build(ouder: Instance): ()
 		knop.Text = "SPIN"
 		betBox.lock(false)
 	end)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "wheel")
+	Common.oddsPanel(bediening, "odds", "Twenty equal segments: one 10.00x, two 2.00x, two 1.50x, two 1.20x and thirteen blanks. Together 19.4 / 20 = RTP 97%.")
+
 end
 
 return Wheel

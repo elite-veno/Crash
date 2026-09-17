@@ -284,6 +284,10 @@ function Crash.build(ouder: Instance): ()
 	end)
 
 	zetKnop()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "crash")
+	Common.oddsPanel(bediening, "odds", "RTP 97%. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x.")
+
 end
 
 return Crash

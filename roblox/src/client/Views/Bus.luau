@@ -200,6 +200,10 @@ function Bus.build(ouder: Instance): ()
 
 	wisKaarten()
 	zetActief()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "bus")
+	Common.oddsPanel(bediening, "odds", "One shuffled 52-card deck. Every button shows your chance: the multiplier is 0.97 / the chance of getting that far, counted off the cards still in the deck. So stopping after any call returns 97%. A tie always loses.")
+
 end
 
 return Bus

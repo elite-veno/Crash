@@ -220,6 +220,10 @@ function Tower.build(ouder: Instance): ()
 	koppel()
 	zetActief()
 	markeer()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "tower")
+	Common.oddsPanel(bediening, "odds", "Every floor has fixed odds. Multiplier = 0.97 x (tiles / safe)^floor, so RTP 97% at every point you cash out. The whole tower is fixed before your first click.")
+
 end
 
 return Tower

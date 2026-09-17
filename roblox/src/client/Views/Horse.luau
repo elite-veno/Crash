@@ -245,6 +245,10 @@ function Horse.build(ouder: Instance): ()
 	end)
 
 	ververs()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "horse")
+	Common.oddsPanel(bediening, "odds", "Every horse has its own win chance, shown as a percentage. Payout = 0.97 / win chance, so RTP 97% on every horse, favourite or longshot. The result is drawn before the start; the race just plays it out.")
+
 end
 
 return Horse

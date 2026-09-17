@@ -4225,6 +4225,7 @@ navigate("home")
 -- ---------- wat de server stuurt ----------
 local function toon(p: any)
 	if typeof(p) ~= "table" then return end
+	Common.setProfile(p)
 	local b = tonumber(p.balance)
 	if b then
 		Common.setBalance(b)
@@ -4702,6 +4703,10 @@ function Blackjack.build(ouder: Instance): ()
 
 	zetKnoppen()
 	zetKoppen(nil, nil, nil)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "blackjack")
+	Common.oddsPanel(bediening, "odds", "6 decks, continuously shuffled. Dealer stands on all 17s. Blackjack pays 3:2 and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around 1%.")
+
 end
 
 return Blackjack
@@ -4913,6 +4918,10 @@ function Bus.build(ouder: Instance): ()
 
 	wisKaarten()
 	zetActief()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "bus")
+	Common.oddsPanel(bediening, "odds", "One shuffled 52-card deck. Every button shows your chance: the multiplier is 0.97 / the chance of getting that far, counted off the cards still in the deck. So stopping after any call returns 97%. A tie always loses.")
+
 end
 
 return Bus
@@ -5187,6 +5196,69 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 			end
 		end,
 	}
+end
+
+-- ---------- de twee panelen die elk speelscherm heeft ----------
+-- In de webversie sluit elke aside af met een STATISTICS- en een ODDS-paneel. Die horen
+-- erbij: ze vertellen wat het spel met je gedaan heeft en waarom de kansen zijn wat ze zijn.
+
+-- Per spel de regels uit renderStats(): rondes, gewonnen, verloren, de beste multiplier en
+-- de winst. Ze worden bijgewerkt zodra de server een profiel stuurt.
+local statsVakken: { { spel: string, rondes: TextLabel, won: TextLabel, lost: TextLabel, best: TextLabel, winst: TextLabel } } = {}
+
+function Common.statsPanel(ouder: Instance, spel: string): Frame
+	local vak = UI.panel(ouder, "Stats")
+	UI.list(vak, 6)
+	UI.panelTitle(vak, "\u{25BA} statistics")
+
+	local rondes = Common.statRow(vak, "ROUNDS", "0")
+	local won = Common.statRow(vak, "WON", "0")
+	won.TextColor3 = Theme.color.neon
+	local lost = Common.statRow(vak, "LOST", "0")
+	lost.TextColor3 = Theme.color.red
+	-- Bij crash heet het BEST, bij de rest BEST MULT -- net als in renderStats.
+	local best = Common.statRow(vak, if spel == "crash" then "BEST" else "BEST MULT", "\u{2014}")
+	best.TextColor3 = Theme.color.gold
+	local winst = Common.statRow(vak, "PROFIT", "+$0.00")
+	winst.TextColor3 = Theme.color.neon
+
+	table.insert(statsVakken, {
+		spel = spel, rondes = rondes, won = won, lost = lost, best = best, winst = winst,
+	})
+	return vak
+end
+
+-- Het profiel binnenkrijgen: alle statistiekpanelen in één keer bijwerken.
+function Common.setProfile(p: any): ()
+	if typeof(p) ~= "table" or typeof(p.stats) ~= "table" then return end
+	for _, v in statsVakken do
+		local st = p.stats[v.spel]
+		if typeof(st) == "table" then
+			v.rondes.Text = string.format("%d", tonumber(st.rounds) or 0)
+			v.won.Text = string.format("%d", tonumber(st.won) or 0)
+			v.lost.Text = string.format("%d", tonumber(st.lost) or 0)
+			local beste = tonumber(st.highest) or 0
+			v.best.Text = if beste &gt; 0 then Money.fmt(beste) .. "\u{00D7}" else "\u{2014}"
+			local w = tonumber(st.profit) or 0
+			v.winst.Text = (if w &gt;= 0 then "+$" else "-$") .. Money.fmt(math.abs(w))
+			v.winst.TextColor3 = if w &gt;= 0 then Theme.color.neon else Theme.color.red
+		end
+	end
+end
+
+-- .odds-note: het uitlegblokje onder ODDS of PAYOUTS. De vetgedrukte stukken zijn in de
+-- CSS goud; die staan hier tussen sterretjes en worden goud gekleurd.
+function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
+	local vak = UI.panel(ouder, "Odds")
+	UI.list(vak, 6)
+	UI.panelTitle(vak, "\u{25BA} " .. kop)
+	local t = UI.label(vak, tekst, { size = Theme.text.tiny, color = Theme.color.muted })
+	t.TextWrapped = true
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Size = UDim2.new(1, 0, 0, 0)
+	t.TextYAlignment = Enum.TextYAlignment.Top
+	t.LineHeight = 1.7
+	return vak
 end
 
 -- ---------- terugkerende stukjes ----------
@@ -5542,6 +5614,10 @@ function Crash.build(ouder: Instance): ()
 	end)
 
 	zetKnop()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "crash")
+	Common.oddsPanel(bediening, "odds", "RTP 97%. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x.")
+
 end
 
 return Crash
@@ -6239,6 +6315,10 @@ function Horse.build(ouder: Instance): ()
 	end)
 
 	ververs()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "horse")
+	Common.oddsPanel(bediening, "odds", "Every horse has its own win chance, shown as a percentage. Payout = 0.97 / win chance, so RTP 97% on every horse, favourite or longshot. The result is drawn before the start; the race just plays it out.")
+
 end
 
 return Horse
@@ -6443,6 +6523,10 @@ function Mines.build(ouder: Instance): ()
 	leeg()
 	zetActief()
 	markeer()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "mines")
+	Common.oddsPanel(bediening, "odds", "25 tiles. Multiplier after k diamonds = 0.97 / chance(k safe in a row). RTP 97% at every cash-out. The mines are placed before your first click.")
+
 end
 
 return Mines
@@ -6677,6 +6761,10 @@ function Plinko.build(ouder: Instance): ()
 
 	teken()
 	markeer()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "plinko")
+	Common.oddsPanel(bediening, "odds", "Every row is a fair 50/50. The payout table is normalised to RTP 97% per row count and risk level. Higher risk means bigger outliers and more small losses.")
+
 end
 
 return Plinko
@@ -7120,6 +7208,10 @@ function Roulette.build(ouder: Instance): ()
 	end)
 
 	ververs()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "roulette")
+	Common.oddsPanel(bediening, "payouts", "Straight number 35:1 · Dozen / column 2:1 · Red / black / even / odd / 1-18 / 19-36 1:1. One zero, so RTP 97.3% on every bet.")
+
 end
 
 return Roulette
@@ -7260,6 +7352,10 @@ function Scratch.build(ouder: Instance): ()
 			end
 		end
 	end)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "scratch")
+	Common.oddsPanel(bediening, "odds", "Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP 97%, chance of a prize 21.6%.")
+
 end
 
 return Scratch
@@ -7380,6 +7476,10 @@ function Slots.build(ouder: Instance): ()
 		knop.Text = "SPIN"
 		betBox.lock(false)
 	end)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "slots")
+	Common.oddsPanel(bediening, "odds", "The result is drawn before the reels stop; the animation only shows it. RTP 97%, chance of a prize 17%.")
+
 end
 
 return Slots
@@ -7611,6 +7711,10 @@ function Tower.build(ouder: Instance): ()
 	koppel()
 	zetActief()
 	markeer()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "tower")
+	Common.oddsPanel(bediening, "odds", "Every floor has fixed odds. Multiplier = 0.97 x (tiles / safe)^floor, so RTP 97% at every point you cash out. The whole tower is fixed before your first click.")
+
 end
 
 return Tower
@@ -7939,6 +8043,10 @@ function Wheel.build(ouder: Instance): ()
 		knop.Text = "SPIN"
 		betBox.lock(false)
 	end)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "wheel")
+	Common.oddsPanel(bediening, "odds", "Twenty equal segments: one 10.00x, two 2.00x, two 1.50x, two 1.20x and thirteen blanks. Together 19.4 / 20 = RTP 97%.")
+
 end
 
 return Wheel

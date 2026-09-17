@@ -457,6 +457,7 @@ navigate("home")
 -- ---------- wat de server stuurt ----------
 local function toon(p: any)
 	if typeof(p) ~= "table" then return end
+	Common.setProfile(p)
 	local b = tonumber(p.balance)
 	if b then
 		Common.setBalance(b)

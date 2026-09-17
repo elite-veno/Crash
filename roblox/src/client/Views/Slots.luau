@@ -109,6 +109,10 @@ function Slots.build(ouder: Instance): ()
 		knop.Text = "SPIN"
 		betBox.lock(false)
 	end)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "slots")
+	Common.oddsPanel(bediening, "odds", "The result is drawn before the reels stop; the animation only shows it. RTP 97%, chance of a prize 17%.")
+
 end
 
 return Slots

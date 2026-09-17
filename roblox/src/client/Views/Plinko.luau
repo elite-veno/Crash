@@ -223,6 +223,10 @@ function Plinko.build(ouder: Instance): ()
 
 	teken()
 	markeer()
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "plinko")
+	Common.oddsPanel(bediening, "odds", "Every row is a fair 50/50. The payout table is normalised to RTP 97% per row count and risk level. Higher risk means bigger outliers and more small losses.")
+
 end
 
 return Plinko

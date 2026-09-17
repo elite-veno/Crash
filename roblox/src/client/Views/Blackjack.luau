@@ -189,6 +189,10 @@ function Blackjack.build(ouder: Instance): ()
 
 	zetKnoppen()
 	zetKoppen(nil, nil, nil)
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "blackjack")
+	Common.oddsPanel(bediening, "odds", "6 decks, continuously shuffled. Dealer stands on all 17s. Blackjack pays 3:2 and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around 1%.")
+
 end
 
 return Blackjack

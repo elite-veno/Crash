@@ -265,6 +265,69 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	}
 end
 
+-- ---------- de twee panelen die elk speelscherm heeft ----------
+-- In de webversie sluit elke aside af met een STATISTICS- en een ODDS-paneel. Die horen
+-- erbij: ze vertellen wat het spel met je gedaan heeft en waarom de kansen zijn wat ze zijn.
+
+-- Per spel de regels uit renderStats(): rondes, gewonnen, verloren, de beste multiplier en
+-- de winst. Ze worden bijgewerkt zodra de server een profiel stuurt.
+local statsVakken: { { spel: string, rondes: TextLabel, won: TextLabel, lost: TextLabel, best: TextLabel, winst: TextLabel } } = {}
+
+function Common.statsPanel(ouder: Instance, spel: string): Frame
+	local vak = UI.panel(ouder, "Stats")
+	UI.list(vak, 6)
+	UI.panelTitle(vak, "\u{25BA} statistics")
+
+	local rondes = Common.statRow(vak, "ROUNDS", "0")
+	local won = Common.statRow(vak, "WON", "0")
+	won.TextColor3 = Theme.color.neon
+	local lost = Common.statRow(vak, "LOST", "0")
+	lost.TextColor3 = Theme.color.red
+	-- Bij crash heet het BEST, bij de rest BEST MULT -- net als in renderStats.
+	local best = Common.statRow(vak, if spel == "crash" then "BEST" else "BEST MULT", "\u{2014}")
+	best.TextColor3 = Theme.color.gold
+	local winst = Common.statRow(vak, "PROFIT", "+$0.00")
+	winst.TextColor3 = Theme.color.neon
+
+	table.insert(statsVakken, {
+		spel = spel, rondes = rondes, won = won, lost = lost, best = best, winst = winst,
+	})
+	return vak
+end
+
+-- Het profiel binnenkrijgen: alle statistiekpanelen in één keer bijwerken.
+function Common.setProfile(p: any): ()
+	if typeof(p) ~= "table" or typeof(p.stats) ~= "table" then return end
+	for _, v in statsVakken do
+		local st = p.stats[v.spel]
+		if typeof(st) == "table" then
+			v.rondes.Text = string.format("%d", tonumber(st.rounds) or 0)
+			v.won.Text = string.format("%d", tonumber(st.won) or 0)
+			v.lost.Text = string.format("%d", tonumber(st.lost) or 0)
+			local beste = tonumber(st.highest) or 0
+			v.best.Text = if beste > 0 then Money.fmt(beste) .. "\u{00D7}" else "\u{2014}"
+			local w = tonumber(st.profit) or 0
+			v.winst.Text = (if w >= 0 then "+$" else "-$") .. Money.fmt(math.abs(w))
+			v.winst.TextColor3 = if w >= 0 then Theme.color.neon else Theme.color.red
+		end
+	end
+end
+
+-- .odds-note: het uitlegblokje onder ODDS of PAYOUTS. De vetgedrukte stukken zijn in de
+-- CSS goud; die staan hier tussen sterretjes en worden goud gekleurd.
+function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
+	local vak = UI.panel(ouder, "Odds")
+	UI.list(vak, 6)
+	UI.panelTitle(vak, "\u{25BA} " .. kop)
+	local t = UI.label(vak, tekst, { size = Theme.text.tiny, color = Theme.color.muted })
+	t.TextWrapped = true
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Size = UDim2.new(1, 0, 0, 0)
+	t.TextYAlignment = Enum.TextYAlignment.Top
+	t.LineHeight = 1.7
+	return vak
+end
+
 -- ---------- terugkerende stukjes ----------
 -- Een groot vak met een getal erin: de multiplier bij crash, de stand bij blackjack.
 function Common.bigNumber(ouder: Instance, tekst: string, kleur: Color3?): TextLabel
