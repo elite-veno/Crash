@@ -5146,7 +5146,13 @@ async function lobbyCall(path, body, msg) {
   LOBBY.busy = true;
   lobbyRender();
   try {
+    // Eerst wat nog niet opgeslagen is doorsturen, want de server kan zo meteen zelf het
+    // saldo verzetten: een tafel die leegloopt betaalt de openstaande inzetten terug.
+    await mpFlush();
     const d = await api('/rest/v1/rpc/' + path, { method: 'POST', body: body || {} });
+    // En daarna overnemen wat de server ervan maakte. Zonder dit schrijft de eerstvolgende
+    // opslag het saldo van voor de terugbetaling er weer overheen, en is het geld alsnog weg.
+    await mpSyncBalance();
     await lobbyPull();
     if (msg) flash(msg, 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
     // Een andere tafel betekent een andere ronde: alles van de vorige moet weg.
