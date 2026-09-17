@@ -22,8 +22,7 @@ type Loop = {
 }
 
 function Horse.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "HORSE RACE")
+	local bord, bediening = Common.columns(ouder, "HORSE RACE")
 
 	local baan = UI.panel(bord, "Track")
 	UI.list(baan, 8)

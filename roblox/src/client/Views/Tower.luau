@@ -13,8 +13,7 @@ local Tower = {}
 local MOEILIJK = {"easy", "medium", "hard", "expert", "master"}
 
 function Tower.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "DRAGON TOWER")
+	local bord, bediening = Common.columns(ouder, "DRAGON TOWER")
 
 	local toren = UI.panel(bord, "Tower")
 	UI.list(toren, 6)

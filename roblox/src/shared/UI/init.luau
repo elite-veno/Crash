@@ -410,27 +410,37 @@ function UI.money(n: number): string
 	return string.format("%.2f", n)
 end
 
--- .balance-amount: het dollarteken staat er gedimd voor, apart van het getal.
-function UI.moneyLabel(parent: Instance, bedrag: string, groot: number?): TextLabel
+-- .balance-amount: het dollarteken staat er gedimd voor, apart van het getal. Geeft het
+-- label met het getal terug, en het vak eromheen.
+function UI.moneyLabel(parent: Instance, bedrag: string, groot: number?, midden: boolean?): (TextLabel, Frame)
 	local maat = groot or Theme.text.balance
 	local rij = Instance.new("Frame")
 	rij.Name = "Money"
-	rij.Size = UDim2.new(1, 0, 0, maat + 8)
+	rij.Size = UDim2.new(1, 0, 0, maat + 10)
 	rij.BackgroundTransparency = 1
 	rij.Parent = parent
 
-	local teken = UI.label(rij, "$", {
-		size = maat, color = Theme.color.neon, font = Theme.font.num,
-	})
-	teken.Size = UDim2.fromOffset(maat * 0.65, maat + 8)
+	local l = Instance.new("UIListLayout")
+	l.FillDirection = Enum.FillDirection.Horizontal
+	l.HorizontalAlignment = if midden then Enum.HorizontalAlignment.Center else Enum.HorizontalAlignment.Left
+	l.VerticalAlignment = Enum.VerticalAlignment.Center
+	l.SortOrder = Enum.SortOrder.LayoutOrder
+	l.Padding = UDim.new(0, 1)
+	l.Parent = rij
+
+	local teken = UI.label(rij, "$", { size = maat, color = Theme.color.neon, font = Theme.font.num })
+	teken.LayoutOrder = 1
+	teken.AutomaticSize = Enum.AutomaticSize.X
+	teken.Size = UDim2.new(0, 0, 1, 0)
 	teken.TextTransparency = 0.4
 
 	local getal = UI.label(rij, bedrag, {
 		size = maat, color = Theme.color.neon, font = Theme.font.num, name = "Amount",
 	})
-	getal.Position = UDim2.new(0, maat * 0.65 + 2, 0, 0)
-	getal.Size = UDim2.new(1, -(maat * 0.65 + 2), 1, 0)
-	return getal
+	getal.LayoutOrder = 2
+	getal.AutomaticSize = Enum.AutomaticSize.X
+	getal.Size = UDim2.new(0, 0, 1, 0)
+	return getal, rij
 end
 
 -- Een knop uitzetten zoals :disabled in de CSS: nog zichtbaar, maar niet aan te klikken.

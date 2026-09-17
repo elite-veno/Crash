@@ -39,8 +39,7 @@ local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Fram
 end
 
 function Blackjack.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "BLACKJACK")
+	local bord, bediening = Common.columns(ouder, "BLACKJACK")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 8)

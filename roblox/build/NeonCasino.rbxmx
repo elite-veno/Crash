@@ -1725,27 +1725,37 @@ function UI.money(n: number): string
 	return string.format("%.2f", n)
 end
 
--- .balance-amount: het dollarteken staat er gedimd voor, apart van het getal.
-function UI.moneyLabel(parent: Instance, bedrag: string, groot: number?): TextLabel
+-- .balance-amount: het dollarteken staat er gedimd voor, apart van het getal. Geeft het
+-- label met het getal terug, en het vak eromheen.
+function UI.moneyLabel(parent: Instance, bedrag: string, groot: number?, midden: boolean?): (TextLabel, Frame)
 	local maat = groot or Theme.text.balance
 	local rij = Instance.new("Frame")
 	rij.Name = "Money"
-	rij.Size = UDim2.new(1, 0, 0, maat + 8)
+	rij.Size = UDim2.new(1, 0, 0, maat + 10)
 	rij.BackgroundTransparency = 1
 	rij.Parent = parent
 
-	local teken = UI.label(rij, "$", {
-		size = maat, color = Theme.color.neon, font = Theme.font.num,
-	})
-	teken.Size = UDim2.fromOffset(maat * 0.65, maat + 8)
+	local l = Instance.new("UIListLayout")
+	l.FillDirection = Enum.FillDirection.Horizontal
+	l.HorizontalAlignment = if midden then Enum.HorizontalAlignment.Center else Enum.HorizontalAlignment.Left
+	l.VerticalAlignment = Enum.VerticalAlignment.Center
+	l.SortOrder = Enum.SortOrder.LayoutOrder
+	l.Padding = UDim.new(0, 1)
+	l.Parent = rij
+
+	local teken = UI.label(rij, "$", { size = maat, color = Theme.color.neon, font = Theme.font.num })
+	teken.LayoutOrder = 1
+	teken.AutomaticSize = Enum.AutomaticSize.X
+	teken.Size = UDim2.new(0, 0, 1, 0)
 	teken.TextTransparency = 0.4
 
 	local getal = UI.label(rij, bedrag, {
 		size = maat, color = Theme.color.neon, font = Theme.font.num, name = "Amount",
 	})
-	getal.Position = UDim2.new(0, maat * 0.65 + 2, 0, 0)
-	getal.Size = UDim2.new(1, -(maat * 0.65 + 2), 1, 0)
-	return getal
+	getal.LayoutOrder = 2
+	getal.AutomaticSize = Enum.AutomaticSize.X
+	getal.Size = UDim2.new(0, 0, 1, 0)
+	return getal, rij
 end
 
 -- Een knop uitzetten zoals :disabled in de CSS: nog zichtbaar, maar niet aan te klikken.
@@ -4511,6 +4521,342 @@ return Achievements
 				</Item>
 				<Item class="ModuleScript" referent="RBX22">
 					<Properties>
+						<string name="Name">Art</string>
+						<ProtectedString name="Source">--!strict
+-- De tekeningen op de speltegels. In de webversie is elke preview een SVG van 280 bij 160:
+-- een vliegtuigje boven gras, een roulettewiel, tegels met een draken-ei. Egale verlopen
+-- zagen er naast het origineel uit als een lege doos, dus die scènes worden hier nagetekend
+-- met Frames.
+--
+-- Alles rekent in dezelfde 280x160 die de SVG gebruikt, zodat de coördinaten uit crash.html
+-- rechtstreeks over te nemen zijn.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+
+local Art = {}
+
+local B = 280   -- viewBox breedte
+local H = 160   -- viewBox hoogte
+
+export type Doek = {
+	vak: Frame,
+	rect: (number, number, number, number, Color3, number?, number?) -&gt; Frame,
+	rond: (number, number, number, Color3, number?) -&gt; Frame,
+	ovaal: (number, number, number, number, Color3, number?) -&gt; Frame,
+	lijn: (number, number, number, number, number, Color3, number?) -&gt; Frame,
+	tekst: (number, number, string, number, Color3, Enum.Font?) -&gt; TextLabel,
+}
+
+function Art.canvas(ouder: Instance, achtergrondVan: Color3, achtergrondTot: Color3, rotatie: number?): Doek
+	local vak = Instance.new("Frame")
+	vak.Name = "Art"
+	vak.Size = UDim2.new(1, 0, 0, Theme.size.cardPreview)
+	vak.BackgroundColor3 = achtergrondVan
+	vak.BorderSizePixel = 0
+	vak.ClipsDescendants = true
+	vak.Parent = ouder
+	UI.gradient(vak, achtergrondVan, achtergrondTot, rotatie or 90)
+
+	local doek = {} :: any
+	doek.vak = vak
+
+	-- Een rechthoek. x en y zijn de linkerbovenhoek, net als in de SVG.
+	function doek.rect(x: number, y: number, w: number, h: number, kleur: Color3, radius: number?, doorzicht: number?): Frame
+		local f = Instance.new("Frame")
+		f.BackgroundColor3 = kleur
+		f.BackgroundTransparency = doorzicht or 0
+		f.BorderSizePixel = 0
+		f.Position = UDim2.fromScale(x / B, y / H)
+		f.Size = UDim2.fromScale(w / B, h / H)
+		if radius and radius &gt; 0 then UI.corner(f, radius) end
+		f.Parent = vak
+		return f
+	end
+
+	-- Een cirkel met het middelpunt op cx, cy. De maat gaat in pixels, want een cirkel die
+	-- met het vak meerekt wordt een ovaal.
+	function doek.rond(cx: number, cy: number, r: number, kleur: Color3, doorzicht: number?): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BackgroundColor3 = kleur
+		f.BackgroundTransparency = doorzicht or 0
+		f.BorderSizePixel = 0
+		f.Position = UDim2.fromScale(cx / B, cy / H)
+		f.Size = UDim2.fromOffset(r * 2, r * 2)
+		UI.corner(f, r)
+		f.Parent = vak
+		return f
+	end
+
+	function doek.ovaal(cx: number, cy: number, rx: number, ry: number, kleur: Color3, doorzicht: number?): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BackgroundColor3 = kleur
+		f.BackgroundTransparency = doorzicht or 0
+		f.BorderSizePixel = 0
+		f.Position = UDim2.fromScale(cx / B, cy / H)
+		f.Size = UDim2.fromOffset(rx * 2, ry * 2)
+		UI.corner(f, math.min(rx, ry))
+		f.Parent = vak
+		return f
+	end
+
+	-- Een lijn tussen twee punten: een gedraaid balkje op het midden.
+	function doek.lijn(x1: number, y1: number, x2: number, y2: number, dikte: number, kleur: Color3, doorzicht: number?): Frame
+		local dx, dy = x2 - x1, y2 - y1
+		local lengte = math.sqrt(dx * dx + dy * dy)
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BackgroundColor3 = kleur
+		f.BackgroundTransparency = doorzicht or 0
+		f.BorderSizePixel = 0
+		f.Position = UDim2.fromScale((x1 + x2) / 2 / B, (y1 + y2) / 2 / H)
+		f.Size = UDim2.fromOffset(lengte, dikte)
+		f.Rotation = math.deg(math.atan2(dy, dx))
+		f.Parent = vak
+		return f
+	end
+
+	function doek.tekst(cx: number, cy: number, tekst: string, maat: number, kleur: Color3, font: Enum.Font?): TextLabel
+		local t = Instance.new("TextLabel")
+		t.AnchorPoint = Vector2.new(0.5, 0.5)
+		t.BackgroundTransparency = 1
+		t.Position = UDim2.fromScale(cx / B, cy / H)
+		t.Size = UDim2.fromOffset(120, maat + 8)
+		t.Text = tekst
+		t.TextSize = maat
+		t.TextColor3 = kleur
+		t.Font = font or Theme.font.uiMed
+		t.RichText = false
+		t.Parent = vak
+		return t
+	end
+
+	return doek
+end
+
+-- ---------- de negen scènes ----------
+-- De coördinaten komen één op één uit de SVG's in crash.html.
+
+local WIT = Color3.fromHex("ffffff")
+
+function Art.crash(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("5fb8ff"), Color3.fromHex("b8e4ff"))
+	-- gras
+	d.rect(0, 128, 280, 32, Color3.fromHex("5aa030"))
+	d.rect(0, 128, 280, 6, Color3.fromHex("7ac050"))
+	-- wolken
+	d.ovaal(50, 40, 20, 8, WIT, 0.2)
+	d.ovaal(200, 30, 25, 10, WIT, 0.15)
+	-- de vliegbaan: de kromme uit de SVG in korte stukjes
+	local punten = {
+		{20, 130}, {50, 124}, {80, 116}, {105, 105}, {128, 92},
+		{148, 78}, {168, 64}, {190, 52}, {214, 41}, {240, 30},
+	}
+	for i = 1, #punten - 1 do
+		d.lijn(punten[i][1], punten[i][2], punten[i + 1][1], punten[i + 1][2], 3, WIT, 0.1)
+	end
+	-- het vliegtuigje
+	local romp = d.ovaal(240, 30, 22, 6, Color3.fromHex("e63946"))
+	romp.Rotation = -25
+	local staart = d.rect(222, 18, 10, 8, Color3.fromHex("c91e2e"), 1)
+	staart.Rotation = -25
+	d.rond(248, 26, 3, Color3.fromHex("87ceeb"))
+end
+
+function Art.roulette(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("2a1010"), Color3.fromHex("0a0505"))
+	local goud = Color3.fromHex("cc9900")
+	d.rond(140, 80, 60, Color3.fromHex("1a0a0a"))
+	local ring = d.rond(140, 80, 60, Color3.fromHex("8a2020"))
+	ring.BackgroundTransparency = 1
+	UI.stroke(ring, Color3.fromHex("8a2020"), 2)
+	local binnen = d.rond(140, 80, 55, goud)
+	binnen.BackgroundTransparency = 1
+	UI.stroke(binnen, goud, 1)
+	d.lijn(140, 25, 140, 135, 1, goud, 0.5)
+	d.lijn(85, 80, 195, 80, 1, goud, 0.5)
+	d.lijn(101, 41, 179, 119, 1, goud, 0.5)
+	d.lijn(179, 41, 101, 119, 1, goud, 0.5)
+	local naaf = d.rond(140, 80, 20, Color3.fromHex("3a1010"))
+	UI.stroke(naaf, goud, 1.5)
+	d.rond(140, 80, 6, goud)
+	d.rond(180, 60, 4, WIT)
+end
+
+function Art.tower(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("2a0a3a"), Color3.fromHex("0a0510"))
+	local paars = Color3.fromHex("8a4ac9")
+	local vulling = Color3.fromHex("2a0a4a")
+	for i = 0, 3 do
+		local rij = d.rect(90, 30 + i * 25, 100, 20, vulling, 2)
+		UI.stroke(rij, paars, 1)
+	end
+	-- de bovenste rij ligt open: twee groene en een rode
+	d.rond(110, 40, 6, Theme.color.neon, 0.3)
+	d.rond(140, 40, 6, Theme.color.neon, 0.3)
+	d.rond(170, 40, 6, Theme.color.red, 0.2)
+	for r = 1, 3 do
+		for _, x in {110, 140, 170} do
+			local c = d.rond(x, 40 + r * 25, 6, vulling)
+			UI.stroke(c, paars, 1)
+		end
+	end
+	-- het ei bovenop
+	local ei = d.ovaal(140, 14, 10, 7, Color3.fromHex("e0616e"))
+	UI.stroke(ei, Color3.fromHex("8a0e1e"), 1)
+	d.rond(137, 11, 1.5, Theme.color.gold)
+	d.rond(143, 11, 1.5, Theme.color.gold)
+end
+
+function Art.mines(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("1a1a2a"), Color3.fromHex("0a0a14"), 135)
+	local vulling = Color3.fromHex("2a2a4a")
+	local rand = Color3.fromHex("4a4a7a")
+	for r = 0, 3 do
+		for k = 0, 4 do
+			local x, y = 80 + k * 30, 20 + r * 30
+			local kleur, doorzicht = vulling, 0
+			if r == 1 and k == 1 then kleur, doorzicht = Theme.color.neon, 0.3
+			elseif r == 2 and k == 2 then kleur, doorzicht = Theme.color.red, 0.2
+			elseif r == 2 and k == 3 then kleur, doorzicht = Theme.color.neon, 0.3
+			end
+			local t = d.rect(x, y, 24, 24, kleur, 3, doorzicht)
+			UI.stroke(t, rand, 1)
+		end
+	end
+	d.tekst(152, 92, "\u{2726}", 14, WIT)
+end
+
+function Art.plinko(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("1a0a2a"), Color3.fromHex("0a0518"))
+	local pin = Color3.fromHex("8a5ac9")
+	for rij = 0, 4 do
+		for k = 0, rij do
+			local x = 140 - rij * 15 + k * 30
+			d.rond(x, 30 + rij * 20, 2, pin)
+		end
+	end
+	local bakken = {
+		Color3.fromHex("e0616e"), Theme.color.gold, Theme.color.neon,
+		Theme.color.neon, Theme.color.gold, Color3.fromHex("e0616e"),
+	}
+	for i, kleur in bakken do
+		d.rect(70 + (i - 1) * 24, 130, 22, 20, kleur, 0, 0.4)
+	end
+	d.rond(155, 80, 4, Theme.color.neon)
+end
+
+function Art.blackjack(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("0a3a1a"), Color3.fromHex("051a0a"))
+	local function kaart(x: number, rang: string, teken: string, kleur: Color3, draai: number)
+		local k = d.rect(x, 50, 50, 70, Theme.color.card, 4)
+		k.Rotation = draai
+		local r = Instance.new("TextLabel")
+		r.BackgroundTransparency = 1
+		r.Size = UDim2.fromScale(1, 0.55)
+		r.Text = rang
+		r.TextSize = 20
+		r.Font = Theme.font.uiBold
+		r.TextColor3 = Color3.fromHex("1a1a1a")
+		r.RichText = false
+		r.Parent = k
+		local s = Instance.new("TextLabel")
+		s.BackgroundTransparency = 1
+		s.Position = UDim2.fromScale(0, 0.5)
+		s.Size = UDim2.fromScale(1, 0.45)
+		s.Text = teken
+		s.TextSize = 14
+		s.Font = Theme.font.uiMed
+		s.TextColor3 = kleur
+		s.RichText = false
+		s.Parent = k
+		UI.stroke(k, Color3.fromHex("aaaaaa"), 1)
+	end
+	kaart(80, "A", "\u{2665}", Color3.fromHex("e0616e"), -8)
+	kaart(150, "K", "\u{2660}", Color3.fromHex("1a1a1a"), 8)
+	d.tekst(140, 140, "BLACKJACK", 12, Theme.color.gold, Theme.font.num)
+end
+
+function Art.horse(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("7ec8ff"), Color3.fromHex("b8e4ff"))
+	d.rect(0, 88, 280, 72, Color3.fromHex("4a8a2a"))
+	for _, y in {105, 125, 145} do
+		d.lijn(0, y, 280, y, 1, WIT, 0.5)
+	end
+	d.rect(238, 88, 4, 70, WIT)
+	d.rect(242, 88, 14, 10, Color3.fromHex("e0616e"))
+	d.tekst(60, 112, "\u{1F3C7}", 20, WIT)
+	d.tekst(120, 132, "\u{1F3C7}", 20, WIT)
+	d.tekst(90, 152, "\u{1F3C7}", 20, WIT)
+end
+
+function Art.scratch(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("1d2a24"), Color3.fromHex("16181f"))
+	local lot = d.rect(52, 26, 176, 110, Theme.color.panel, 8)
+	UI.stroke(lot, Theme.color.neon, 2)
+	for r = 0, 1 do
+		for k = 0, 2 do
+			local vakje = d.rect(70 + k * 48, 44 + r * 38, 44, 34, Theme.color.bg, 4)
+			UI.stroke(vakje, Theme.color.border, 1)
+		end
+	end
+	for k = 0, 2 do
+		d.tekst(92 + k * 48, 61, "\u{1F48E}", 20, WIT)
+	end
+	for k = 0, 2 do
+		d.tekst(92 + k * 48, 99, "?", 17, Theme.color.muted)
+	end
+end
+
+function Art.wheel(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("12222a"), Color3.fromHex("16181f"))
+	local rand = Theme.color.border
+	local schijf = d.rond(140, 88, 58, Theme.color.panel)
+	schijf.ClipsDescendants = true
+	UI.stroke(schijf, rand, 2)
+
+	-- Twee gekleurde parten. Een taartpunt kan Roblox niet tekenen, dus het is een gedraaid
+	-- kwart dat door de ronde rand wordt afgesneden -- dat leest hetzelfde.
+	local function part(kleur: Color3, randKleur: Color3, draai: number)
+		local p = Instance.new("Frame")
+		p.AnchorPoint = Vector2.new(0, 1)
+		p.Position = UDim2.fromScale(0.5, 0.5)
+		p.Size = UDim2.fromScale(0.5, 0.5)
+		p.BackgroundColor3 = kleur
+		p.BorderSizePixel = 0
+		p.Rotation = draai
+		p.Parent = schijf
+		UI.stroke(p, randKleur, 1)
+	end
+	part(Color3.fromHex("3a2f12"), Theme.color.gold, 45)
+	part(Color3.fromHex("14301f"), Theme.color.neon, 180)
+
+	for _, hoek in {0, 45, 90, 135} do
+		local l = d.lijn(140 - 58, 88, 140 + 58, 88, 1, rand)
+		l.Rotation = hoek
+	end
+	local naaf = d.rond(140, 88, 11, Theme.color.bg)
+	UI.stroke(naaf, rand, 1)
+	-- het pijltje bovenaan
+	local punt = d.rect(133, 24, 14, 14, Theme.color.gold, 2)
+	punt.Rotation = 45
+	d.tekst(168, 52, "10\u{00D7}", 12, Theme.color.gold, Theme.font.num)
+end
+
+Art.BY_ID = {
+	crash = Art.crash, roulette = Art.roulette, tower = Art.tower, mines = Art.mines,
+	plinko = Art.plinko, blackjack = Art.blackjack, horse = Art.horse,
+	scratch = Art.scratch, wheel = Art.wheel,
+} :: { [string]: (Instance) -&gt; () }
+
+return Art
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX23">
+					<Properties>
 						<string name="Name">Blackjack</string>
 						<ProtectedString name="Source">--!strict
 -- Blackjack: zes stapels, dealer pakt bij tot 17. De dichte kaart van de dealer staat hier
@@ -4553,8 +4899,7 @@ local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Fram
 end
 
 function Blackjack.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "BLACKJACK")
+	local bord, bediening = Common.columns(ouder, "BLACKJACK")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 8)
@@ -4713,7 +5058,7 @@ return Blackjack
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX23">
+				<Item class="ModuleScript" referent="RBX24">
 					<Properties>
 						<string name="Name">Bus</string>
 						<ProtectedString name="Source">--!strict
@@ -4761,8 +5106,7 @@ local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Fra
 end
 
 function Bus.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "RIDE THE BUS")
+	local bord, bediening = Common.columns(ouder, "RIDE THE BUS")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 10)
@@ -4928,7 +5272,7 @@ return Bus
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX24">
+				<Item class="ModuleScript" referent="RBX25">
 					<Properties>
 						<string name="Name">Common</string>
 						<ProtectedString name="Source">--!strict
@@ -5019,45 +5363,58 @@ function Common.sheet(ouder: Instance): ScrollingFrame
 	return blad
 end
 
--- Een speelscherm zoals `.game-view` in de CSS: `grid-template-columns: 320px 1fr`, dus de
--- bediening LINKS in een aside van 320 breed en het speelveld rechts. Boven in de aside
--- staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het saldopaneel -- precies
--- de volgorde uit de markup.
+-- Een speelscherm zoals `.game-view` in de CSS: `grid-template-columns: 320px 1fr` en
+-- `height: 100vh`. Dus links een aside van 320 breed die zelf scrolt, en rechts een vlak dat
+-- de rest van het scherm vult -- in de hoogte ook. Daar staat het speelveld in, gecentreerd.
 --
--- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query. Het omschakelen
--- gebeurt door de richting van de UIListLayout te draaien en niet door de vakken zelf te
--- verplaatsen: wie posities uitrekent uit AbsoluteSize en die vervolgens zet, verandert
--- AbsoluteSize weer, en dan blijft het heen en weer meten.
-function Common.columns(ouder: Instance, titel: string?): (Frame, Frame)
+-- Dat laatste was het grootste verschil met de webversie: alles onder elkaar in een
+-- scrollende lijst maakt van een bord van 600 pixels een streepje van 200.
+--
+-- Boven in de aside staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het
+-- saldopaneel, precies de volgorde uit de markup.
+function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame)
 	local breedte = Theme.size.asideWidth
-	local rij = Instance.new("Frame")
-	rij.Name = "GameView"
-	rij.Size = UDim2.new(1, 0, 0, 0)
-	rij.AutomaticSize = Enum.AutomaticSize.Y
-	rij.BackgroundTransparency = 1
-	rij.Parent = ouder
-	local indeling = UI.list(rij, Theme.size.viewGap, Enum.FillDirection.Horizontal)
-	indeling.VerticalAlignment = Enum.VerticalAlignment.Top
+	local vak = Instance.new("Frame")
+	vak.Name = "GameView"
+	vak.Size = UDim2.fromScale(1, 1)
+	vak.BackgroundTransparency = 1
+	vak.Parent = ouder
 
-	-- links: de aside
-	local aside = Instance.new("Frame")
+	-- links: de aside, met een eigen schuifbalk zoals `aside.game-aside { overflow-y: auto }`
+	local aside = Instance.new("ScrollingFrame")
 	aside.Name = "Aside"
-	aside.LayoutOrder = 1
-	aside.Size = UDim2.new(0, breedte, 0, 0)
-	aside.AutomaticSize = Enum.AutomaticSize.Y
+	aside.Size = UDim2.new(0, breedte, 1, 0)
 	aside.BackgroundTransparency = 1
-	aside.Parent = rij
+	aside.BorderSizePixel = 0
+	aside.ScrollBarThickness = 0
+	aside.CanvasSize = UDim2.new()
+	aside.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	aside.Parent = vak
 	UI.list(aside, Theme.size.asideGap)
 
-	-- rechts: het speelveld
+	-- rechts: het speelveld, een paneel dat de rest vult
+	local bordVak = Instance.new("Frame")
+	bordVak.Name = "Main"
+	bordVak.Position = UDim2.new(0, breedte + Theme.size.viewGap, 0, 0)
+	bordVak.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 1, 0)
+	bordVak.BackgroundColor3 = Theme.color.panel
+	bordVak.BorderSizePixel = 0
+	bordVak.ClipsDescendants = true
+	UI.gradient(bordVak, Theme.color.panel, Theme.color.panelLight)
+	UI.corner(bordVak, Theme.radius.panel)
+	UI.stroke(bordVak)
+	bordVak.Parent = vak
+
+	-- Waar het spel zelf in komt: gecentreerd, zoals het bord in de webversie.
 	local bord = Instance.new("Frame")
 	bord.Name = "Board"
-	bord.LayoutOrder = 2
-	bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
-	bord.AutomaticSize = Enum.AutomaticSize.Y
+	bord.Size = UDim2.new(1, -Theme.size.panelPad * 2, 1, -Theme.size.panelPad * 2)
+	bord.Position = UDim2.fromOffset(Theme.size.panelPad, Theme.size.panelPad)
 	bord.BackgroundTransparency = 1
-	bord.Parent = rij
-	UI.list(bord, Theme.size.asideGap)
+	bord.Parent = bordVak
+	local bordLijst = UI.list(bord, Theme.size.asideGap)
+	bordLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	bordLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
 	-- .crash-header: de terugknop en de naam van het spel, naast elkaar.
 	if titel then
@@ -5084,30 +5441,38 @@ function Common.columns(ouder: Instance, titel: string?): (Frame, Frame)
 		naam.AutomaticSize = Enum.AutomaticSize.X
 	end
 
-	-- Het saldopaneel, zoals `.panel.balance` in de markup.
+	-- Het saldopaneel, zoals `.panel.balance` in de markup: alles gecentreerd.
 	local saldoVak = UI.panel(aside, "Balance")
 	saldoVak.LayoutOrder = 2
-	UI.list(saldoVak, 4)
-	UI.label(saldoVak, "BALANCE", { size = Theme.text.small, color = Theme.color.muted })
-	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance)
+	UI.list(saldoVak, 2)
+	local kopje = UI.label(saldoVak, "BALANCE", {
+		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
+	})
+	kopje.Size = UDim2.new(1, 0, 0, 16)
+	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance, true)
 	table.insert(saldoLabels, bedrag)
 
+	-- Onder de 900 pixels gaat de aside erboven staan; dan is het bord nog steeds groot.
 	local smalNu: boolean? = nil
 	local function meet()
-		local smal = rij.AbsoluteSize.X &gt; 0 and rij.AbsoluteSize.X &lt; 760
+		local breed = vak.AbsoluteSize.X
+		if breed &lt;= 0 then return end
+		local smal = breed &lt; 900
 		if smal == smalNu then return end
 		smalNu = smal
 		if smal then
-			indeling.FillDirection = Enum.FillDirection.Vertical
-			aside.Size = UDim2.new(1, 0, 0, 0)
-			bord.Size = UDim2.new(1, 0, 0, 0)
+			aside.Size = UDim2.new(1, 0, 0, 300)
+			aside.Position = UDim2.new()
+			bordVak.Position = UDim2.new(0, 0, 0, 300 + Theme.size.viewGap)
+			bordVak.Size = UDim2.new(1, 0, 1, -(300 + Theme.size.viewGap))
 		else
-			indeling.FillDirection = Enum.FillDirection.Horizontal
-			aside.Size = UDim2.new(0, breedte, 0, 0)
-			bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
+			aside.Size = UDim2.new(0, breedte, 1, 0)
+			aside.Position = UDim2.new()
+			bordVak.Position = UDim2.new(0, breedte + Theme.size.viewGap, 0, 0)
+			bordVak.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 1, 0)
 		end
 	end
-	rij:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	vak:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
 	task.defer(meet)
 
 	return bord, aside
@@ -5325,7 +5690,7 @@ return Common
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX25">
+				<Item class="ModuleScript" referent="RBX26">
 					<Properties>
 						<string name="Name">Crash</string>
 						<ProtectedString name="Source">--!strict
@@ -5354,8 +5719,7 @@ local function multBij(t: number): number
 end
 
 function Crash.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "CRASH")
+	local bord, bediening = Common.columns(ouder, "CRASH")
 
 	local vak = UI.panel(bord, "Flight")
 	UI.list(vak, 8)
@@ -5624,7 +5988,7 @@ return Crash
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX26">
+				<Item class="ModuleScript" referent="RBX27">
 					<Properties>
 						<string name="Name">Friends</string>
 						<ProtectedString name="Source">--!strict
@@ -5641,8 +6005,7 @@ local Common = require(script.Parent.Common)
 local Friends = {}
 
 function Friends.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local links, rechts = Common.columns(blad, "FRIENDS")
+	local links, rechts = Common.columns(ouder, "FRIENDS")
 
 	-- ---------- de lijst ----------
 	local lijstVak = UI.panel(links, "Friends")
@@ -5780,7 +6143,7 @@ return Friends
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX27">
+				<Item class="ModuleScript" referent="RBX28">
 					<Properties>
 						<string name="Name">Home</string>
 						<ProtectedString name="Source">--!strict
@@ -5794,6 +6157,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
+local Art = require(script.Parent.Art)
+local Season = require(ReplicatedStorage.Shared.Season)
+local Common = require(script.Parent.Common)
 
 local Home = {}
 
@@ -5851,13 +6217,22 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -&gt; ()): Frame
 	local rand = UI.stroke(f)
 	f.Parent = ouder
 
-	local beeld = Instance.new("Frame")
-	beeld.Name = "Preview"
-	beeld.Size = UDim2.new(1, 0, 0, Theme.size.cardPreview)
-	beeld.BackgroundColor3 = k.van
-	beeld.BorderSizePixel = 0
-	beeld.Parent = f
-	UI.gradient(beeld, k.van, k.tot, k.rotatie or 90)
+	-- De preview is een getekende scène, zoals de SVG in de webversie. Een egaal verloop
+	-- zag er naast het origineel uit als een lege doos.
+	local teken = Art.BY_ID[k.id]
+	local beeld: Frame
+	if teken then
+		teken(f)
+		beeld = f:FindFirstChild("Art") :: Frame
+	else
+		beeld = Instance.new("Frame")
+		beeld.Name = "Preview"
+		beeld.Size = UDim2.new(1, 0, 0, Theme.size.cardPreview)
+		beeld.BackgroundColor3 = k.van
+		beeld.BorderSizePixel = 0
+		beeld.Parent = f
+		UI.gradient(beeld, k.van, k.tot, k.rotatie or 90)
+	end
 
 	local onderRand = Instance.new("Frame")
 	onderRand.AnchorPoint = Vector2.new(0, 1)
@@ -5865,6 +6240,7 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -&gt; ()): Frame
 	onderRand.Size = UDim2.new(1, 0, 0, 1)
 	onderRand.BackgroundColor3 = Theme.color.border
 	onderRand.BorderSizePixel = 0
+	onderRand.ZIndex = 2
 	onderRand.Parent = beeld
 
 	local body = Instance.new("Frame")
@@ -6056,6 +6432,199 @@ function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
 		tegel(raster, k, ga).LayoutOrder = i
 	end
 
+	-- ---------- .season-strip ----------
+	-- De aftelklok van de sprint, met rechts wat elke plek oplevert.
+	local strip = UI.panel(blad, "Season")
+	strip.LayoutOrder = 6
+	UI.list(strip, 4)
+	local sprintKop = UI.label(strip, "SPRINT 1 OF 4", {
+		size = Theme.text.small, color = Theme.color.muted,
+	})
+	local klok = UI.label(strip, "\u{2014}", {
+		size = 30, color = Theme.color.neon, font = Theme.font.num,
+	})
+	klok.Size = UDim2.new(1, 0, 0, 38)
+	UI.label(strip, "until the standings reset to zero \u{00B7} whoever gains the most takes the title and a VIP pass", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	local regel2 = UI.label(strip, "\u{2014}", { size = Theme.text.tiny, color = Theme.color.muted })
+
+	local prijzen = Instance.new("Frame")
+	prijzen.AnchorPoint = Vector2.new(1, 0)
+	prijzen.Position = UDim2.new(1, 0, 0, 6)
+	prijzen.Size = UDim2.fromOffset(460, 26)
+	prijzen.BackgroundTransparency = 1
+	prijzen.Parent = strip
+	local prijsLijst = UI.list(prijzen, 8, Enum.FillDirection.Horizontal)
+	prijsLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	prijsLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+	type Prijs = { naam: string, wat: string, kleur: Color3 }
+	local PRIJZEN: { Prijs } = {
+		{ naam = "\u{265B} House Boss", wat = "VIP PASS + TITLE", kleur = Theme.color.gold },
+		{ naam = "\u{1F396} Challenger", wat = "TITLE", kleur = Theme.color.text },
+		{ naam = "\u{1F396} Podium", wat = "TITLE", kleur = Theme.color.gold },
+	}
+	for i, pr in PRIJZEN do
+		local vak = Instance.new("Frame")
+		vak.LayoutOrder = i
+		vak.Size = UDim2.fromOffset(0, 26)
+		vak.AutomaticSize = Enum.AutomaticSize.X
+		vak.BackgroundColor3 = Theme.color.black
+		vak.BackgroundTransparency = Theme.alpha.buttonBg
+		vak.BorderSizePixel = 0
+		UI.corner(vak, Theme.radius.button)
+		UI.stroke(vak)
+		UI.padding4(vak, 0, 10, 0, 10)
+		local rij = UI.list(vak, 6, Enum.FillDirection.Horizontal)
+		rij.VerticalAlignment = Enum.VerticalAlignment.Center
+		vak.Parent = prijzen
+
+		local naam = UI.label(vak, pr.naam, { size = Theme.text.tiny, color = pr.kleur })
+		naam.AutomaticSize = Enum.AutomaticSize.X
+		naam.Size = UDim2.new(0, 0, 1, 0)
+		naam.LayoutOrder = 1
+		local wat = UI.label(vak, pr.wat, {
+			size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num,
+		})
+		wat.AutomaticSize = Enum.AutomaticSize.X
+		wat.Size = UDim2.new(0, 0, 1, 0)
+		wat.LayoutOrder = 2
+	end
+
+	-- ---------- LIVE LEADERBOARD ----------
+	local lbKop = Instance.new("Frame")
+	lbKop.Size = UDim2.new(1, 0, 0, 34)
+	lbKop.BackgroundTransparency = 1
+	lbKop.LayoutOrder = 7
+	lbKop.Parent = blad
+	local _, lbTelling = UI.sectionHeading(lbKop, "LIVE LEADERBOARD", "\u{25CF} 1 ACTIVE")
+	lbTelling.TextColor3 = Theme.color.neon
+
+	local lbRij = Instance.new("Frame")
+	lbRij.Size = UDim2.new(1, 0, 0, 0)
+	lbRij.AutomaticSize = Enum.AutomaticSize.Y
+	lbRij.BackgroundTransparency = 1
+	lbRij.LayoutOrder = 8
+	lbRij.Parent = blad
+	local lbLijst = UI.list(lbRij, 14, Enum.FillDirection.Horizontal)
+	lbLijst.VerticalAlignment = Enum.VerticalAlignment.Top
+
+	type Kolom = { vak: Frame, lijst: Frame, leeg: TextLabel }
+	local kolommen: { [string]: Kolom } = {}
+	local KOLOMMEN = {
+		{ id = "money", kop = "MOST MONEY", sub = "TOP 10" },
+		{ id = "ratio", kop = "WIN / LOSS RATIO", sub = "TOP 10 \u{00B7} MIN. 10 ROUNDS" },
+		{ id = "sprint", kop = "SPRINT PROFIT", sub = "TITLE AND A VIP PASS" },
+	}
+	for i, kol in KOLOMMEN do
+		local vak = UI.panel(lbRij, kol.id)
+		vak.LayoutOrder = i
+		vak.Size = UDim2.new(1 / 3, -10, 0, 0)
+		UI.list(vak, 4)
+		local kopRegel = Instance.new("Frame")
+		kopRegel.Size = UDim2.new(1, 0, 0, 18)
+		kopRegel.BackgroundTransparency = 1
+		kopRegel.Parent = vak
+		UI.label(kopRegel, "\u{25BA} " .. kol.kop, {
+			size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
+		})
+		UI.label(kopRegel, kol.sub, {
+			size = Theme.text.tiny, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+		})
+		local lijst = Instance.new("Frame")
+		lijst.Size = UDim2.new(1, 0, 0, 0)
+		lijst.AutomaticSize = Enum.AutomaticSize.Y
+		lijst.BackgroundTransparency = 1
+		lijst.Parent = vak
+		UI.list(lijst, 3)
+		local leeg = UI.label(lijst, "Nog niemand op de lijst.", {
+			size = Theme.text.tiny, color = Theme.color.muted,
+		})
+		kolommen[kol.id] = { vak = vak, lijst = lijst, leeg = leeg }
+	end
+
+	-- ---------- ODDS &amp; FAIRNESS ----------
+	local oddsKop = Instance.new("Frame")
+	oddsKop.Size = UDim2.new(1, 0, 0, 34)
+	oddsKop.BackgroundTransparency = 1
+	oddsKop.LayoutOrder = 9
+	oddsKop.Parent = blad
+	UI.sectionHeading(oddsKop, "ODDS &amp; FAIRNESS", "EVERY MODE CHECKED")
+
+	local oddsVak = UI.panel(blad, "Fairness")
+	oddsVak.LayoutOrder = 10
+	UI.list(oddsVak, 2)
+
+	type OddsRij = { spel: string, rtp: string, huis: string, uitleg: string, kop: boolean? }
+	local RIJEN: { OddsRij } = {
+		{ spel = "GAME", rtp = "RTP", huis = "HOUSE", uitleg = "HOW IT WORKS", kop = true },
+		{ spel = "CRASH", rtp = "97.0%", huis = "3.0%", uitleg = "The chance a flight reaches multiplier M = 0.97 / M. Every cash-out strategy has the same expectation." },
+		{ spel = "ROULETTE", rtp = "97.3%", huis = "2.7%", uitleg = "European wheel with 37 pockets. Straight 35:1, dozen/column 2:1, red/black 1:1." },
+		{ spel = "DRAGON TOWER", rtp = "97.0%", huis = "3.0%", uitleg = "Multiplier per floor = 0.97 x (tiles / safe tiles)^level." },
+		{ spel = "MINES", rtp = "97.0%", huis = "3.0%", uitleg = "Multiplier = 0.97 x the inverse chance of finding k safe tiles in a row." },
+		{ spel = "PLINKO", rtp = "97.0%", huis = "3.0%", uitleg = "Every row is a 50/50 left or right. The payout table per risk level is normalised to 97%." },
+		{ spel = "SCRATCH CARDS", rtp = "97.0%", huis = "3.0%", uitleg = "Nine cells, three matching pay 1.25x to 50x. The card is fixed when you buy it; 21.6% of them pay." },
+		{ spel = "HORSE RACE", rtp = "97.0%", huis = "3.0%", uitleg = "Every horse has a fixed win chance; payout = 0.97 / that chance. The finishing order is drawn before the start." },
+		{ spel = "BLACKJACK", rtp = "~99%", huis = "~1%", uitleg = "6 decks, continuously shuffled, dealer stands on all 17s, blackjack 3:2, double on any two cards, no split." },
+		{ spel = "WHEEL", rtp = "97.0%", huis = "3.0%", uitleg = "Twenty equal segments paying 19.4x between them: 19.4 / 20 = 0.97." },
+		{ spel = "777 \u{00B7} VIP", rtp = "97.0%", huis = "3.0%", uitleg = "Three reels. Three of a kind pay 3x to 40x, two cherries 1.5x. 17% of spins pay." },
+		{ spel = "RIDE THE BUS \u{00B7} VIP", rtp = "97.0%", huis = "3.0%", uitleg = "Every multiplier is 0.97 divided by the chance of getting that far, counted off the cards still in the deck." },
+	}
+	for i, r in RIJEN do
+		local rij = Instance.new("Frame")
+		rij.Size = UDim2.new(1, 0, 0, 22)
+		rij.BackgroundTransparency = 1
+		rij.LayoutOrder = i
+		rij.Parent = oddsVak
+		local isKop = r.kop == true
+		local kleur = if isKop then Theme.color.muted else Theme.color.text
+		local function cel(tekst: string, x: number, breed: number, c: Color3, font: Enum.Font?)
+			local t = UI.label(rij, tekst, {
+				size = Theme.text.tiny, color = c, font = font or Theme.font.ui,
+			})
+			t.Position = UDim2.new(x, 0, 0, 0)
+			t.Size = UDim2.new(breed, -8, 1, 0)
+			t.TextTruncate = Enum.TextTruncate.AtEnd
+			return t
+		end
+		cel(r.spel, 0, 0.17, kleur, if isKop then Theme.font.ui else Theme.font.uiMed)
+		cel(r.rtp, 0.17, 0.07, if isKop then Theme.color.muted else Theme.color.neon, Theme.font.num)
+		cel(r.huis, 0.24, 0.07, if isKop then Theme.color.muted else Theme.color.gold, Theme.font.num)
+		cel(r.uitleg, 0.31, 0.69, Theme.color.muted)
+	end
+
+	-- ---------- de klok en de ranglijst bijhouden ----------
+	local function vulLeaderboard()
+		local res = Common.call("Leaderboard")
+		if not res then return end
+		sprintKop.Text = string.upper(res.label)
+		klok.Text = Season.countdown(res.endsAt, res.now)
+		regel2.Text = "SEASON ENDS IN " .. Season.countdown(res.seasonEndsAt, res.now)
+			.. " \u{00B7} " .. res.sprintsLeft .. " SPRINTS LEFT TO EARN A PASS"
+
+		for _, kol in kolommen do
+			for _, k in kol.lijst:GetChildren() do
+				if k:IsA("Frame") then k:Destroy() end
+			end
+			kol.leeg.Visible = #res.top == 0
+		end
+		for _, plek in res.top do
+			local naam = "#" .. plek.rank .. "  " .. plek.name
+			local a = Common.statRow(kolommen.sprint.lijst, naam,
+				(if plek.profit &gt;= 0 then "+$" else "-$") .. Money.fmt(math.abs(plek.profit)))
+			a.TextColor3 = if plek.profit &gt;= 0 then Theme.color.neon else Theme.color.red
+			local b = Common.statRow(kolommen.money.lijst, naam, "\u{2014}")
+			b.TextColor3 = Theme.color.muted
+		end
+	end
+
+	task.spawn(function()
+		while true do
+			vulLeaderboard()
+			task.wait(30)
+		end
+	end)
+
 	return function(nieuw: number)
 		bedrag.Text = Money.fmt(nieuw)
 	end
@@ -6065,7 +6634,7 @@ return Home
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX28">
+				<Item class="ModuleScript" referent="RBX29">
 					<Properties>
 						<string name="Name">Horse</string>
 						<ProtectedString name="Source">--!strict
@@ -6092,8 +6661,7 @@ type Loop = {
 }
 
 function Horse.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "HORSE RACE")
+	local bord, bediening = Common.columns(ouder, "HORSE RACE")
 
 	local baan = UI.panel(bord, "Track")
 	UI.list(baan, 8)
@@ -6325,7 +6893,7 @@ return Horse
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX29">
+				<Item class="ModuleScript" referent="RBX30">
 					<Properties>
 						<string name="Name">Mines</string>
 						<ProtectedString name="Source">--!strict
@@ -6343,8 +6911,7 @@ local Mines = {}
 local SNEL = {1, 3, 5, 10, 24}
 
 function Mines.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "MINES")
+	local bord, bediening = Common.columns(ouder, "MINES")
 
 	local veld = UI.panel(bord, "Field")
 	UI.list(veld, 8)
@@ -6533,7 +7100,7 @@ return Mines
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX30">
+				<Item class="ModuleScript" referent="RBX31">
 					<Properties>
 						<string name="Name">Plinko</string>
 						<ProtectedString name="Source">--!strict
@@ -6564,8 +7131,7 @@ local function bakKleur(mult: number): Color3
 end
 
 function Plinko.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "PLINKO")
+	local bord, bediening = Common.columns(ouder, "PLINKO")
 
 	local vak = UI.panel(bord, "Board")
 	UI.list(vak, 8)
@@ -6771,7 +7337,7 @@ return Plinko
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX31">
+				<Item class="ModuleScript" referent="RBX32">
 					<Properties>
 						<string name="Name">Profile</string>
 						<ProtectedString name="Source">--!strict
@@ -6935,7 +7501,7 @@ return Profile
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX32">
+				<Item class="ModuleScript" referent="RBX33">
 					<Properties>
 						<string name="Name">Roulette</string>
 						<ProtectedString name="Source">--!strict
@@ -6975,8 +7541,7 @@ local BUITEN = {
 }
 
 function Roulette.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "ROULETTE")
+	local bord, bediening = Common.columns(ouder, "ROULETTE")
 
 	-- ---------- het rad ----------
 	local radVak = UI.panel(bord, "Wheel")
@@ -7218,7 +7783,7 @@ return Roulette
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX33">
+				<Item class="ModuleScript" referent="RBX34">
 					<Properties>
 						<string name="Name">Scratch</string>
 						<ProtectedString name="Source">--!strict
@@ -7235,8 +7800,7 @@ local Common = require(script.Parent.Common)
 local Scratch = {}
 
 function Scratch.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "SCRATCH CARDS")
+	local bord, bediening = Common.columns(ouder, "SCRATCH CARDS")
 
 	local kaart = UI.panel(bord, "Card")
 	UI.list(kaart, 10)
@@ -7362,7 +7926,7 @@ return Scratch
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX34">
+				<Item class="ModuleScript" referent="RBX35">
 					<Properties>
 						<string name="Name">Slots</string>
 						<ProtectedString name="Source">--!strict
@@ -7378,8 +7942,7 @@ local Common = require(script.Parent.Common)
 local Slots = {}
 
 function Slots.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "777")
+	local bord, bediening = Common.columns(ouder, "777")
 
 	local kast = UI.panel(bord, "Machine")
 	UI.list(kast, 10)
@@ -7486,7 +8049,7 @@ return Slots
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX35">
+				<Item class="ModuleScript" referent="RBX36">
 					<Properties>
 						<string name="Name">Tower</string>
 						<ProtectedString name="Source">--!strict
@@ -7504,8 +8067,7 @@ local Tower = {}
 local MOEILIJK = {"easy", "medium", "hard", "expert", "master"}
 
 function Tower.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "DRAGON TOWER")
+	local bord, bediening = Common.columns(ouder, "DRAGON TOWER")
 
 	local toren = UI.panel(bord, "Tower")
 	UI.list(toren, 6)
@@ -7721,7 +8283,7 @@ return Tower
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX36">
+				<Item class="ModuleScript" referent="RBX37">
 					<Properties>
 						<string name="Name">Vip</string>
 						<ProtectedString name="Source">--!strict
@@ -7914,7 +8476,7 @@ return Vip
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX37">
+				<Item class="ModuleScript" referent="RBX38">
 					<Properties>
 						<string name="Name">Wheel</string>
 						<ProtectedString name="Source">--!strict
@@ -7939,8 +8501,7 @@ local function kleurVan(m: number): Color3
 end
 
 function Wheel.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "WHEEL")
+	local bord, bediening = Common.columns(ouder, "WHEEL")
 
 	local vak = UI.panel(bord, "Wheel")
 	UI.list(vak, 8)

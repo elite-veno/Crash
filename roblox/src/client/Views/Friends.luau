@@ -12,8 +12,7 @@ local Common = require(script.Parent.Common)
 local Friends = {}
 
 function Friends.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local links, rechts = Common.columns(blad, "FRIENDS")
+	local links, rechts = Common.columns(ouder, "FRIENDS")
 
 	-- ---------- de lijst ----------
 	local lijstVak = UI.panel(links, "Friends")

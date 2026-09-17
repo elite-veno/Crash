@@ -20,8 +20,7 @@ local function kleurVan(m: number): Color3
 end
 
 function Wheel.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "WHEEL")
+	local bord, bediening = Common.columns(ouder, "WHEEL")
 
 	local vak = UI.panel(bord, "Wheel")
 	UI.list(vak, 8)

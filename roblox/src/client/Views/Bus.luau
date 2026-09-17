@@ -43,8 +43,7 @@ local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Fra
 end
 
 function Bus.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "RIDE THE BUS")
+	local bord, bediening = Common.columns(ouder, "RIDE THE BUS")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 10)

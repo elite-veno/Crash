@@ -26,8 +26,7 @@ local function bakKleur(mult: number): Color3
 end
 
 function Plinko.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "PLINKO")
+	local bord, bediening = Common.columns(ouder, "PLINKO")
 
 	local vak = UI.panel(bord, "Board")
 	UI.list(vak, 8)

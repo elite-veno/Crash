@@ -9,6 +9,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
+local Art = require(script.Parent.Art)
+local Season = require(ReplicatedStorage.Shared.Season)
+local Common = require(script.Parent.Common)
 
 local Home = {}
 
@@ -66,13 +69,22 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -> ()): Frame
 	local rand = UI.stroke(f)
 	f.Parent = ouder
 
-	local beeld = Instance.new("Frame")
-	beeld.Name = "Preview"
-	beeld.Size = UDim2.new(1, 0, 0, Theme.size.cardPreview)
-	beeld.BackgroundColor3 = k.van
-	beeld.BorderSizePixel = 0
-	beeld.Parent = f
-	UI.gradient(beeld, k.van, k.tot, k.rotatie or 90)
+	-- De preview is een getekende scène, zoals de SVG in de webversie. Een egaal verloop
+	-- zag er naast het origineel uit als een lege doos.
+	local teken = Art.BY_ID[k.id]
+	local beeld: Frame
+	if teken then
+		teken(f)
+		beeld = f:FindFirstChild("Art") :: Frame
+	else
+		beeld = Instance.new("Frame")
+		beeld.Name = "Preview"
+		beeld.Size = UDim2.new(1, 0, 0, Theme.size.cardPreview)
+		beeld.BackgroundColor3 = k.van
+		beeld.BorderSizePixel = 0
+		beeld.Parent = f
+		UI.gradient(beeld, k.van, k.tot, k.rotatie or 90)
+	end
 
 	local onderRand = Instance.new("Frame")
 	onderRand.AnchorPoint = Vector2.new(0, 1)
@@ -80,6 +92,7 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -> ()): Frame
 	onderRand.Size = UDim2.new(1, 0, 0, 1)
 	onderRand.BackgroundColor3 = Theme.color.border
 	onderRand.BorderSizePixel = 0
+	onderRand.ZIndex = 2
 	onderRand.Parent = beeld
 
 	local body = Instance.new("Frame")
@@ -270,6 +283,199 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	for i, k in KAARTEN do
 		tegel(raster, k, ga).LayoutOrder = i
 	end
+
+	-- ---------- .season-strip ----------
+	-- De aftelklok van de sprint, met rechts wat elke plek oplevert.
+	local strip = UI.panel(blad, "Season")
+	strip.LayoutOrder = 6
+	UI.list(strip, 4)
+	local sprintKop = UI.label(strip, "SPRINT 1 OF 4", {
+		size = Theme.text.small, color = Theme.color.muted,
+	})
+	local klok = UI.label(strip, "\u{2014}", {
+		size = 30, color = Theme.color.neon, font = Theme.font.num,
+	})
+	klok.Size = UDim2.new(1, 0, 0, 38)
+	UI.label(strip, "until the standings reset to zero \u{00B7} whoever gains the most takes the title and a VIP pass", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	local regel2 = UI.label(strip, "\u{2014}", { size = Theme.text.tiny, color = Theme.color.muted })
+
+	local prijzen = Instance.new("Frame")
+	prijzen.AnchorPoint = Vector2.new(1, 0)
+	prijzen.Position = UDim2.new(1, 0, 0, 6)
+	prijzen.Size = UDim2.fromOffset(460, 26)
+	prijzen.BackgroundTransparency = 1
+	prijzen.Parent = strip
+	local prijsLijst = UI.list(prijzen, 8, Enum.FillDirection.Horizontal)
+	prijsLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	prijsLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+	type Prijs = { naam: string, wat: string, kleur: Color3 }
+	local PRIJZEN: { Prijs } = {
+		{ naam = "\u{265B} House Boss", wat = "VIP PASS + TITLE", kleur = Theme.color.gold },
+		{ naam = "\u{1F396} Challenger", wat = "TITLE", kleur = Theme.color.text },
+		{ naam = "\u{1F396} Podium", wat = "TITLE", kleur = Theme.color.gold },
+	}
+	for i, pr in PRIJZEN do
+		local vak = Instance.new("Frame")
+		vak.LayoutOrder = i
+		vak.Size = UDim2.fromOffset(0, 26)
+		vak.AutomaticSize = Enum.AutomaticSize.X
+		vak.BackgroundColor3 = Theme.color.black
+		vak.BackgroundTransparency = Theme.alpha.buttonBg
+		vak.BorderSizePixel = 0
+		UI.corner(vak, Theme.radius.button)
+		UI.stroke(vak)
+		UI.padding4(vak, 0, 10, 0, 10)
+		local rij = UI.list(vak, 6, Enum.FillDirection.Horizontal)
+		rij.VerticalAlignment = Enum.VerticalAlignment.Center
+		vak.Parent = prijzen
+
+		local naam = UI.label(vak, pr.naam, { size = Theme.text.tiny, color = pr.kleur })
+		naam.AutomaticSize = Enum.AutomaticSize.X
+		naam.Size = UDim2.new(0, 0, 1, 0)
+		naam.LayoutOrder = 1
+		local wat = UI.label(vak, pr.wat, {
+			size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num,
+		})
+		wat.AutomaticSize = Enum.AutomaticSize.X
+		wat.Size = UDim2.new(0, 0, 1, 0)
+		wat.LayoutOrder = 2
+	end
+
+	-- ---------- LIVE LEADERBOARD ----------
+	local lbKop = Instance.new("Frame")
+	lbKop.Size = UDim2.new(1, 0, 0, 34)
+	lbKop.BackgroundTransparency = 1
+	lbKop.LayoutOrder = 7
+	lbKop.Parent = blad
+	local _, lbTelling = UI.sectionHeading(lbKop, "LIVE LEADERBOARD", "\u{25CF} 1 ACTIVE")
+	lbTelling.TextColor3 = Theme.color.neon
+
+	local lbRij = Instance.new("Frame")
+	lbRij.Size = UDim2.new(1, 0, 0, 0)
+	lbRij.AutomaticSize = Enum.AutomaticSize.Y
+	lbRij.BackgroundTransparency = 1
+	lbRij.LayoutOrder = 8
+	lbRij.Parent = blad
+	local lbLijst = UI.list(lbRij, 14, Enum.FillDirection.Horizontal)
+	lbLijst.VerticalAlignment = Enum.VerticalAlignment.Top
+
+	type Kolom = { vak: Frame, lijst: Frame, leeg: TextLabel }
+	local kolommen: { [string]: Kolom } = {}
+	local KOLOMMEN = {
+		{ id = "money", kop = "MOST MONEY", sub = "TOP 10" },
+		{ id = "ratio", kop = "WIN / LOSS RATIO", sub = "TOP 10 \u{00B7} MIN. 10 ROUNDS" },
+		{ id = "sprint", kop = "SPRINT PROFIT", sub = "TITLE AND A VIP PASS" },
+	}
+	for i, kol in KOLOMMEN do
+		local vak = UI.panel(lbRij, kol.id)
+		vak.LayoutOrder = i
+		vak.Size = UDim2.new(1 / 3, -10, 0, 0)
+		UI.list(vak, 4)
+		local kopRegel = Instance.new("Frame")
+		kopRegel.Size = UDim2.new(1, 0, 0, 18)
+		kopRegel.BackgroundTransparency = 1
+		kopRegel.Parent = vak
+		UI.label(kopRegel, "\u{25BA} " .. kol.kop, {
+			size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
+		})
+		UI.label(kopRegel, kol.sub, {
+			size = Theme.text.tiny, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+		})
+		local lijst = Instance.new("Frame")
+		lijst.Size = UDim2.new(1, 0, 0, 0)
+		lijst.AutomaticSize = Enum.AutomaticSize.Y
+		lijst.BackgroundTransparency = 1
+		lijst.Parent = vak
+		UI.list(lijst, 3)
+		local leeg = UI.label(lijst, "Nog niemand op de lijst.", {
+			size = Theme.text.tiny, color = Theme.color.muted,
+		})
+		kolommen[kol.id] = { vak = vak, lijst = lijst, leeg = leeg }
+	end
+
+	-- ---------- ODDS & FAIRNESS ----------
+	local oddsKop = Instance.new("Frame")
+	oddsKop.Size = UDim2.new(1, 0, 0, 34)
+	oddsKop.BackgroundTransparency = 1
+	oddsKop.LayoutOrder = 9
+	oddsKop.Parent = blad
+	UI.sectionHeading(oddsKop, "ODDS & FAIRNESS", "EVERY MODE CHECKED")
+
+	local oddsVak = UI.panel(blad, "Fairness")
+	oddsVak.LayoutOrder = 10
+	UI.list(oddsVak, 2)
+
+	type OddsRij = { spel: string, rtp: string, huis: string, uitleg: string, kop: boolean? }
+	local RIJEN: { OddsRij } = {
+		{ spel = "GAME", rtp = "RTP", huis = "HOUSE", uitleg = "HOW IT WORKS", kop = true },
+		{ spel = "CRASH", rtp = "97.0%", huis = "3.0%", uitleg = "The chance a flight reaches multiplier M = 0.97 / M. Every cash-out strategy has the same expectation." },
+		{ spel = "ROULETTE", rtp = "97.3%", huis = "2.7%", uitleg = "European wheel with 37 pockets. Straight 35:1, dozen/column 2:1, red/black 1:1." },
+		{ spel = "DRAGON TOWER", rtp = "97.0%", huis = "3.0%", uitleg = "Multiplier per floor = 0.97 x (tiles / safe tiles)^level." },
+		{ spel = "MINES", rtp = "97.0%", huis = "3.0%", uitleg = "Multiplier = 0.97 x the inverse chance of finding k safe tiles in a row." },
+		{ spel = "PLINKO", rtp = "97.0%", huis = "3.0%", uitleg = "Every row is a 50/50 left or right. The payout table per risk level is normalised to 97%." },
+		{ spel = "SCRATCH CARDS", rtp = "97.0%", huis = "3.0%", uitleg = "Nine cells, three matching pay 1.25x to 50x. The card is fixed when you buy it; 21.6% of them pay." },
+		{ spel = "HORSE RACE", rtp = "97.0%", huis = "3.0%", uitleg = "Every horse has a fixed win chance; payout = 0.97 / that chance. The finishing order is drawn before the start." },
+		{ spel = "BLACKJACK", rtp = "~99%", huis = "~1%", uitleg = "6 decks, continuously shuffled, dealer stands on all 17s, blackjack 3:2, double on any two cards, no split." },
+		{ spel = "WHEEL", rtp = "97.0%", huis = "3.0%", uitleg = "Twenty equal segments paying 19.4x between them: 19.4 / 20 = 0.97." },
+		{ spel = "777 \u{00B7} VIP", rtp = "97.0%", huis = "3.0%", uitleg = "Three reels. Three of a kind pay 3x to 40x, two cherries 1.5x. 17% of spins pay." },
+		{ spel = "RIDE THE BUS \u{00B7} VIP", rtp = "97.0%", huis = "3.0%", uitleg = "Every multiplier is 0.97 divided by the chance of getting that far, counted off the cards still in the deck." },
+	}
+	for i, r in RIJEN do
+		local rij = Instance.new("Frame")
+		rij.Size = UDim2.new(1, 0, 0, 22)
+		rij.BackgroundTransparency = 1
+		rij.LayoutOrder = i
+		rij.Parent = oddsVak
+		local isKop = r.kop == true
+		local kleur = if isKop then Theme.color.muted else Theme.color.text
+		local function cel(tekst: string, x: number, breed: number, c: Color3, font: Enum.Font?)
+			local t = UI.label(rij, tekst, {
+				size = Theme.text.tiny, color = c, font = font or Theme.font.ui,
+			})
+			t.Position = UDim2.new(x, 0, 0, 0)
+			t.Size = UDim2.new(breed, -8, 1, 0)
+			t.TextTruncate = Enum.TextTruncate.AtEnd
+			return t
+		end
+		cel(r.spel, 0, 0.17, kleur, if isKop then Theme.font.ui else Theme.font.uiMed)
+		cel(r.rtp, 0.17, 0.07, if isKop then Theme.color.muted else Theme.color.neon, Theme.font.num)
+		cel(r.huis, 0.24, 0.07, if isKop then Theme.color.muted else Theme.color.gold, Theme.font.num)
+		cel(r.uitleg, 0.31, 0.69, Theme.color.muted)
+	end
+
+	-- ---------- de klok en de ranglijst bijhouden ----------
+	local function vulLeaderboard()
+		local res = Common.call("Leaderboard")
+		if not res then return end
+		sprintKop.Text = string.upper(res.label)
+		klok.Text = Season.countdown(res.endsAt, res.now)
+		regel2.Text = "SEASON ENDS IN " .. Season.countdown(res.seasonEndsAt, res.now)
+			.. " \u{00B7} " .. res.sprintsLeft .. " SPRINTS LEFT TO EARN A PASS"
+
+		for _, kol in kolommen do
+			for _, k in kol.lijst:GetChildren() do
+				if k:IsA("Frame") then k:Destroy() end
+			end
+			kol.leeg.Visible = #res.top == 0
+		end
+		for _, plek in res.top do
+			local naam = "#" .. plek.rank .. "  " .. plek.name
+			local a = Common.statRow(kolommen.sprint.lijst, naam,
+				(if plek.profit >= 0 then "+$" else "-$") .. Money.fmt(math.abs(plek.profit)))
+			a.TextColor3 = if plek.profit >= 0 then Theme.color.neon else Theme.color.red
+			local b = Common.statRow(kolommen.money.lijst, naam, "\u{2014}")
+			b.TextColor3 = Theme.color.muted
+		end
+	end
+
+	task.spawn(function()
+		while true do
+			vulLeaderboard()
+			task.wait(30)
+		end
+	end)
 
 	return function(nieuw: number)
 		bedrag.Text = Money.fmt(nieuw)

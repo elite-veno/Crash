@@ -163,6 +163,13 @@
            ]
           },
           {
+           "name": "Art",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Art.luau"
+           ]
+          },
+          {
            "name": "Blackjack",
            "className": "ModuleScript",
            "filePaths": [

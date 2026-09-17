@@ -11,8 +11,7 @@ local Common = require(script.Parent.Common)
 local Slots = {}
 
 function Slots.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "777")
+	local bord, bediening = Common.columns(ouder, "777")
 
 	local kast = UI.panel(bord, "Machine")
 	UI.list(kast, 10)

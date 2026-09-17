@@ -86,45 +86,58 @@ function Common.sheet(ouder: Instance): ScrollingFrame
 	return blad
 end
 
--- Een speelscherm zoals `.game-view` in de CSS: `grid-template-columns: 320px 1fr`, dus de
--- bediening LINKS in een aside van 320 breed en het speelveld rechts. Boven in de aside
--- staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het saldopaneel -- precies
--- de volgorde uit de markup.
+-- Een speelscherm zoals `.game-view` in de CSS: `grid-template-columns: 320px 1fr` en
+-- `height: 100vh`. Dus links een aside van 320 breed die zelf scrolt, en rechts een vlak dat
+-- de rest van het scherm vult -- in de hoogte ook. Daar staat het speelveld in, gecentreerd.
 --
--- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query. Het omschakelen
--- gebeurt door de richting van de UIListLayout te draaien en niet door de vakken zelf te
--- verplaatsen: wie posities uitrekent uit AbsoluteSize en die vervolgens zet, verandert
--- AbsoluteSize weer, en dan blijft het heen en weer meten.
-function Common.columns(ouder: Instance, titel: string?): (Frame, Frame)
+-- Dat laatste was het grootste verschil met de webversie: alles onder elkaar in een
+-- scrollende lijst maakt van een bord van 600 pixels een streepje van 200.
+--
+-- Boven in de aside staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het
+-- saldopaneel, precies de volgorde uit de markup.
+function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame)
 	local breedte = Theme.size.asideWidth
-	local rij = Instance.new("Frame")
-	rij.Name = "GameView"
-	rij.Size = UDim2.new(1, 0, 0, 0)
-	rij.AutomaticSize = Enum.AutomaticSize.Y
-	rij.BackgroundTransparency = 1
-	rij.Parent = ouder
-	local indeling = UI.list(rij, Theme.size.viewGap, Enum.FillDirection.Horizontal)
-	indeling.VerticalAlignment = Enum.VerticalAlignment.Top
+	local vak = Instance.new("Frame")
+	vak.Name = "GameView"
+	vak.Size = UDim2.fromScale(1, 1)
+	vak.BackgroundTransparency = 1
+	vak.Parent = ouder
 
-	-- links: de aside
-	local aside = Instance.new("Frame")
+	-- links: de aside, met een eigen schuifbalk zoals `aside.game-aside { overflow-y: auto }`
+	local aside = Instance.new("ScrollingFrame")
 	aside.Name = "Aside"
-	aside.LayoutOrder = 1
-	aside.Size = UDim2.new(0, breedte, 0, 0)
-	aside.AutomaticSize = Enum.AutomaticSize.Y
+	aside.Size = UDim2.new(0, breedte, 1, 0)
 	aside.BackgroundTransparency = 1
-	aside.Parent = rij
+	aside.BorderSizePixel = 0
+	aside.ScrollBarThickness = 0
+	aside.CanvasSize = UDim2.new()
+	aside.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	aside.Parent = vak
 	UI.list(aside, Theme.size.asideGap)
 
-	-- rechts: het speelveld
+	-- rechts: het speelveld, een paneel dat de rest vult
+	local bordVak = Instance.new("Frame")
+	bordVak.Name = "Main"
+	bordVak.Position = UDim2.new(0, breedte + Theme.size.viewGap, 0, 0)
+	bordVak.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 1, 0)
+	bordVak.BackgroundColor3 = Theme.color.panel
+	bordVak.BorderSizePixel = 0
+	bordVak.ClipsDescendants = true
+	UI.gradient(bordVak, Theme.color.panel, Theme.color.panelLight)
+	UI.corner(bordVak, Theme.radius.panel)
+	UI.stroke(bordVak)
+	bordVak.Parent = vak
+
+	-- Waar het spel zelf in komt: gecentreerd, zoals het bord in de webversie.
 	local bord = Instance.new("Frame")
 	bord.Name = "Board"
-	bord.LayoutOrder = 2
-	bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
-	bord.AutomaticSize = Enum.AutomaticSize.Y
+	bord.Size = UDim2.new(1, -Theme.size.panelPad * 2, 1, -Theme.size.panelPad * 2)
+	bord.Position = UDim2.fromOffset(Theme.size.panelPad, Theme.size.panelPad)
 	bord.BackgroundTransparency = 1
-	bord.Parent = rij
-	UI.list(bord, Theme.size.asideGap)
+	bord.Parent = bordVak
+	local bordLijst = UI.list(bord, Theme.size.asideGap)
+	bordLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	bordLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
 	-- .crash-header: de terugknop en de naam van het spel, naast elkaar.
 	if titel then
@@ -151,30 +164,38 @@ function Common.columns(ouder: Instance, titel: string?): (Frame, Frame)
 		naam.AutomaticSize = Enum.AutomaticSize.X
 	end
 
-	-- Het saldopaneel, zoals `.panel.balance` in de markup.
+	-- Het saldopaneel, zoals `.panel.balance` in de markup: alles gecentreerd.
 	local saldoVak = UI.panel(aside, "Balance")
 	saldoVak.LayoutOrder = 2
-	UI.list(saldoVak, 4)
-	UI.label(saldoVak, "BALANCE", { size = Theme.text.small, color = Theme.color.muted })
-	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance)
+	UI.list(saldoVak, 2)
+	local kopje = UI.label(saldoVak, "BALANCE", {
+		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
+	})
+	kopje.Size = UDim2.new(1, 0, 0, 16)
+	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance, true)
 	table.insert(saldoLabels, bedrag)
 
+	-- Onder de 900 pixels gaat de aside erboven staan; dan is het bord nog steeds groot.
 	local smalNu: boolean? = nil
 	local function meet()
-		local smal = rij.AbsoluteSize.X > 0 and rij.AbsoluteSize.X < 760
+		local breed = vak.AbsoluteSize.X
+		if breed <= 0 then return end
+		local smal = breed < 900
 		if smal == smalNu then return end
 		smalNu = smal
 		if smal then
-			indeling.FillDirection = Enum.FillDirection.Vertical
-			aside.Size = UDim2.new(1, 0, 0, 0)
-			bord.Size = UDim2.new(1, 0, 0, 0)
+			aside.Size = UDim2.new(1, 0, 0, 300)
+			aside.Position = UDim2.new()
+			bordVak.Position = UDim2.new(0, 0, 0, 300 + Theme.size.viewGap)
+			bordVak.Size = UDim2.new(1, 0, 1, -(300 + Theme.size.viewGap))
 		else
-			indeling.FillDirection = Enum.FillDirection.Horizontal
-			aside.Size = UDim2.new(0, breedte, 0, 0)
-			bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
+			aside.Size = UDim2.new(0, breedte, 1, 0)
+			aside.Position = UDim2.new()
+			bordVak.Position = UDim2.new(0, breedte + Theme.size.viewGap, 0, 0)
+			bordVak.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 1, 0)
 		end
 	end
-	rij:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	vak:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
 	task.defer(meet)
 
 	return bord, aside

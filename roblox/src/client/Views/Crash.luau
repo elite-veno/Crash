@@ -24,8 +24,7 @@ local function multBij(t: number): number
 end
 
 function Crash.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "CRASH")
+	local bord, bediening = Common.columns(ouder, "CRASH")
 
 	local vak = UI.panel(bord, "Flight")
 	UI.list(vak, 8)

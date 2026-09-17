@@ -13,8 +13,7 @@ local Mines = {}
 local SNEL = {1, 3, 5, 10, 24}
 
 function Mines.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "MINES")
+	local bord, bediening = Common.columns(ouder, "MINES")
 
 	local veld = UI.panel(bord, "Field")
 	UI.list(veld, 8)

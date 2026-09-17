@@ -12,8 +12,7 @@ local Common = require(script.Parent.Common)
 local Scratch = {}
 
 function Scratch.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "SCRATCH CARDS")
+	local bord, bediening = Common.columns(ouder, "SCRATCH CARDS")
 
 	local kaart = UI.panel(bord, "Card")
 	UI.list(kaart, 10)

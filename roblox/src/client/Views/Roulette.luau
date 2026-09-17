@@ -35,8 +35,7 @@ local BUITEN = {
 }
 
 function Roulette.build(ouder: Instance): ()
-	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, "ROULETTE")
+	local bord, bediening = Common.columns(ouder, "ROULETTE")
 
 	-- ---------- het rad ----------
 	local radVak = UI.panel(bord, "Wheel")
