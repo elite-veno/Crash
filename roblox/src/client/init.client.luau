@@ -10,6 +10,20 @@ local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
 local Home = require(script.Views.Home)
+local Common = require(script.Views.Common)
+
+-- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
+-- elkaar en praten alleen met de server.
+local SPELLEN: { [string]: { build: (Instance) -> () } } = {
+	roulette = require(script.Views.Roulette),
+	tower = require(script.Views.Tower),
+	mines = require(script.Views.Mines),
+	plinko = require(script.Views.Plinko),
+	scratch = require(script.Views.Scratch),
+	wheel = require(script.Views.Wheel),
+	slots = require(script.Views.Slots),
+	horse = require(script.Views.Horse),
+}
 
 local speler = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -38,6 +52,7 @@ local SCHERMEN = {
 	{ id = "blackjack",label = "BLACKJACK",    groep = "PLAY" },
 	{ id = "scratch", label = "SCRATCH CARDS", groep = "PLAY" },
 	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
+	{ id = "slots",   label = "777",           groep = "PLAY" },
 	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
 	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
 	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
@@ -181,8 +196,11 @@ for _, item in SCHERMEN do
 	vak.BackgroundTransparency = 1
 	vak.Parent = v
 
+	local spel = SPELLEN[item.id]
 	if item.id == "home" then
 		zetSaldoHome = Home.build(vak, navigate)
+	elseif spel then
+		spel.build(vak)
 	else
 		UI.list(vak, Theme.size.gap)
 		local paneel = UI.panel(vak, item.id .. "Panel")
@@ -201,10 +219,16 @@ local function toon(p: any)
 	local b = tonumber(p.balance)
 	if b then
 		saldoLabel.Text = "$" .. Money.fmt(b)
+		Common.setBalance(b)
 		local zet = zetSaldoHome
 		if zet then zet(b) end
 	end
 end
+
+-- De schermen laten hun meldingen door de schil lopen; die weet waar het meldingenvak zit.
+Common.setToaster(function(tekst: string, soort: UI.ToastKind?)
+	UI.toast(toasts, tekst, soort)
+end)
 
 task.spawn(function()
 	local ev = Net.ev("Profile")

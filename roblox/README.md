@@ -8,7 +8,16 @@ Belangrijk: wat hier in de repo staat, komt **niet vanzelf** in je place terecht
 Roblox-place is een bestand op Roblox' servers; deze map is code op GitHub. Er moet een
 keer iets van hier naar daar. Twee manieren:
 
-### Zonder Rojo, in een minuut
+### Een keer plakken in Studio (het snelst)
+
+View > **Command Bar**, en plak de inhoud van `tools/studio_install.luau`. Studio haalt
+de laatste code zelf van GitHub en zet hem op zijn plek. Nog een keer plakken werkt alles
+bij: de oude mappen gaan eerst weg. Er hoeft niets gedownload te worden.
+
+Werkt dat niet, dan staat HTTP waarschijnlijk uit: File > Game Settings > Security >
+**Allow HTTP Requests**. Daarna opnieuw plakken.
+
+### Zonder Rojo en zonder HTTP
 
 1. Download `build/NeonCasino.rbxmx` uit deze repo (open het bestand op GitHub en klik op
    **Download raw file**). Dat model wordt bij elke wijziging opnieuw gebouwd, dus het is
@@ -70,6 +79,7 @@ uitkomen, weggaan met een ronde open, en twee servers die dezelfde speler willen
 | 3 | netwerklaag en geldregels | af |
 | 4 | profiel op DataStore, spellen in een beurt | af, met slot en herhaling |
 | 5 | de elf spellen, serverzijdig | negen af, crash en blackjack volgen |
+| 3b | de schermen | acht spellen hebben hun scherm; de rest volgt |
 | 6 | seizoenen, VIP, prestaties | volgt |
 | 7 | vrienden, lobby's, gedeelde tafels | volgt |
 | 8 | review met agents | ronde 1 verwerkt (19 bevindingen) |
@@ -80,8 +90,8 @@ Het volledige plan staat in `PLAN.md`.
 
 `tools/run_tests.sh` doet vijf dingen:
 
-1. `tools/build_rbxmx.py` bouwt `build/NeonCasino.rbxmx`, het model dat je zonder Rojo in
-   Studio kunt invoegen.
+1. `tools/build_rbxmx.py` bouwt `build/NeonCasino.rbxmx` (het model om in te voegen) en
+   `build/install.json` (wat de command-bar-installer ophaalt).
 2. `tools/sourcemap.py` maakt `sourcemap.json` uit `default.project.json`. Dat is wat Rojo
    normaal met `rojo sourcemap` doet; deze versie loopt de mappen zelf af zodat het ook
    zonder Rojo werkt. Zonder die kaart kan de analyzer `require(script.Parent.X)` niet volgen.

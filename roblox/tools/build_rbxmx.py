@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Bouwt een Roblox-model (.rbxmx) uit de bronmappen, zodat het project in Studio te
-krijgen is zonder Rojo te installeren: Insert from File, en de mappen op hun plek zetten.
+"""Bouwt twee dingen uit de bronmappen, allebei zonder Rojo:
 
-Rojo doet dit normaal met `rojo build -o model.rbxmx`. Deze versie leest dezelfde
+1. build/NeonCasino.rbxmx -- een Roblox-model om met Insert from File toe te voegen.
+2. build/install.json -- dezelfde boom als JSON, die tools/studio_install.luau in de
+   command bar van Studio ophaalt. Dan hoeft er niets gedownload te worden: een keer
+   plakken installeert de laatste versie, en nog een keer plakken werkt hem bij.
+
+Rojo doet het eerste normaal met `rojo build -o model.rbxmx`. Deze versie leest dezelfde
 default.project.json en schrijft het XML zelf, zodat het ook werkt als Rojo er niet is.
 """
 import json
@@ -94,6 +98,35 @@ class Bouwer:
         self.sluit(diep)
 
 
+def jsonBoom(pad: str, naam: str) -> dict:
+    """Dezelfde boom, maar als gewone data: naam, klasse, bron en kinderen."""
+    vol = os.path.join(WORTEL, pad)
+    eigenInit = None
+    kinderen = []
+    for item in sorted(os.listdir(vol)):
+        if item in INIT:
+            eigenInit = item
+            continue
+        volItem = os.path.join(vol, item)
+        if os.path.isdir(volItem):
+            kinderen.append(jsonBoom(os.path.join(pad, item), item))
+        elif item.endswith(".luau"):
+            kinderen.append({
+                "name": naamVan(item),
+                "class": soortVan(item),
+                "source": open(volItem, encoding="utf-8").read(),
+            })
+    knoop: dict = {"name": naam}
+    if eigenInit:
+        knoop["class"] = INIT[eigenInit]
+        knoop["source"] = open(os.path.join(vol, eigenInit), encoding="utf-8").read()
+    else:
+        knoop["class"] = "Folder"
+    if kinderen:
+        knoop["children"] = kinderen
+    return knoop
+
+
 def main() -> int:
     with open(os.path.join(WORTEL, "default.project.json"), encoding="utf-8") as f:
         project = json.load(f)
@@ -138,6 +171,19 @@ def main() -> int:
 
     kb = os.path.getsize(uit) // 1024
     print(f"build/{project['name']}.rbxmx geschreven -- {b.scripts} scripts, {kb} KB")
+
+    plan = {
+        "name": project["name"],
+        "roots": [
+            {"parent": ouder, "node": jsonBoom(pad, naam)}
+            for naam, pad, ouder in doelen
+        ],
+    }
+    uitJson = os.path.join(uitmap, "install.json")
+    with open(uitJson, "w", encoding="utf-8") as f:
+        json.dump(plan, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"build/install.json geschreven -- {os.path.getsize(uitJson) // 1024} KB")
+
     for naam, _pad, ouder in doelen:
         print(f"    {naam} hoort in {ouder}")
     return 0

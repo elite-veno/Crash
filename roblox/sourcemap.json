@@ -107,10 +107,73 @@
          "className": "Folder",
          "children": [
           {
+           "name": "Common",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Common.luau"
+           ]
+          },
+          {
            "name": "Home",
            "className": "ModuleScript",
            "filePaths": [
             "src/client/Views/Home.luau"
+           ]
+          },
+          {
+           "name": "Horse",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Horse.luau"
+           ]
+          },
+          {
+           "name": "Mines",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Mines.luau"
+           ]
+          },
+          {
+           "name": "Plinko",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Plinko.luau"
+           ]
+          },
+          {
+           "name": "Roulette",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Roulette.luau"
+           ]
+          },
+          {
+           "name": "Scratch",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Scratch.luau"
+           ]
+          },
+          {
+           "name": "Slots",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Slots.luau"
+           ]
+          },
+          {
+           "name": "Tower",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Tower.luau"
+           ]
+          },
+          {
+           "name": "Wheel",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Wheel.luau"
            ]
           }
          ]

@@ -2039,6 +2039,20 @@ local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
 local Home = require(script.Views.Home)
+local Common = require(script.Views.Common)
+
+-- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
+-- elkaar en praten alleen met de server.
+local SPELLEN: { [string]: { build: (Instance) -&gt; () } } = {
+	roulette = require(script.Views.Roulette),
+	tower = require(script.Views.Tower),
+	mines = require(script.Views.Mines),
+	plinko = require(script.Views.Plinko),
+	scratch = require(script.Views.Scratch),
+	wheel = require(script.Views.Wheel),
+	slots = require(script.Views.Slots),
+	horse = require(script.Views.Horse),
+}
 
 local speler = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -2067,6 +2081,7 @@ local SCHERMEN = {
 	{ id = "blackjack",label = "BLACKJACK",    groep = "PLAY" },
 	{ id = "scratch", label = "SCRATCH CARDS", groep = "PLAY" },
 	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
+	{ id = "slots",   label = "777",           groep = "PLAY" },
 	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
 	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
 	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
@@ -2210,8 +2225,11 @@ for _, item in SCHERMEN do
 	vak.BackgroundTransparency = 1
 	vak.Parent = v
 
+	local spel = SPELLEN[item.id]
 	if item.id == "home" then
 		zetSaldoHome = Home.build(vak, navigate)
+	elseif spel then
+		spel.build(vak)
 	else
 		UI.list(vak, Theme.size.gap)
 		local paneel = UI.panel(vak, item.id .. "Panel")
@@ -2230,10 +2248,16 @@ local function toon(p: any)
 	local b = tonumber(p.balance)
 	if b then
 		saldoLabel.Text = "$" .. Money.fmt(b)
+		Common.setBalance(b)
 		local zet = zetSaldoHome
 		if zet then zet(b) end
 	end
 end
+
+-- De schermen laten hun meldingen door de schil lopen; die weet waar het meldingenvak zit.
+Common.setToaster(function(tekst: string, soort: UI.ToastKind?)
+	UI.toast(toasts, tekst, soort)
+end)
 
 task.spawn(function()
 	local ev = Net.ev("Profile")
@@ -2259,6 +2283,275 @@ return nil
 					<string name="Name">Views</string>
 				</Properties>
 				<Item class="ModuleScript" referent="RBX14">
+					<Properties>
+						<string name="Name">Common</string>
+						<ProtectedString name="Source">--!strict
+-- Wat elk speelscherm nodig heeft: een blad om op te bouwen, een inzetvak met de ficheknoppen
+-- eronder, en een lijntje naar de server. Eén plek, zodat de tien schermen er hetzelfde
+-- uitzien en zich hetzelfde gedragen -- precies zoals bindBet() en takeBet() dat in de
+-- webversie doen.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Net = require(ReplicatedStorage.Shared.Net)
+local Money = require(ReplicatedStorage.Shared.Money)
+
+local Common = {}
+
+-- ---------- saldo en meldingen ----------
+-- De schil weet het saldo en heeft het meldingenvak; de schermen vragen het hier op.
+local saldo = Money.START
+local melder: ((string, UI.ToastKind?) -&gt; ())? = nil
+
+function Common.setBalance(n: number): ()
+	saldo = n
+end
+
+function Common.balance(): number
+	return saldo
+end
+
+function Common.setToaster(f: (string, UI.ToastKind?) -&gt; ()): ()
+	melder = f
+end
+
+function Common.toast(tekst: string, soort: UI.ToastKind?): ()
+	local f = melder
+	if f then f(tekst, soort) end
+end
+
+-- Een uitslag van de server. Klapt de aanroep, dan zegt het scherm dat, in plaats van
+-- stil te blijven staan.
+function Common.call(kanaal: string, ...): any
+	local args = table.pack(...)
+	local ok, res = pcall(function()
+		return Net.fn(kanaal):InvokeServer(table.unpack(args, 1, args.n))
+	end)
+	if not ok then
+		Common.toast("DE SERVER ANTWOORDT NIET", "red")
+		return nil
+	end
+	if typeof(res) == "table" and res.ok == false then
+		Common.toast(string.upper(tostring(res.err or "dat ging niet")), "red")
+		return nil
+	end
+	return res
+end
+
+-- ---------- indeling ----------
+-- Het blad waar een scherm op gebouwd wordt: scrollt, en groeit met zijn inhoud mee.
+function Common.sheet(ouder: Instance): ScrollingFrame
+	local blad = Instance.new("ScrollingFrame")
+	blad.Name = "Sheet"
+	blad.Size = UDim2.fromScale(1, 1)
+	blad.BackgroundTransparency = 1
+	blad.BorderSizePixel = 0
+	blad.ScrollBarThickness = 4
+	blad.ScrollBarImageColor3 = Theme.color.border
+	blad.CanvasSize = UDim2.new()
+	blad.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	blad.Parent = ouder
+	UI.padding(blad, 4)
+	UI.list(blad, Theme.size.gap + 4)
+	return blad
+end
+
+-- Twee kolommen: links het speelveld, rechts de bediening. Zoals `.game-layout` in de CSS.
+-- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query daar.
+function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
+	local breedte = rechtsBreed or 300
+	local rij = Instance.new("Frame")
+	rij.Name = "Columns"
+	rij.Size = UDim2.new(1, 0, 0, 0)
+	rij.AutomaticSize = Enum.AutomaticSize.Y
+	rij.BackgroundTransparency = 1
+	rij.Parent = ouder
+
+	local links = Instance.new("Frame")
+	links.Name = "Board"
+	links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
+	links.AutomaticSize = Enum.AutomaticSize.Y
+	links.BackgroundTransparency = 1
+	links.Parent = rij
+	UI.list(links, Theme.size.gap)
+
+	local rechts = Instance.new("Frame")
+	rechts.Name = "Controls"
+	rechts.AnchorPoint = Vector2.new(1, 0)
+	rechts.Position = UDim2.fromScale(1, 0)
+	rechts.Size = UDim2.new(0, breedte, 0, 0)
+	rechts.AutomaticSize = Enum.AutomaticSize.Y
+	rechts.BackgroundTransparency = 1
+	rechts.Parent = rij
+	UI.list(rechts, Theme.size.gap)
+
+	-- Smal scherm: alles onder elkaar. Roblox heeft geen media queries, dus dit gaat met
+	-- de hand, op dezelfde grens als de CSS.
+	local function meet()
+		local smal = rij.AbsoluteSize.X &lt; 760
+		if smal then
+			links.Size = UDim2.new(1, 0, 0, 0)
+			rechts.AnchorPoint = Vector2.new(0, 0)
+			rechts.Position = UDim2.new(0, 0, 0, links.AbsoluteSize.Y + 12)
+			rechts.Size = UDim2.new(1, 0, 0, 0)
+			rij.Size = UDim2.new(1, 0, 0, links.AbsoluteSize.Y + rechts.AbsoluteSize.Y + 12)
+			rij.AutomaticSize = Enum.AutomaticSize.None
+		else
+			links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
+			rechts.AnchorPoint = Vector2.new(1, 0)
+			rechts.Position = UDim2.fromScale(1, 0)
+			rechts.Size = UDim2.new(0, breedte, 0, 0)
+			rij.AutomaticSize = Enum.AutomaticSize.Y
+		end
+	end
+	rij:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	links:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	rechts:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	task.defer(meet)
+
+	return links, rechts
+end
+
+-- Een rij knoppen naast elkaar, gelijk verdeeld.
+function Common.row(ouder: Instance, hoogte: number?): Frame
+	local f = Instance.new("Frame")
+	f.Name = "Row"
+	f.Size = UDim2.new(1, 0, 0, hoogte or 30)
+	f.BackgroundTransparency = 1
+	f.Parent = ouder
+	local l = UI.list(f, 6, Enum.FillDirection.Horizontal)
+	l.VerticalAlignment = Enum.VerticalAlignment.Center
+	return f
+end
+
+-- ---------- het inzetvak ----------
+export type BetBox = {
+	panel: Frame,
+	get: () -&gt; number,
+	set: (number) -&gt; (),
+	lock: (boolean) -&gt; (),
+}
+
+-- Het inzetveld met ½, 2×, MIN en MAX eronder. Dezelfde vier knoppen en dezelfde rekenregels
+-- als bindBet() in de webversie; het afronden gebeurt hier alleen om het netjes te tonen,
+-- de server rekent zelf na.
+function Common.betBox(ouder: Instance, start: number?): BetBox
+	local paneel = UI.panel(ouder, "BetPanel")
+	UI.list(paneel, 6)
+	UI.panelTitle(paneel, "bet amount")
+
+	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
+	local ficherij = Common.row(paneel, 26)
+
+	local function huidig(): number
+		return tonumber(vak.Text) or 0
+	end
+	local function zet(n: number)
+		vak.Text = Money.fmt(math.max(0, Money.round2(n)))
+	end
+
+	type Fiche = { naam: string, maak: () -&gt; number }
+	local knoppen: { Fiche } = {
+		{ naam = "\u{00BD}", maak = function() return math.max(Money.MIN_BET, Money.round2(huidig() / 2)) end },
+		{ naam = "2\u{00D7}", maak = function() return math.min(saldo, Money.round2(huidig() * 2)) end },
+		{ naam = "MIN", maak = function() return Money.MIN_BET end },
+		{ naam = "MAX", maak = function() return saldo end },
+	}
+	for _, fiche in knoppen do
+		local b = UI.chip(ficherij, fiche.naam)
+		b.Size = UDim2.new(0.25, -5, 0, 26)
+		b.Activated:Connect(function()
+			zet(fiche.maak())
+		end)
+	end
+
+	-- Enter sluit het toetsenbord; dat was op de telefoon in de webversie een aparte
+	-- knop, hier doet Roblox het zelf. Wel meteen netjes tonen wat er staat.
+	vak.FocusLost:Connect(function()
+		zet(huidig())
+	end)
+
+	return {
+		panel = paneel,
+		get = huidig,
+		set = zet,
+		lock = function(op: boolean)
+			vak.TextEditable = not op
+			vak.TextTransparency = if op then 0.5 else 0
+			for _, k in ficherij:GetChildren() do
+				if k:IsA("TextButton") then
+					k.Active = not op
+					k.TextTransparency = if op then 0.5 else 0
+				end
+			end
+		end,
+	}
+end
+
+-- ---------- terugkerende stukjes ----------
+-- Een groot vak met een getal erin: de multiplier bij crash, de stand bij blackjack.
+function Common.bigNumber(ouder: Instance, tekst: string, kleur: Color3?): TextLabel
+	local t = UI.label(ouder, tekst, {
+		size = Theme.text.huge, color = kleur or Theme.color.neon, font = Theme.font.num,
+		align = Enum.TextXAlignment.Center,
+	})
+	t.Size = UDim2.new(1, 0, 0, 52)
+	return t
+end
+
+-- Een regel met een naam links en een waarde rechts, zoals `.stat-row` in de CSS. Geeft
+-- het waardelabel terug, zodat het scherm het kan bijwerken.
+function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabel
+	local rij = Instance.new("Frame")
+	rij.Size = UDim2.new(1, 0, 0, 20)
+	rij.BackgroundTransparency = 1
+	rij.Parent = ouder
+	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })
+	return UI.label(rij, waarde, {
+		size = Theme.text.small, color = Theme.color.text, font = Theme.font.num,
+		align = Enum.TextXAlignment.Right, name = "Value",
+	})
+end
+
+-- De uitslagbalk onder een speelveld: groen bij winst, rood bij verlies, grijs als er
+-- niets gebeurd is.
+export type Banner = { set: (string, string?) -&gt; () }
+
+function Common.banner(ouder: Instance): Banner
+	local f = Instance.new("Frame")
+	f.Name = "Banner"
+	f.Size = UDim2.new(1, 0, 0, 36)
+	f.BackgroundColor3 = Theme.color.panel
+	f.BackgroundTransparency = 0.3
+	f.BorderSizePixel = 0
+	UI.corner(f, Theme.size.radius)
+	local rand = UI.stroke(f, Theme.color.border)
+	f.Parent = ouder
+
+	local t = UI.label(f, "", {
+		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiBold,
+		align = Enum.TextXAlignment.Center,
+	})
+	t.Size = UDim2.fromScale(1, 1)
+
+	return {
+		set = function(tekst: string, soort: string?)
+			t.Text = tekst
+			local kleur = if soort == "green" then Theme.color.neon
+				elseif soort == "red" then Theme.color.red
+				elseif soort == "gold" then Theme.color.gold
+				else Theme.color.muted
+			t.TextColor3 = kleur
+			rand.Color = kleur
+		end,
+	}
+end
+
+return Common
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX15">
 					<Properties>
 						<string name="Name">Home</string>
 						<ProtectedString name="Source">--!strict
@@ -2439,6 +2732,1605 @@ function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
 end
 
 return Home
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX16">
+					<Properties>
+						<string name="Name">Horse</string>
+						<ProtectedString name="Source">--!strict
+-- Paardenrace: zes banen, zes paarden, en een race waarin je pas op het eind ziet wie er
+-- wint. De uitslag staat vanaf de eerste tel vast -- die komt van de server -- maar het
+-- tempo per paard verschilt en er zit een golf in de looplijn, zodat de kop wisselt.
+-- Zonder dat zag je meteen welk paard ging winnen, en dat haalde de spanning eruit.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Horse = {}
+
+type Loop = {
+	pace: number,   -- hoe een paard zijn tempo verdeelt: laag = snelle start, hoog = eindsprint
+	amp: number,    -- hoe ver hij van de zuivere lijn afwijkt
+	freq: number,
+	fase: number,
+	eind: number,   -- wanneer hij over de streep is
+}
+
+function Horse.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local baan = UI.panel(bord, "Track")
+	UI.list(baan, 8)
+	UI.panelTitle(baan, "the field")
+
+	local veld = Instance.new("Frame")
+	veld.Size = UDim2.new(1, 0, 0, 0)
+	veld.AutomaticSize = Enum.AutomaticSize.Y
+	veld.BackgroundTransparency = 1
+	veld.Parent = baan
+	UI.list(veld, 6)
+
+	local balk = Common.banner(baan)
+	balk.set("PICK A HORSE", nil)
+
+	local lopers: { Frame } = {}
+	local naamLabels: { TextLabel } = {}
+	local quoteLabels: { TextLabel } = {}
+	local inzetLabels: { TextLabel } = {}
+	local inzetten: { [number]: number } = {}
+	local betBox: Common.BetBox
+	local ververs: () -&gt; ()
+
+	for i, h in Odds.HORSES do
+		local rij = Instance.new("Frame")
+		rij.Name = "Lane" .. i
+		rij.Size = UDim2.new(1, 0, 0, 34)
+		rij.BackgroundColor3 = Theme.color.bg
+		rij.BackgroundTransparency = 0.5
+		rij.BorderSizePixel = 0
+		rij.LayoutOrder = i
+		UI.corner(rij, Theme.size.radiusSmall)
+		rij.Parent = veld
+
+		local kleur = Color3.fromHex(h.color)
+
+		-- Het paard zelf: een gekleurd blokje dat over de baan schuift.
+		local loper = Instance.new("Frame")
+		loper.AnchorPoint = Vector2.new(0.5, 0.5)
+		loper.Position = UDim2.new(0, 22, 0.5, 0)
+		loper.Size = UDim2.fromOffset(26, 20)
+		loper.BackgroundColor3 = kleur
+		loper.BorderSizePixel = 0
+		loper.ZIndex = 3
+		UI.corner(loper, Theme.size.radiusSmall)
+		loper.Parent = rij
+		lopers[i] = loper
+
+		local nr = UI.label(loper, tostring(i), {
+			size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.uiBold,
+			align = Enum.TextXAlignment.Center,
+		})
+		nr.Size = UDim2.fromScale(1, 1)
+		nr.ZIndex = 4
+
+		local naam = UI.label(rij, h.name, { size = Theme.text.tiny, color = kleur, font = Theme.font.uiBold })
+		naam.Position = UDim2.new(0, 44, 0, 2)
+		naam.Size = UDim2.new(0, 110, 0, 14)
+		naamLabels[i] = naam
+
+		local quote = UI.label(rij, "\u{2014}", {
+			size = Theme.text.tiny, color = Theme.color.muted, font = Theme.font.num,
+		})
+		quote.Position = UDim2.new(0, 44, 0, 16)
+		quote.Size = UDim2.new(0, 110, 0, 14)
+		quoteLabels[i] = quote
+
+		local inzet = UI.label(rij, "", {
+			size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num,
+			align = Enum.TextXAlignment.Right,
+		})
+		inzet.AnchorPoint = Vector2.new(1, 0.5)
+		inzet.Position = UDim2.new(1, -8, 0.5, 0)
+		inzet.Size = UDim2.new(0, 90, 0, 16)
+		inzetLabels[i] = inzet
+
+		local knop = Instance.new("TextButton")
+		knop.Text = ""
+		knop.BackgroundTransparency = 1
+		knop.Size = UDim2.fromScale(1, 1)
+		knop.ZIndex = 5
+		knop.Parent = rij
+		knop.Activated:Connect(function()
+			local bedrag = betBox.get()
+			if bedrag &lt; Money.MIN_BET then
+				Common.toast("MINIMUM STAKE $" .. Money.fmt(Money.MIN_BET), "red")
+				return
+			end
+			inzetten[i] = Money.round2((inzetten[i] or 0) + bedrag)
+			ververs()
+		end)
+	end
+
+	-- De paarden terug naar de start, en de baan leeg.
+	local function opstellen()
+		for i, loper in lopers do
+			loper.Position = UDim2.new(0, 22, 0.5, 0)
+		end
+	end
+
+	-- De race afspelen. `volgorde` komt van de server: plaats 1 wint. De looplijn is
+	-- alleen versiering -- elk paard komt precies op zijn eigen plaats binnen.
+	local function race(volgorde: { number }, kansen: { number })
+		local loop: { [number]: Loop } = {}
+		for plaats, paard in volgorde do
+			loop[paard] = {
+				-- Een lage pace start hard en zakt terug, een hoge komt van achteren. Door
+				-- dat te schudden weet je aan de start niet wie er gaat winnen.
+				pace = 0.55 + math.random() * 1.35,
+				amp = 0.05 + math.random() * 0.07,
+				freq = 1.6 + math.random() * 2.2,
+				fase = math.random() * math.pi * 2,
+				eind = 5.0 + (plaats - 1) * 0.28 + math.random() * 0.16,
+			}
+		end
+
+		local langste = 0
+		for _, l in loop do
+			if l.eind &gt; langste then langste = l.eind end
+		end
+
+		local start = os.clock()
+		local verbinding: RBXScriptConnection
+		local klaar = false
+		verbinding = RunService.RenderStepped:Connect(function()
+			local t = os.clock() - start
+			for i, loper in lopers do
+				local l = loop[i]
+				local u = math.min(1, t / l.eind)
+				local pos = u ^ l.pace
+				-- De golf is nul aan het begin en aan het eind, dus hij verandert de
+				-- uitslag niet, alleen het beeld ertussenin.
+				pos += l.amp * math.sin(l.freq * t + l.fase) * math.sin(math.pi * u)
+				pos = math.clamp(pos, 0, 1)
+				local baanBreedte = loper.Parent :: Frame
+				local ruimte = math.max(0, baanBreedte.AbsoluteSize.X - 44)
+				loper.Position = UDim2.new(0, 22 + pos * ruimte, 0.5, 0)
+			end
+			if t &gt;= langste and not klaar then
+				klaar = true
+				verbinding:Disconnect()
+			end
+		end)
+
+		while not klaar do
+			task.wait(0.05)
+		end
+	end
+
+	-- ---------- de bediening ----------
+	betBox = Common.betBox(bediening, 10)
+
+	local overzicht = UI.panel(bediening, "Slip")
+	UI.list(overzicht, 4)
+	UI.panelTitle(overzicht, "your slip")
+	local totaalLabel = Common.statRow(overzicht, "TOTAL STAKED", "$0.00")
+
+	local wissen = UI.secondary(bediening, "CLEAR BETS")
+	local starten = UI.primary(bediening, "START RACE")
+
+	function ververs()
+		local t = 0
+		for i, b in inzetten do
+			t += b
+		end
+		totaalLabel.Text = "$" .. Money.fmt(Money.round2(t))
+		for i, label in inzetLabels do
+			local b = inzetten[i]
+			label.Text = if b then "$" .. Money.fmt(b) else ""
+		end
+	end
+
+	wissen.Activated:Connect(function()
+		table.clear(inzetten)
+		ververs()
+	end)
+
+	local bezig = false
+	starten.Activated:Connect(function()
+		if bezig then return end
+		local totaal = 0
+		for _, b in inzetten do totaal += b end
+		if totaal &lt; Money.MIN_BET then
+			Common.toast("BACK A HORSE FIRST", "red")
+			return
+		end
+		bezig = true
+		starten.Text = "RACING..."
+		balk.set("AND THEY'RE OFF", nil)
+		opstellen()
+
+		local kopie: { [number]: number } = {}
+		for i, b in inzetten do kopie[i] = b end
+		local res = Common.call("Bet", "horse", kopie)
+		if not res then
+			bezig = false
+			starten.Text = "START RACE"
+			return
+		end
+
+		-- De quotes pas tonen als de race loopt: daarvoor weet je ze nog niet.
+		for i, p in res.probs do
+			quoteLabels[i].Text = Money.fmt(Odds.horseMultiplier(p)) .. "\u{00D7}"
+		end
+
+		race(res.order, res.probs)
+
+		local winnaar = Odds.HORSES[res.winner]
+		if res.payout &gt; 0 then
+			balk.set(winnaar.name .. " WINS  \u{00B7}  +$" .. Money.fmt(res.payout), "green")
+			Common.toast("+$" .. Money.fmt(res.payout), "green")
+		else
+			balk.set(winnaar.name .. " WINS  \u{00B7}  -$" .. Money.fmt(Money.round2(totaal)), "red")
+		end
+		table.clear(inzetten)
+		ververs()
+		bezig = false
+		starten.Text = "START RACE"
+	end)
+
+	ververs()
+end
+
+return Horse
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX17">
+					<Properties>
+						<string name="Name">Mines</string>
+						<ProtectedString name="Source">--!strict
+-- Mines: vijfentwintig tegels, een aantal mijnen ertussen. Waar ze liggen weet alleen de
+-- server; een tegel die al open ligt telt niet nog een keer mee.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Mines = {}
+
+local SNEL = {1, 3, 5, 10, 24}
+
+function Mines.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local veld = UI.panel(bord, "Field")
+	UI.list(veld, 8)
+	UI.panelTitle(veld, "mines")
+
+	local raster = Instance.new("Frame")
+	raster.Size = UDim2.new(1, 0, 0, 0)
+	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.BackgroundTransparency = 1
+	raster.Parent = veld
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0, 64, 0, 64)
+	layout.CellPadding = UDim2.fromOffset(6, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Parent = raster
+
+	local balk = Common.banner(veld)
+	balk.set("SET THE MINES AND START", nil)
+
+	local mijnen = 3
+	local actief = false
+	local gepakt = 0
+	local tegels: { TextButton } = {}
+	local betBox: Common.BetBox
+	local startKnop: TextButton
+	local uitKnop: TextButton
+
+	local function zetTegel(i: number, tekst: string, kleur: Color3, open: boolean)
+		local b = tegels[i]
+		b.Text = tekst
+		b.TextColor3 = kleur
+		b.BackgroundTransparency = if open then 0.2 else 0.5
+	end
+
+	local function leeg()
+		for i = 1, Odds.MINES_TILES do
+			zetTegel(i, "", Theme.color.text, false)
+		end
+	end
+
+	-- Het hele veld openleggen als de ronde voorbij is.
+	local function toonAlles(grid: { boolean })
+		for i, mijn in grid do
+			if mijn then
+				zetTegel(i, "\u{2716}", Theme.color.red, true)
+			elseif tegels[i].Text == "" then
+				zetTegel(i, "\u{25C6}", Theme.color.muted, false)
+			end
+		end
+	end
+
+	local function zetActief()
+		for _, b in tegels do
+			b.Active = actief
+		end
+		startKnop.Visible = not actief
+		uitKnop.Visible = actief
+		uitKnop.Active = gepakt &gt; 0
+		betBox.lock(actief)
+	end
+
+	local function pak(i: number)
+		if not actief then return end
+		local res = Common.call("Act", "mines", i)
+		if not res then return end
+
+		if res.mine then
+			zetTegel(i, "\u{2716}", Theme.color.red, true)
+			toonAlles(res.grid)
+			actief = false
+			gepakt = 0
+			zetActief()
+			balk.set("BOOM", "red")
+			return
+		end
+
+		zetTegel(i, "\u{25C6}", Theme.color.neon, true)
+		if res.done then
+			actief = false
+			gepakt = 0
+			zetActief()
+			balk.set("FIELD CLEARED  \u{00B7}  +$" .. Money.fmt(res.payout), "gold")
+			Common.toast("+$" .. Money.fmt(res.payout), "gold")
+			return
+		end
+
+		gepakt = res.picked
+		zetActief()
+		balk.set(gepakt .. " SAFE  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+		uitKnop.Text = "CASH OUT  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}"
+	end
+
+	for i = 1, Odds.MINES_TILES do
+		local b = Instance.new("TextButton")
+		b.Name = "Tile" .. i
+		b.Text = ""
+		b.Font = Theme.font.ui
+		b.TextSize = 26
+		b.TextColor3 = Theme.color.text
+		b.BackgroundColor3 = Theme.color.bg
+		b.BackgroundTransparency = 0.5
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.LayoutOrder = i
+		b.RichText = false
+		UI.corner(b, Theme.size.radius)
+		UI.stroke(b, Theme.color.border)
+		b.Parent = raster
+		b.Activated:Connect(function()
+			pak(i)
+		end)
+		tegels[i] = b
+	end
+
+	-- ---------- de bediening ----------
+	local keuze = UI.panel(bediening, "Mines")
+	UI.list(keuze, 6)
+	UI.panelTitle(keuze, "mines")
+	local aantalLabel = Common.statRow(keuze, "MINES", tostring(mijnen))
+	local eersteLabel = Common.statRow(keuze, "FIRST PICK PAYS", Money.fmt(Odds.minesMultiplier(mijnen, 1)) .. "\u{00D7}")
+	local snelRij = Common.row(keuze, 26)
+	local snelKnoppen: { [number]: TextButton } = {}
+
+	local function markeer()
+		aantalLabel.Text = tostring(mijnen)
+		eersteLabel.Text = Money.fmt(Odds.minesMultiplier(mijnen, 1)) .. "\u{00D7}"
+		for n, b in snelKnoppen do
+			local aan = n == mijnen
+			b.BackgroundColor3 = if aan then Theme.color.neon else Theme.color.bg
+			b.BackgroundTransparency = if aan then 0.1 else 0.5
+			b.TextColor3 = if aan then Theme.color.bg else Theme.color.text
+		end
+	end
+
+	for _, n in SNEL do
+		local b = UI.chip(snelRij, tostring(n))
+		b.Size = UDim2.new(1 / #SNEL, -5, 0, 26)
+		b.Activated:Connect(function()
+			if actief then return end
+			mijnen = n
+			markeer()
+		end)
+		snelKnoppen[n] = b
+	end
+
+	betBox = Common.betBox(bediening, 10)
+	startKnop = UI.primary(bediening, "START GAME")
+	uitKnop = UI.primary(bediening, "CASH OUT")
+	uitKnop.Visible = false
+
+	startKnop.Activated:Connect(function()
+		if actief then return end
+		local res = Common.call("Bet", "mines", betBox.get(), mijnen)
+		if not res then return end
+		actief = true
+		gepakt = 0
+		leeg()
+		zetActief()
+		uitKnop.Text = "CASH OUT"
+		balk.set("PICK A TILE", nil)
+	end)
+
+	uitKnop.Activated:Connect(function()
+		if not actief or gepakt &lt; 1 then return end
+		local res = Common.call("CashOut", "mines")
+		if not res then return end
+		actief = false
+		gepakt = 0
+		toonAlles(res.grid)
+		zetActief()
+		balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+		Common.toast("+$" .. Money.fmt(res.payout), "green")
+	end)
+
+	leeg()
+	zetActief()
+	markeer()
+end
+
+return Mines
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX18">
+					<Properties>
+						<string name="Name">Plinko</string>
+						<ProtectedString name="Source">--!strict
+-- Plinko: de pinnen, het balletje dat langs het pad van de server valt, en de bakjes
+-- eronder. De cijfers in de bakjes staan onder elkaar in plaats van in het midden, net als
+-- na de laatste fix in de webversie, zodat ze op een smal scherm niet over elkaar vallen.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Plinko = {}
+
+local RIJEN = {8, 12, 16}
+local RISICO = {"low", "medium", "high"}
+
+-- Warme kleuren aan de randen, koel in het midden: zo leest een speler de tabel in één
+-- oogopslag, precies als de CSS-klassen in de webversie.
+local function bakKleur(mult: number): Color3
+	if mult &gt;= 20 then return Color3.fromHex("e0616e") end
+	if mult &gt;= 5 then return Color3.fromHex("e08a55") end
+	if mult &gt;= 1.5 then return Theme.color.gold end
+	if mult &gt;= 1 then return Color3.fromHex("4a7f63") end
+	return Color3.fromHex("2a323d")
+end
+
+function Plinko.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local vak = UI.panel(bord, "Board")
+	UI.list(vak, 8)
+	UI.panelTitle(vak, "plinko")
+
+	local veld = Instance.new("Frame")
+	veld.Name = "Field"
+	veld.Size = UDim2.new(1, 0, 0, 320)
+	veld.BackgroundColor3 = Theme.color.bg
+	veld.BackgroundTransparency = 0.4
+	veld.BorderSizePixel = 0
+	UI.corner(veld, Theme.size.radius)
+	veld.Parent = vak
+
+	local bakkenRij = Instance.new("Frame")
+	bakkenRij.Name = "Buckets"
+	bakkenRij.Size = UDim2.new(1, 0, 0, 44)
+	bakkenRij.BackgroundTransparency = 1
+	bakkenRij.Parent = vak
+
+	local balk = Common.banner(vak)
+	balk.set("DROP A BALL", nil)
+
+	local rijen = 12
+	local risico = "medium"
+	local pinnen: { Frame } = {}
+	local bakken: { Frame } = {}
+
+	-- Het veld opnieuw tekenen als het aantal rijen of het risico verandert.
+	local function teken()
+		for _, p in pinnen do p:Destroy() end
+		table.clear(pinnen)
+		for _, b in bakken do b:Destroy() end
+		table.clear(bakken)
+
+		local hoogteStap = 1 / (rijen + 1)
+		for r = 1, rijen do
+			for k = 0, r do
+				local p = Instance.new("Frame")
+				p.AnchorPoint = Vector2.new(0.5, 0.5)
+				-- Elke rij is een pin breder; het midden blijft het midden.
+				p.Position = UDim2.fromScale(0.5 + (k - r / 2) / (rijen + 1), hoogteStap * (r + 0.2))
+				p.Size = UDim2.fromOffset(5, 5)
+				p.BackgroundColor3 = Theme.color.muted
+				p.BorderSizePixel = 0
+				UI.corner(p, 3)
+				p.Parent = veld
+				table.insert(pinnen, p)
+			end
+		end
+
+		local tabel = Odds.plinkoTable(rijen, risico)
+		for i, m in tabel do
+			local b = Instance.new("Frame")
+			b.Name = "Bucket" .. i
+			b.Size = UDim2.new(1 / #tabel, -2, 1, 0)
+			b.Position = UDim2.new((i - 1) / #tabel, 1, 0, 0)
+			b.BackgroundColor3 = bakKleur(m)
+			b.BorderSizePixel = 0
+			UI.corner(b, Theme.size.radiusSmall)
+			b.Parent = bakkenRij
+
+			-- De multiplier bovenin, het nummer van het bakje onderin. Nooit allebei in het
+			-- midden: dan staan ze op een telefoon over elkaar.
+			local boven = UI.label(b, Money.fmt(m) .. "\u{00D7}", {
+				size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.num,
+				align = Enum.TextXAlignment.Center,
+			})
+			boven.Position = UDim2.new(0, 0, 0, 2)
+			boven.Size = UDim2.new(1, 0, 0, 14)
+
+			local onder = UI.label(b, tostring(i - 1), {
+				size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.num,
+				align = Enum.TextXAlignment.Center,
+			})
+			onder.AnchorPoint = Vector2.new(0, 1)
+			onder.Position = UDim2.new(0, 0, 1, -2)
+			onder.Size = UDim2.new(1, 0, 0, 12)
+			onder.TextTransparency = 0.45
+
+			table.insert(bakken, b)
+		end
+	end
+
+	-- Het balletje langs het pad laten vallen dat de server heeft getrokken.
+	local function laatVallen(pad: { number }, bak: number)
+		local bal = Instance.new("Frame")
+		bal.AnchorPoint = Vector2.new(0.5, 0.5)
+		bal.Position = UDim2.fromScale(0.5, 0)
+		bal.Size = UDim2.fromOffset(11, 11)
+		bal.BackgroundColor3 = Theme.color.neon
+		bal.BorderSizePixel = 0
+		bal.ZIndex = 4
+		UI.corner(bal, 6)
+		bal.Parent = veld
+
+		local x = 0
+		local hoogteStap = 1 / (#pad + 1)
+		for r, stap in pad do
+			x += stap - 0.5
+			local doel = UDim2.fromScale(0.5 + x / (#pad + 1), hoogteStap * (r + 0.6))
+			local tw = TweenService:Create(bal, TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = doel,
+			})
+			tw:Play()
+			tw.Completed:Wait()
+		end
+		local eind = bakken[bak + 1]
+		if eind then
+			local tw = TweenService:Create(bal, TweenInfo.new(0.12), { Position = UDim2.fromScale((bak + 0.5) / #bakken, 1) })
+			tw:Play()
+			tw.Completed:Wait()
+			-- Het bakje knippert even op, zodat je ziet waar hij viel.
+			local oud = eind.BackgroundColor3
+			eind.BackgroundColor3 = Theme.color.text
+			task.delay(0.25, function()
+				if eind.Parent then eind.BackgroundColor3 = oud end
+			end)
+		end
+		task.delay(0.2, function()
+			bal:Destroy()
+		end)
+	end
+
+	-- ---------- de bediening ----------
+	local keuzes = UI.panel(bediening, "Setup")
+	UI.list(keuzes, 6)
+	UI.panelTitle(keuzes, "rows")
+	local rijRij = Common.row(keuzes, 28)
+	local rijKnoppen: { [number]: TextButton } = {}
+	UI.panelTitle(keuzes, "risk")
+	local riskRij = Common.row(keuzes, 28)
+	local riskKnoppen: { [string]: TextButton } = {}
+
+	local function markeer()
+		for n, b in rijKnoppen do
+			b.BackgroundTransparency = if n == rijen then 0.1 else 0.5
+			b.TextColor3 = if n == rijen then Theme.color.bg else Theme.color.text
+			b.BackgroundColor3 = if n == rijen then Theme.color.neon else Theme.color.bg
+		end
+		for k, b in riskKnoppen do
+			b.BackgroundTransparency = if k == risico then 0.1 else 0.5
+			b.TextColor3 = if k == risico then Theme.color.bg else Theme.color.text
+			b.BackgroundColor3 = if k == risico then Theme.color.neon else Theme.color.bg
+		end
+	end
+
+	for _, n in RIJEN do
+		local b = UI.chip(rijRij, tostring(n))
+		b.Size = UDim2.new(1 / #RIJEN, -4, 0, 28)
+		b.Activated:Connect(function()
+			rijen = n
+			teken()
+			markeer()
+		end)
+		rijKnoppen[n] = b
+	end
+	for _, k in RISICO do
+		local b = UI.chip(riskRij, string.upper(k))
+		b.Size = UDim2.new(1 / #RISICO, -4, 0, 28)
+		b.Activated:Connect(function()
+			risico = k
+			teken()
+			markeer()
+		end)
+		riskKnoppen[k] = b
+	end
+
+	local betBox = Common.betBox(bediening, 10)
+	local knop = UI.primary(bediening, "DROP BALL")
+
+	local bezig = false
+	knop.Activated:Connect(function()
+		if bezig then return end
+		bezig = true
+		knop.Text = "DROPPING..."
+		local res = Common.call("Bet", "plinko", betBox.get(), rijen, risico)
+		if not res then
+			bezig = false
+			knop.Text = "DROP BALL"
+			return
+		end
+		laatVallen(res.path, res.bucket)
+		if res.payout &gt; 0 then
+			balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+			Common.toast("+$" .. Money.fmt(res.payout), if res.mult &gt;= 10 then "gold" else "green")
+		else
+			balk.set(Money.fmt(res.mult) .. "\u{00D7}", "red")
+		end
+		bezig = false
+		knop.Text = "DROP BALL"
+	end)
+
+	teken()
+	markeer()
+end
+
+return Plinko
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX19">
+					<Properties>
+						<string name="Name">Roulette</string>
+						<ProtectedString name="Source">--!strict
+-- Roulette: het inzetvlak met de nullen tot en met 36, de buitenkansen eronder, en het rad
+-- dat naar het gewonnen vak draait. Europees, dus één groene nul -- zelfde bord als de
+-- webversie.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Roulette = {}
+
+local ROOD = Color3.fromHex("c0392b")
+local ZWART = Color3.fromHex("1c2129")
+local GROEN = Color3.fromHex("1e7a4f")
+
+local function kleurVan(n: number): Color3
+	local k = Odds.rouletteColor(n)
+	return if k == "green" then GROEN elseif k == "red" then ROOD else ZWART
+end
+
+-- De buitenkansen, met wat ze uitbetalen erbij, zoals op het echte bord.
+local BUITEN = {
+	{ key = "d1", label = "1st 12", breed = 1 / 3 },
+	{ key = "d2", label = "2nd 12", breed = 1 / 3 },
+	{ key = "d3", label = "3rd 12", breed = 1 / 3 },
+	{ key = "low", label = "1-18", breed = 1 / 6 },
+	{ key = "even", label = "EVEN", breed = 1 / 6 },
+	{ key = "red", label = "RED", breed = 1 / 6 },
+	{ key = "black", label = "BLACK", breed = 1 / 6 },
+	{ key = "odd", label = "ODD", breed = 1 / 6 },
+	{ key = "high", label = "19-36", breed = 1 / 6 },
+}
+
+function Roulette.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	-- ---------- het rad ----------
+	local radVak = UI.panel(bord, "Wheel")
+	UI.list(radVak, 8)
+	UI.panelTitle(radVak, "wheel")
+
+	-- De houder blijft stilstaan; alleen de ring erin draait, zodat de naald op zijn plek
+	-- blijft wijzen.
+	local radHouder = Instance.new("Frame")
+	radHouder.Name = "WheelBox"
+	radHouder.Size = UDim2.new(1, 0, 0, 220)
+	radHouder.BackgroundTransparency = 1
+	radHouder.Parent = radVak
+
+	local ring = Instance.new("Frame")
+	ring.Name = "Ring"
+	ring.Size = UDim2.fromScale(1, 1)
+	ring.BackgroundTransparency = 1
+	ring.Parent = radHouder
+
+	-- De 37 vakken op een cirkel. Geen plaatje nodig: elk vak is een klein blokje dat op
+	-- zijn eigen hoek staat.
+	local straal = 96
+	local vakjes: { TextLabel } = {}
+	for i, n in Odds.ROULETTE_ORDER do
+		local hoek = (i - 1) / #Odds.ROULETTE_ORDER * math.pi * 2 - math.pi / 2
+		local v = Instance.new("TextLabel")
+		v.Name = "N" .. n
+		v.AnchorPoint = Vector2.new(0.5, 0.5)
+		v.Position = UDim2.new(0.5, math.cos(hoek) * straal, 0.5, math.sin(hoek) * straal)
+		v.Size = UDim2.fromOffset(24, 24)
+		v.BackgroundColor3 = kleurVan(n)
+		v.BorderSizePixel = 0
+		v.Text = tostring(n)
+		v.Font = Theme.font.num
+		v.TextSize = Theme.text.tiny
+		v.TextColor3 = Theme.color.text
+		v.RichText = false
+		UI.corner(v, 12)
+		v.Parent = ring
+		vakjes[n] = v
+	end
+
+	local naald = Instance.new("Frame")
+	naald.Name = "Pointer"
+	naald.AnchorPoint = Vector2.new(0.5, 1)
+	naald.Position = UDim2.new(0.5, 0, 0.5, 0)
+	naald.Size = UDim2.fromOffset(3, 70)
+	naald.BackgroundColor3 = Theme.color.neon
+	naald.BorderSizePixel = 0
+	naald.ZIndex = 3
+	naald.Parent = radHouder
+
+	local uitslag = Common.bigNumber(radVak, "-", Theme.color.muted)
+	local balk = Common.banner(radVak)
+	balk.set("PLACE YOUR BETS", nil)
+
+	-- ---------- het inzetvlak ----------
+	local bordVak = UI.panel(bord, "Table")
+	UI.list(bordVak, 6)
+	UI.panelTitle(bordVak, "table")
+
+	local inzetten: { [string]: number } = {}
+	local fiches: { [string]: TextLabel } = {}
+	local betBox: Common.BetBox
+	local ververs: () -&gt; ()
+
+	local function toonFiche(key: string)
+		local label = fiches[key]
+		if label then
+			local bedrag = inzetten[key]
+			label.Text = if bedrag and bedrag &gt; 0 then "$" .. Money.fmt(bedrag) else ""
+			label.Visible = bedrag ~= nil and bedrag &gt; 0
+		end
+		ververs()
+	end
+
+	local function leegmaken()
+		for key in inzetten do
+			inzetten[key] = nil
+		end
+		for key in fiches do
+			toonFiche(key)
+		end
+	end
+
+	local function klik(key: string)
+		local bedrag = betBox.get()
+		if bedrag &lt; Money.MIN_BET then
+			Common.toast("MINIMUM STAKE $" .. Money.fmt(Money.MIN_BET), "red")
+			return
+		end
+		inzetten[key] = Money.round2((inzetten[key] or 0) + bedrag)
+		toonFiche(key)
+	end
+
+	-- Een vak op het bord: de knop plus het fiche dat erop komt te liggen.
+	local function vak(ouder: Instance, key: string, tekst: string, kleur: Color3, hoogte: number): TextButton
+		local b = Instance.new("TextButton")
+		b.Name = key
+		b.Text = tekst
+		b.Font = Theme.font.uiBold
+		b.TextSize = Theme.text.small
+		b.TextColor3 = Theme.color.text
+		b.BackgroundColor3 = kleur
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.Size = UDim2.new(1, 0, 0, hoogte)
+		b.RichText = false
+		UI.corner(b, Theme.size.radiusSmall)
+		UI.stroke(b, Theme.color.border)
+		b.Parent = ouder
+
+		local fiche = UI.label(b, "", {
+			size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num,
+			align = Enum.TextXAlignment.Center, name = "Chip",
+		})
+		fiche.AnchorPoint = Vector2.new(0.5, 1)
+		fiche.Position = UDim2.new(0.5, 0, 1, -1)
+		fiche.Size = UDim2.new(1, 0, 0, 12)
+		fiche.Visible = false
+		fiches[key] = fiche
+
+		b.Activated:Connect(function()
+			klik(key)
+		end)
+		return b
+	end
+
+	-- De nul over de volle breedte, daarna drie rijen van twaalf.
+	vak(bordVak, "n:0", "0", GROEN, 30)
+
+	local raster = Instance.new("Frame")
+	raster.Size = UDim2.new(1, 0, 0, 0)
+	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.BackgroundTransparency = 1
+	raster.Parent = bordVak
+	local rasterLayout = Instance.new("UIGridLayout")
+	rasterLayout.CellSize = UDim2.new(1 / 12, -4, 0, 28)
+	rasterLayout.CellPadding = UDim2.fromOffset(4, 4)
+	rasterLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rasterLayout.Parent = raster
+	for n = 1, 36 do
+		local b = vak(raster, "n:" .. n, tostring(n), kleurVan(n), 28)
+		b.Size = UDim2.new()
+		b.LayoutOrder = n
+	end
+
+	local rij1 = Common.row(bordVak, 28)
+	local rij2 = Common.row(bordVak, 28)
+	for _, b in BUITEN do
+		local waar = if b.breed &gt; 0.25 then rij1 else rij2
+		local kleur = if b.key == "red" then ROOD elseif b.key == "black" then ZWART else Theme.color.panelLight
+		local knop = vak(waar, b.key, b.label, kleur, 28)
+		knop.Size = UDim2.new(b.breed, -6, 0, 28)
+	end
+
+	-- ---------- de bediening ----------
+	betBox = Common.betBox(bediening, 10)
+
+	local totaalRegel = UI.panel(bediening, "Total")
+	UI.list(totaalRegel, 4)
+	UI.panelTitle(totaalRegel, "your bets")
+	local totaalLabel = Common.statRow(totaalRegel, "TOTAL STAKED", "$0.00")
+	local aantalLabel = Common.statRow(totaalRegel, "SPOTS", "0")
+
+	local function telOp(): number
+		local t = 0
+		for _, b in inzetten do t += b end
+		return Money.round2(t)
+	end
+	function ververs()
+		local n = 0
+		for _ in inzetten do n += 1 end
+		totaalLabel.Text = "$" .. Money.fmt(telOp())
+		aantalLabel.Text = tostring(n)
+	end
+
+	local wissen = UI.secondary(bediening, "CLEAR BETS")
+	local draaien = UI.primary(bediening, "SPIN")
+
+	wissen.Activated:Connect(function()
+		leegmaken()
+	end)
+
+	local bezig = false
+	draaien.Activated:Connect(function()
+		if bezig then return end
+		if telOp() &lt; Money.MIN_BET then
+			Common.toast("PLACE A BET FIRST", "red")
+			return
+		end
+		bezig = true
+		draaien.Text = "SPINNING..."
+		balk.set("NO MORE BETS", nil)
+
+		local kopie = {}
+		for k, v in inzetten do kopie[k] = v end
+		local res = Common.call("Bet", "roulette", kopie)
+		if not res then
+			bezig = false
+			draaien.Text = "SPIN"
+			balk.set("PLACE YOUR BETS", nil)
+			return
+		end
+
+		-- Het rad draait een paar hele slagen en komt dan op het gewonnen vak uit.
+		local plek = table.find(Odds.ROULETTE_ORDER, res.number) or 1
+		local hoek = -(plek - 1) / #Odds.ROULETTE_ORDER * 360
+		local tw = TweenService:Create(ring, TweenInfo.new(2.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			Rotation = 360 * 4 + hoek,
+		})
+		ring.Rotation = ring.Rotation % 360 - 360 * 4
+		tw:Play()
+		tw.Completed:Wait()
+
+		uitslag.Text = tostring(res.number)
+		uitslag.TextColor3 = kleurVan(res.number)
+		local inzet = telOp()
+		if res.payout &gt; 0 then
+			balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. string.upper(res.color) .. " " .. res.number, "green")
+			Common.toast("+$" .. Money.fmt(res.payout), "green")
+		else
+			balk.set("-$" .. Money.fmt(inzet) .. "  \u{00B7}  " .. string.upper(res.color) .. " " .. res.number, "red")
+		end
+		leegmaken()
+		bezig = false
+		draaien.Text = "SPIN"
+	end)
+
+	ververs()
+end
+
+return Roulette
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX20">
+					<Properties>
+						<string name="Name">Scratch</string>
+						<ProtectedString name="Source">--!strict
+-- Krasloten: negen vakjes die je één voor één openkrast. De server houdt de symbolen vast
+-- tot je een vakje aanraakt, dus je kunt niet vooruit kijken -- en de rand blijft grijs tot
+-- het hele lot open ligt, zodat de spanning erin blijft.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Scratch = {}
+
+function Scratch.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local kaart = UI.panel(bord, "Card")
+	UI.list(kaart, 10)
+	UI.panelTitle(kaart, "scratch card")
+
+	local raster = Instance.new("Frame")
+	raster.Size = UDim2.new(1, 0, 0, 0)
+	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.BackgroundTransparency = 1
+	raster.Parent = kaart
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0, 96, 0, 96)
+	layout.CellPadding = UDim2.fromOffset(8, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Parent = raster
+
+	local balk = Common.banner(kaart)
+	balk.set("BUY A CARD", nil)
+
+	local vakjes: { TextButton } = {}
+	local randen: { UIStroke } = {}
+	local actief = false
+	local open = 0
+	local krasAlles: TextButton
+
+	local function zetVak(i: number, tekst: string, opgekrast: boolean)
+		local b = vakjes[i]
+		b.Text = tekst
+		b.BackgroundColor3 = if opgekrast then Theme.color.panelLight else Theme.color.bg
+		b.TextTransparency = if opgekrast then 0 else 1
+		randen[i].Color = Theme.color.border
+	end
+
+	local function kras(i: number)
+		if not actief then return end
+		local res = Common.call("Act", "scratch", i)
+		if not res then return end
+		open += 1
+		zetVak(i, res.symbol, true)
+		if not res.done then
+			balk.set(open .. " / " .. Odds.SCRATCH_CELLS .. " REVEALED", nil)
+			return
+		end
+
+		-- Pas nu mag de kaart verklappen of er gewonnen is.
+		actief = false
+		krasAlles.Visible = false
+		if res.payout &gt; 0 then
+			balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+			Common.toast("+$" .. Money.fmt(res.payout), if res.mult &gt;= 15 then "gold" else "green")
+			for j = 1, Odds.SCRATCH_CELLS do
+				randen[j].Color = Theme.color.neon
+			end
+		else
+			balk.set("NO MATCH", "red")
+		end
+	end
+
+	for i = 1, Odds.SCRATCH_CELLS do
+		local b = Instance.new("TextButton")
+		b.Name = "Cell" .. i
+		b.Text = ""
+		b.Font = Theme.font.ui
+		b.TextSize = 40
+		b.TextColor3 = Theme.color.text
+		b.BackgroundColor3 = Theme.color.bg
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.LayoutOrder = i
+		b.RichText = false
+		UI.corner(b, Theme.size.radius)
+		randen[i] = UI.stroke(b, Theme.color.border)
+		b.Parent = raster
+		b.Activated:Connect(function()
+			kras(i)
+		end)
+		vakjes[i] = b
+	end
+
+	-- ---------- de bediening ----------
+	local tabel = UI.panel(bediening, "Paytable")
+	UI.list(tabel, 4)
+	UI.panelTitle(tabel, "three of a kind pays")
+	for _, p in Odds.SCRATCH_PRIZES do
+		Common.statRow(tabel, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}")
+	end
+
+	local betBox = Common.betBox(bediening, 10)
+	local kopen = UI.primary(bediening, "BUY CARD")
+	krasAlles = UI.secondary(bediening, "REVEAL ALL")
+	krasAlles.Visible = false
+
+	kopen.Activated:Connect(function()
+		if actief then return end
+		local res = Common.call("Bet", "scratch", betBox.get())
+		if not res then return end
+		actief = true
+		open = 0
+		krasAlles.Visible = true
+		for i = 1, Odds.SCRATCH_CELLS do
+			zetVak(i, "", false)
+		end
+		balk.set("SCRATCH THE SQUARES", nil)
+	end)
+
+	krasAlles.Activated:Connect(function()
+		if not actief then return end
+		for i = 1, Odds.SCRATCH_CELLS do
+			if actief and vakjes[i].TextTransparency == 1 then
+				kras(i)
+				task.wait(0.08)
+			end
+		end
+	end)
+end
+
+return Scratch
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX21">
+					<Properties>
+						<string name="Name">Slots</string>
+						<ProtectedString name="Source">--!strict
+-- 777: drie rollen die uitrollen en dan stilvallen. De uitslag komt van de server; het
+-- rollen is alleen het wachten aankleden.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Slots = {}
+
+function Slots.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local kast = UI.panel(bord, "Machine")
+	UI.list(kast, 10)
+	UI.panelTitle(kast, "777")
+
+	local rollen = Instance.new("Frame")
+	rollen.Size = UDim2.new(1, 0, 0, 160)
+	rollen.BackgroundTransparency = 1
+	rollen.Parent = kast
+	local rollenLayout = UI.list(rollen, 10, Enum.FillDirection.Horizontal)
+	rollenLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	rollenLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	local vensters: { TextLabel } = {}
+	for i = 1, 3 do
+		local venster = Instance.new("Frame")
+		venster.Size = UDim2.fromOffset(110, 150)
+		venster.BackgroundColor3 = Theme.color.bg
+		venster.BorderSizePixel = 0
+		venster.LayoutOrder = i
+		UI.corner(venster, Theme.size.radiusBig)
+		UI.stroke(venster, Theme.color.border)
+		venster.Parent = rollen
+
+		local sym = UI.label(venster, Odds.SLOT_SYMBOLS[1], {
+			size = 56, align = Enum.TextXAlignment.Center,
+		})
+		sym.Size = UDim2.fromScale(1, 1)
+		sym.TextYAlignment = Enum.TextYAlignment.Center
+		vensters[i] = sym
+	end
+
+	local balk = Common.banner(kast)
+	balk.set("PULL THE LEVER", nil)
+
+	-- De uitbetalingstabel, met dezelfde regels als slotPayout in Odds.
+	local tabel = UI.panel(bediening, "Paytable")
+	UI.list(tabel, 4)
+	UI.panelTitle(tabel, "paytable")
+	for _, p in Odds.SLOT_PRIZES do
+		local naam = if p.kind == "triple" then p.sym .. p.sym .. p.sym else p.sym .. p.sym .. " \u{00B7} any"
+		Common.statRow(tabel, naam, Money.fmt(p.mult) .. "\u{00D7}")
+	end
+
+	local betBox = Common.betBox(bediening, 10)
+	local knop = UI.primary(bediening, "SPIN")
+
+	local bezig = false
+	knop.Activated:Connect(function()
+		if bezig then return end
+		bezig = true
+		knop.Text = "SPINNING..."
+		betBox.lock(true)
+		balk.set("...", nil)
+
+		local res = Common.call("Bet", "slots", betBox.get())
+		if not res then
+			bezig = false
+			knop.Text = "SPIN"
+			betBox.lock(false)
+			balk.set("PULL THE LEVER", nil)
+			return
+		end
+
+		-- De rollen vallen van links naar rechts stil; dat is de hele spanning.
+		local klaar = { false, false, false }
+		local eind = { 0.6, 1.0, 1.4 }
+		local start = os.clock()
+		while true do
+			local t = os.clock() - start
+			local alles = true
+			for i = 1, 3 do
+				if t &gt;= eind[i] then
+					if not klaar[i] then
+						klaar[i] = true
+						vensters[i].Text = res.reels[i]
+					end
+				else
+					alles = false
+					vensters[i].Text = Odds.SLOT_SYMBOLS[math.random(#Odds.SLOT_SYMBOLS)]
+				end
+			end
+			if alles then break end
+			task.wait(0.06)
+		end
+
+		if res.payout &gt; 0 then
+			balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+			Common.toast("+$" .. Money.fmt(res.payout), if res.mult &gt;= 15 then "gold" else "green")
+		else
+			balk.set("NO WIN", "red")
+		end
+		bezig = false
+		knop.Text = "SPIN"
+		betBox.lock(false)
+	end)
+end
+
+return Slots
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX22">
+					<Properties>
+						<string name="Name">Tower</string>
+						<ProtectedString name="Source">--!strict
+-- Dragon Tower: negen verdiepingen omhoog, per verdieping één tegel kiezen. De indeling
+-- staat op de server; de client weet pas wat er onder een tegel zat als hij hem aanraakt.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Tower = {}
+
+local MOEILIJK = {"easy", "medium", "hard", "expert", "master"}
+
+function Tower.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local toren = UI.panel(bord, "Tower")
+	UI.list(toren, 6)
+	UI.panelTitle(toren, "dragon tower")
+
+	local rijenVak = Instance.new("Frame")
+	rijenVak.Size = UDim2.new(1, 0, 0, 0)
+	rijenVak.AutomaticSize = Enum.AutomaticSize.Y
+	rijenVak.BackgroundTransparency = 1
+	rijenVak.Parent = toren
+	UI.list(rijenVak, 4)
+
+	local balk = Common.banner(toren)
+	balk.set("PICK A DIFFICULTY", nil)
+
+	local diff = "easy"
+	local actief = false
+	local niveau = 0
+	local tegels: { { TextButton } } = {}
+	local betBox: Common.BetBox
+	local startKnop: TextButton
+	local uitKnop: TextButton
+
+	-- De toren opnieuw tekenen: bovenste verdieping bovenaan, zoals in de webversie.
+	local function teken()
+		for _, kind in rijenVak:GetChildren() do
+			if kind:IsA("Frame") then kind:Destroy() end
+		end
+		table.clear(tegels)
+
+		local d = Odds.TOWER_DIFF[diff]
+		for r = Odds.TOWER_LEVELS, 1, -1 do
+			local rij = Instance.new("Frame")
+			rij.Name = "Row" .. r
+			rij.Size = UDim2.new(1, 0, 0, 30)
+			rij.BackgroundTransparency = 1
+			rij.LayoutOrder = Odds.TOWER_LEVELS - r
+			rij.Parent = rijenVak
+			local l = UI.list(rij, 4, Enum.FillDirection.Horizontal)
+			l.HorizontalAlignment = Enum.HorizontalAlignment.Left
+
+			local mult = UI.label(rij, Money.fmt(Odds.towerMultiplier(diff, r)) .. "\u{00D7}", {
+				size = Theme.text.tiny, color = Theme.color.muted, font = Theme.font.num,
+				align = Enum.TextXAlignment.Right,
+			})
+			mult.AnchorPoint = Vector2.new(1, 0.5)
+			mult.Position = UDim2.new(1, -4, 0.5, 0)
+			mult.Size = UDim2.fromOffset(60, 20)
+			mult.LayoutOrder = 99
+
+			local kolom: { TextButton } = {}
+			for k = 1, d.tiles do
+				local b = Instance.new("TextButton")
+				b.Name = "T" .. r .. "_" .. k
+				b.Text = ""
+				b.Font = Theme.font.ui
+				b.TextSize = 16
+				b.TextColor3 = Theme.color.text
+				b.BackgroundColor3 = Theme.color.bg
+				b.BackgroundTransparency = 0.35
+				b.BorderSizePixel = 0
+				b.AutoButtonColor = false
+				b.LayoutOrder = k
+				b.Size = UDim2.new((1 - 0.2) / d.tiles, -4, 1, 0)
+				b.RichText = false
+				UI.corner(b, Theme.size.radiusSmall)
+				UI.stroke(b, Theme.color.border)
+				b.Parent = rij
+				kolom[k] = b
+			end
+			tegels[r] = kolom
+		end
+	end
+
+	local function zetActief()
+		for r, kolom in tegels do
+			local aanBeurt = actief and r == niveau + 1
+			for _, b in kolom do
+				b.Active = aanBeurt
+				b.BackgroundTransparency = if aanBeurt then 0.1 else 0.55
+			end
+		end
+		startKnop.Visible = not actief
+		uitKnop.Visible = actief
+		betBox.lock(actief)
+	end
+
+	-- De hele rij openleggen als een ronde afloopt, zodat je ziet wat er stond.
+	local function toonRij(r: number, rij: { boolean })
+		local kolom = tegels[r]
+		if not kolom then return end
+		for k, veilig in rij do
+			local b = kolom[k]
+			if b then
+				b.Text = if veilig then "\u{25C6}" else "\u{2716}"
+				b.TextColor3 = if veilig then Theme.color.neon else Theme.color.red
+				b.BackgroundTransparency = 0.25
+			end
+		end
+	end
+
+	local function kies(r: number, k: number)
+		if not actief or r ~= niveau + 1 then return end
+		local res = Common.call("Act", "tower", k)
+		if not res then return end
+
+		if not res.safe then
+			toonRij(r, res.row)
+			actief = false
+			zetActief()
+			balk.set("THE DRAGON GOT YOU", "red")
+			return
+		end
+
+		toonRij(r, res.row)
+		if res.done then
+			actief = false
+			zetActief()
+			balk.set("TOP FLOOR  \u{00B7}  +$" .. Money.fmt(res.payout), "gold")
+			Common.toast("+$" .. Money.fmt(res.payout), "gold")
+			return
+		end
+
+		niveau = res.level
+		zetActief()
+		balk.set("FLOOR " .. niveau .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+		uitKnop.Text = "CASH OUT  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}"
+	end
+
+	-- De knoppen pas na het tekenen koppelen, zodat elke hertekening ze opnieuw krijgt.
+	local function koppel()
+		for r, kolom in tegels do
+			for k, b in kolom do
+				b.Activated:Connect(function()
+					kies(r, k)
+				end)
+			end
+		end
+	end
+
+	-- ---------- de bediening ----------
+	local keuze = UI.panel(bediening, "Difficulty")
+	UI.list(keuze, 6)
+	UI.panelTitle(keuze, "difficulty")
+	local diffKnoppen: { [string]: TextButton } = {}
+	local uitleg = UI.label(keuze, Odds.TOWER_DIFF.easy.label, {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+
+	local function markeer()
+		for k, b in diffKnoppen do
+			local aan = k == diff
+			b.BackgroundColor3 = if aan then Theme.color.neon else Theme.color.bg
+			b.BackgroundTransparency = if aan then 0.1 else 0.5
+			b.TextColor3 = if aan then Theme.color.bg else Theme.color.text
+		end
+		uitleg.Text = Odds.TOWER_DIFF[diff].label
+	end
+
+	for _, k in MOEILIJK do
+		local b = UI.chip(keuze, string.upper(k))
+		b.Size = UDim2.new(1, 0, 0, 26)
+		b.Activated:Connect(function()
+			if actief then return end
+			diff = k
+			teken()
+			koppel()
+			zetActief()
+			markeer()
+		end)
+		diffKnoppen[k] = b
+	end
+
+	betBox = Common.betBox(bediening, 10)
+	startKnop = UI.primary(bediening, "START CLIMB")
+	uitKnop = UI.primary(bediening, "CASH OUT")
+	uitKnop.Visible = false
+
+	startKnop.Activated:Connect(function()
+		if actief then return end
+		local res = Common.call("Bet", "tower", betBox.get(), diff)
+		if not res then return end
+		actief = true
+		niveau = 0
+		teken()
+		koppel()
+		zetActief()
+		uitKnop.Text = "CASH OUT"
+		balk.set("PICK A TILE ON FLOOR 1", nil)
+	end)
+
+	uitKnop.Activated:Connect(function()
+		if not actief then return end
+		local res = Common.call("CashOut", "tower")
+		if not res then return end
+		actief = false
+		zetActief()
+		balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+		Common.toast("+$" .. Money.fmt(res.payout), "green")
+	end)
+
+	teken()
+	koppel()
+	zetActief()
+	markeer()
+end
+
+return Tower
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX23">
+					<Properties>
+						<string name="Name">Wheel</string>
+						<ProtectedString name="Source">--!strict
+-- Rad van fortuin: twintig even grote vakken, één betaalt tien keer. De ring draait en de
+-- naald blijft staan, net als bij roulette.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Wheel = {}
+
+-- Dezelfde kleurcodes als de webversie: hoe hoger de multiplier, hoe warmer het vak.
+local function kleurVan(m: number): Color3
+	if m &gt;= 10 then return Theme.color.gold end
+	if m &gt;= 2 then return Theme.color.neon end
+	if m &gt; 0 then return Color3.fromHex("2d6f52") end
+	return Color3.fromHex("222a33")
+end
+
+function Wheel.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local vak = UI.panel(bord, "Wheel")
+	UI.list(vak, 8)
+	UI.panelTitle(vak, "wheel of fortune")
+
+	local houder = Instance.new("Frame")
+	houder.Size = UDim2.new(1, 0, 0, 260)
+	houder.BackgroundTransparency = 1
+	houder.Parent = vak
+
+	local ring = Instance.new("Frame")
+	ring.Size = UDim2.fromScale(1, 1)
+	ring.BackgroundTransparency = 1
+	ring.Parent = houder
+
+	local straal = 110
+	local vakjes: { TextLabel } = {}
+	for i, m in Odds.WHEEL do
+		local hoek = (i - 1) / #Odds.WHEEL * math.pi * 2 - math.pi / 2
+		local v = Instance.new("TextLabel")
+		v.AnchorPoint = Vector2.new(0.5, 0.5)
+		v.Position = UDim2.new(0.5, math.cos(hoek) * straal, 0.5, math.sin(hoek) * straal)
+		v.Size = UDim2.fromOffset(40, 26)
+		v.BackgroundColor3 = kleurVan(m)
+		v.BorderSizePixel = 0
+		v.Text = if m &gt; 0 then Money.fmt(m) .. "\u{00D7}" else "\u{2014}"
+		v.Font = Theme.font.num
+		v.TextSize = Theme.text.tiny
+		v.TextColor3 = if m &gt;= 2 then Theme.color.bg else Theme.color.muted
+		v.RichText = false
+		UI.corner(v, Theme.size.radiusSmall)
+		v.Parent = ring
+		vakjes[i] = v
+	end
+
+	local naald = Instance.new("Frame")
+	naald.AnchorPoint = Vector2.new(0.5, 1)
+	naald.Position = UDim2.new(0.5, 0, 0.5, 0)
+	naald.Size = UDim2.fromOffset(3, 84)
+	naald.BackgroundColor3 = Theme.color.neon
+	naald.BorderSizePixel = 0
+	naald.ZIndex = 3
+	naald.Parent = houder
+
+	local groot = Common.bigNumber(vak, "\u{2014}", Theme.color.muted)
+	local balk = Common.banner(vak)
+	balk.set("SPIN THE WHEEL", nil)
+
+	-- De uitbetalingstabel ernaast, zodat je ziet wat er in het rad zit.
+	local tabel = UI.panel(bediening, "Paytable")
+	UI.list(tabel, 4)
+	UI.panelTitle(tabel, "paytable")
+	local telling: { [number]: number } = {}
+	for _, m in Odds.WHEEL do
+		telling[m] = (telling[m] or 0) + 1
+	end
+	local soorten = {}
+	for m in telling do table.insert(soorten, m) end
+	table.sort(soorten, function(a, b) return a &gt; b end)
+	for _, m in soorten do
+		local naam = if m &gt; 0 then Money.fmt(m) .. "\u{00D7}" else "NOTHING"
+		Common.statRow(tabel, naam, telling[m] .. " / " .. #Odds.WHEEL)
+	end
+
+	local betBox = Common.betBox(bediening, 10)
+	local knop = UI.primary(bediening, "SPIN")
+
+	local bezig = false
+	knop.Activated:Connect(function()
+		if bezig then return end
+		bezig = true
+		knop.Text = "SPINNING..."
+		betBox.lock(true)
+
+		local res = Common.call("Bet", "wheel", betBox.get())
+		if not res then
+			bezig = false
+			knop.Text = "SPIN"
+			betBox.lock(false)
+			return
+		end
+
+		local hoek = -(res.slot - 1) / #Odds.WHEEL * 360
+		ring.Rotation = ring.Rotation % 360 - 360 * 3
+		local tw = TweenService:Create(ring, TweenInfo.new(2.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			Rotation = 360 * 3 + hoek,
+		})
+		tw:Play()
+		tw.Completed:Wait()
+
+		groot.Text = if res.mult &gt; 0 then Money.fmt(res.mult) .. "\u{00D7}" else "\u{2014}"
+		groot.TextColor3 = kleurVan(res.mult)
+		if res.payout &gt; 0 then
+			balk.set("+$" .. Money.fmt(res.payout), "green")
+			Common.toast("+$" .. Money.fmt(res.payout), if res.mult &gt;= 10 then "gold" else "green")
+		else
+			balk.set("NO WIN", "red")
+		end
+		bezig = false
+		knop.Text = "SPIN"
+		betBox.lock(false)
+	end)
+end
+
+return Wheel
 </ProtectedString>
 					</Properties>
 				</Item>
