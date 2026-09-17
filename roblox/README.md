@@ -4,8 +4,43 @@ De game uit `crash.html`, nagebouwd in Luau. Alleen de UI en de systemen; nog ge
 
 ## In Studio krijgen
 
-Met [Rojo](https://rojo.space): `rojo serve` in deze map, dan in Studio verbinden.
-Zonder Rojo: `tools/bootstrap.luau` in de command bar plakken (komt in stap 3).
+Belangrijk: wat hier in de repo staat, komt **niet vanzelf** in je place terecht. Een
+Roblox-place is een bestand op Roblox' servers; deze map is code op GitHub. Er moet een
+keer iets van hier naar daar. Twee manieren:
+
+### Zonder Rojo, in een minuut
+
+1. Download `build/NeonCasino.rbxmx` uit deze repo (open het bestand op GitHub en klik op
+   **Download raw file**). Dat model wordt bij elke wijziging opnieuw gebouwd, dus het is
+   altijd de laatste stand.
+2. In Studio: rechtsklik op **Workspace** in de Explorer > **Insert from File...** >
+   kies dat bestand. Er verschijnt een map `NeonCasino`.
+3. Plak de inhoud van `tools/install.luau` in de **command bar** (View > Command Bar) en
+   druk op enter. Die zet `Shared`, `Server` en `Client` op hun plek en gooit het
+   omhulsel weg.
+4. Play.
+
+Stap 3 doet dit:
+
+```lua
+local m = workspace.NeonCasino
+m.Shared.Parent = game:GetService("ReplicatedStorage")
+m.Server.Parent = game:GetService("ServerScriptService")
+m.Client.Parent = game:GetService("StarterPlayer").StarterPlayerScripts
+m:Destroy()
+```
+
+Bij een volgende versie: de drie mappen weggooien en stap 1 tot en met 3 opnieuw doen.
+
+### Met Rojo, als je vaker gaat syncen
+
+[Rojo](https://rojo.space) installeren, de Roblox-plugin erbij, dan `rojo serve` in deze
+map en in Studio op **Connect** klikken. Vanaf dan gaat elke wijziging in `src/` meteen
+naar je place, zonder opnieuw invoegen. `default.project.json` staat al klaar.
+
+Het model wordt gebouwd door `tools/build_rbxmx.py`; dat leest dezelfde
+`default.project.json` als Rojo en schrijft het XML zelf, zodat het ook werkt als Rojo er
+niet is.
 
 ## Testen zonder Studio
 
@@ -43,16 +78,18 @@ Het volledige plan staat in `PLAN.md`.
 
 ## Hoe het typechecken werkt
 
-`tools/run_tests.sh` doet vier dingen:
+`tools/run_tests.sh` doet vijf dingen:
 
-1. `tools/sourcemap.py` maakt `sourcemap.json` uit `default.project.json`. Dat is wat Rojo
+1. `tools/build_rbxmx.py` bouwt `build/NeonCasino.rbxmx`, het model dat je zonder Rojo in
+   Studio kunt invoegen.
+2. `tools/sourcemap.py` maakt `sourcemap.json` uit `default.project.json`. Dat is wat Rojo
    normaal met `rojo sourcemap` doet; deze versie loopt de mappen zelf af zodat het ook
    zonder Rojo werkt. Zonder die kaart kan de analyzer `require(script.Parent.X)` niet volgen.
-2. `luau-lsp analyze` met `tools/globalTypes.d.luau` typecheckt elk bestand tegen de echte
+3. `luau-lsp analyze` met `tools/globalTypes.d.luau` typecheckt elk bestand tegen de echte
    Roblox-API — `Color3`, `Enum`, `Instance`, alles.
-3. `tools/bundle_server.py` pakt de serverbestanden in als tekst, zodat de testomgeving
+4. `tools/bundle_server.py` pakt de serverbestanden in als tekst, zodat de testomgeving
    ze kan laden zonder Studio.
-4. De losse Luau-uitvoerder draait elke `tests/*_test.luau`.
+5. De losse Luau-uitvoerder draait elke `tests/*_test.luau`.
 
 Gereedschap zelf ophalen:
 

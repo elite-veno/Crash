@@ -15,6 +15,10 @@ echo "=== serverbestanden inpakken voor de tests ==="
 python3 tools/bundle_server.py || fails=$((fails+1))
 
 echo
+echo "=== model voor Studio bouwen ==="
+python3 tools/build_rbxmx.py || fails=$((fails+1))
+
+echo
 echo "=== typecheck tegen de Roblox-API ==="
 if out=$("$LSP" analyze --definitions=tools/globalTypes.d.luau --sourcemap=sourcemap.json \
           --ignore='tools/**' --ignore='tests/server_sources.luau' \

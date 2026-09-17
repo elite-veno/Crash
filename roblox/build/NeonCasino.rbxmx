@@ -1,0 +1,2448 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Item class="Folder" referent="RBX1">
+		<Properties>
+			<string name="Name">NeonCasino</string>
+		</Properties>
+		<Item class="Folder" referent="RBX2">
+			<Properties>
+				<string name="Name">Shared</string>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX3">
+				<Properties>
+					<string name="Name">Money</string>
+					<ProtectedString name="Source">--!strict
+-- Bedragen. In de webversie is dit round2/floor2 door de hele code heen; hier staat het
+-- op één plek, zodat client en server het op de cent eens zijn.
+local Money = {}
+
+Money.START = 1000
+Money.MIN_BET = 1
+
+-- Naar beneden op twee decimalen: zo rekent de webversie een uitbetaling af. De epsilon
+-- staat er omdat 1.2 * 1.5 in drijvende komma 1.7999999... is: zonder hem is elke
+-- uitbetaling een cent te laag. De webversie doet hetzelfde (floor2 in crash.html).
+function Money.floor2(x: number): number
+	return math.floor(x * 100 + 1e-9) / 100
+end
+
+-- Naar de dichtstbijzijnde cent: zo wordt een saldo bewaard.
+function Money.round2(x: number): number
+	return math.floor(x * 100 + 0.5) / 100
+end
+
+function Money.fmt(x: number): string
+	return string.format("%.2f", x)
+end
+
+-- Is dit uberhaupt een bedrag? NaN glipt door elke gewone vergelijking heen (NaN &lt; 1 is
+-- false, en NaN is truthy), dus dat moet apart. Spellen met meerdere inzetten tegelijk
+-- gebruiken deze, en tellen daarna pas op.
+function Money.cleanAmount(raw: any): number?
+	local n = tonumber(raw)
+	if not n or n ~= n or n == math.huge or n == -math.huge then return nil end
+	-- Een inzet gaat naar de dichtstbijzijnde cent, net als takeBet() in de webversie;
+	-- naar beneden afkappen is alleen voor wat er uitbetaald wordt.
+	n = Money.round2(n)
+	if n &lt; Money.MIN_BET then return nil end
+	return n
+end
+
+-- Een inzet die een speler opstuurt: nooit vertrouwen, altijd door deze zeef.
+function Money.cleanBet(raw: any, saldo: number): number?
+	local n = Money.cleanAmount(raw)
+	if not n then return nil end
+	if n &gt; saldo + 1e-9 then return nil end
+	return n
+end
+
+-- Een geheel getal binnen een bereik: tegelnummers, rijen, aantallen mijnen. Zonder deze
+-- controle leest grid[1.5] als nil, en nil is niet "een mijn".
+function Money.cleanIndex(raw: any, min: number, max: number): number?
+	local n = tonumber(raw)
+	if not n or n ~= n or n ~= math.floor(n) then return nil end
+	if n &lt; min or n &gt; max then return nil end
+	return n
+end
+
+return Money
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX4">
+				<Properties>
+					<string name="Name">Net</string>
+					<ProtectedString name="Source">--!strict
+-- Alles wat client en server tegen elkaar zeggen, op één plek. De client roept nooit iets
+-- aan dat hier niet staat, en de server rekent alles zelf af: de client stuurt hooguit een
+-- inzet en een keuze, nooit een bedrag dat hij zelf heeft uitgerekend.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Net = {}
+
+-- De namen van de kanalen. Eén tabel, zodat een typefout niet stilletjes een nieuw
+-- RemoteEvent aanmaakt dat nooit geluisterd wordt.
+Net.FUNCTIONS = {
+	"Bet",          -- (spel, inzet, opties) -&gt; uitslag
+	"Act",          -- (spel, zet) -&gt; uitslag, voor spellen met meerdere beurten
+	"CashOut",      -- (spel) -&gt; uitbetaling
+	"GetProfile",   -- () -&gt; het hele profiel
+	"SetFeatured",  -- (lijst) -&gt; de drie uitgelichte badges
+	"Leaderboard",  -- () -&gt; de ranglijst
+	"Friends",      -- (actie, naam) -&gt; de vriendenlijst
+	"Lobby",        -- (actie, gegevens) -&gt; de lobby
+}
+
+Net.EVENTS = {
+	"Profile",      -- server -&gt; client: saldo, stats, prestaties
+	"Round",        -- server -&gt; client: de stand van een gedeelde ronde
+	"Toast",        -- server -&gt; client: een melding
+	"Lobbies",      -- server -&gt; client: wie er aan tafel zit
+}
+
+local folder: Folder? = nil
+
+local function ensure(): Folder
+	local gevonden = folder
+	if gevonden then return gevonden end
+
+	local bestaand = ReplicatedStorage:FindFirstChild("NeonNet")
+	if bestaand then
+		folder = bestaand :: Folder
+		return bestaand :: Folder
+	end
+
+	if RunService:IsServer() then
+		local nieuw = Instance.new("Folder")
+		nieuw.Name = "NeonNet"
+		nieuw.Parent = ReplicatedStorage
+		folder = nieuw
+		return nieuw
+	end
+
+	-- De client wacht: de server maakt de map bij het opstarten.
+	local gewacht = ReplicatedStorage:WaitForChild("NeonNet", 30) :: Folder
+	folder = gewacht
+	return gewacht
+end
+
+-- Maakt de kanalen aan. Alleen de server roept dit aan, bij het opstarten.
+function Net.build(): ()
+	assert(RunService:IsServer(), "alleen de server maakt de kanalen")
+	local f = ensure()
+	for _, naam in Net.FUNCTIONS do
+		if not f:FindFirstChild(naam) then
+			local r = Instance.new("RemoteFunction")
+			r.Name = naam
+			r.Parent = f
+		end
+	end
+	for _, naam in Net.EVENTS do
+		if not f:FindFirstChild(naam) then
+			local r = Instance.new("RemoteEvent")
+			r.Name = naam
+			r.Parent = f
+		end
+	end
+end
+
+function Net.fn(naam: string): RemoteFunction
+	return ensure():WaitForChild(naam, 30) :: RemoteFunction
+end
+
+function Net.ev(naam: string): RemoteEvent
+	return ensure():WaitForChild(naam, 30) :: RemoteEvent
+end
+
+return Net
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX5">
+				<Properties>
+					<string name="Name">Odds</string>
+					<ProtectedString name="Source">--!strict
+-- De kansen en uitbetalingen van elk spel. Dit is pure wiskunde: geen Roblox-objecten,
+-- geen scherm, geen netwerk. Daardoor is hij buiten Studio te draaien en te bewijzen,
+-- precies zoals de webversie dat met odds_test.js doet.
+--
+-- LET OP bij het vergelijken met de webversie: JavaScript telt tabellen vanaf 0 en Luau
+-- vanaf 1. Overal waar een index deel is van het antwoord is dat hier 1-gebaseerd, en
+-- betekent 0 "geen prijs" waar de webversie -1 gebruikt.
+
+local Odds = {}
+
+Odds.HOUSE_EDGE = 0.03
+local KEEP = 1 - Odds.HOUSE_EDGE   -- 0.97
+
+-- Deze module gebruikt met opzet geen enkel Roblox-type. Daardoor draait en bewijst hij
+-- zich buiten Studio, net als odds_test.js in de webversie. De trekker komt van buiten,
+-- zodat de server er Random.new() in kan zetten en een test iets voorspelbaars.
+local rand: () -&gt; number = function() return math.random() end
+function Odds.setRandom(f: () -&gt; number)
+	rand = f
+end
+-- 1..n, zoals Luau telt
+local function randInt(n: number): number
+	return math.floor(rand() * n) + 1
+end
+
+-- Afronden zoals de webversie: naar beneden op twee decimalen.
+local function floor2(x: number): number
+	return math.floor(x * 100) / 100
+end
+
+-- ---------- Crash ----------
+-- P(crash &gt;= M) = 0.97 / M, dus ongeveer drie procent van de rondes crasht op 1.00.
+function Odds.crashPoint(u: number?): number
+	local v = u or rand()
+	local raw = KEEP / (1 - v)
+	-- Naar boven afronden op de cent, zodat P(crash &gt; M) = 0.97 / M exact klopt voor elke M.
+	return math.min(1000, math.max(1, math.ceil(raw * 100 - 1e-9) / 100))
+end
+
+-- ---------- Roulette ----------
+Odds.ROULETTE_ORDER = {0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26}
+local RED = {}
+for _, n in {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36} do
+	RED[n] = true
+end
+Odds.ROULETTE_RED = RED
+
+function Odds.rouletteColor(n: number): string
+	if n == 0 then return "green" end
+	return if RED[n] then "red" else "black"
+end
+
+-- Geeft de totale uitkering als factor van de inzet, inzet inbegrepen. 0 = verloren.
+function Odds.roulettePayout(key: string, n: number): number
+	if string.sub(key, 1, 2) == "n:" then
+		return if n == tonumber(string.sub(key, 3)) then 36 else 0
+	end
+	if n == 0 then return 0 end
+	if key == "red"   then return if RED[n] then 2 else 0 end
+	if key == "black" then return if RED[n] then 0 else 2 end
+	if key == "even"  then return if n % 2 == 0 then 2 else 0 end
+	if key == "odd"   then return if n % 2 == 1 then 2 else 0 end
+	if key == "low"   then return if n &lt;= 18 then 2 else 0 end
+	if key == "high"  then return if n &gt;= 19 then 2 else 0 end
+	if key == "d1"    then return if n &lt;= 12 then 3 else 0 end
+	if key == "d2"    then return if n &gt;= 13 and n &lt;= 24 then 3 else 0 end
+	if key == "d3"    then return if n &gt;= 25 then 3 else 0 end
+	if key == "c1"    then return if n % 3 == 1 then 3 else 0 end
+	if key == "c2"    then return if n % 3 == 2 then 3 else 0 end
+	if key == "c3"    then return if n % 3 == 0 then 3 else 0 end
+	return 0
+end
+
+-- ---------- Dragon Tower ----------
+export type TowerDiff = { tiles: number, safe: number, label: string }
+Odds.TOWER_LEVELS = 9
+Odds.TOWER_DIFF = {
+	easy   = { tiles = 4, safe = 3, label = "3 of 4 safe" },
+	medium = { tiles = 3, safe = 2, label = "2 of 3 safe" },
+	hard   = { tiles = 2, safe = 1, label = "1 of 2 safe" },
+	expert = { tiles = 3, safe = 1, label = "1 of 3 safe" },
+	master = { tiles = 4, safe = 1, label = "1 of 4 safe" },
+} :: { [string]: TowerDiff }
+
+function Odds.towerMultiplier(diff: string, level: number): number
+	local d = Odds.TOWER_DIFF[diff]
+	return floor2(KEEP * (d.tiles / d.safe) ^ level)
+end
+
+-- Negen rijen; per rij een lijst booleans waarvan er `safe` waar zijn.
+function Odds.towerLayout(diff: string): { { boolean } }
+	local d = Odds.TOWER_DIFF[diff]
+	local rows = {}
+	for _ = 1, Odds.TOWER_LEVELS do
+		local row = table.create(d.tiles, false)
+		local idx = {}
+		for i = 1, d.tiles do idx[i] = i end
+		for _ = 1, d.safe do
+			row[table.remove(idx, randInt(#idx)) :: number] = true
+		end
+		table.insert(rows, row)
+	end
+	return rows
+end
+
+-- ---------- Mines ----------
+Odds.MINES_TILES = 25
+function Odds.minesMultiplier(mines: number, k: number): number
+	local p = 1
+	for i = 0, k - 1 do
+		p *= (Odds.MINES_TILES - i) / (Odds.MINES_TILES - mines - i)
+	end
+	return floor2(KEEP * p)
+end
+
+function Odds.minesLayout(mines: number): { boolean }
+	local grid = table.create(Odds.MINES_TILES, false)
+	local idx = {}
+	for i = 1, Odds.MINES_TILES do idx[i] = i end
+	for _ = 1, mines do
+		grid[table.remove(idx, randInt(#idx)) :: number] = true
+	end
+	return grid
+end
+
+-- ---------- Plinko ----------
+-- De vormen worden bij het laden zo geschaald dat Σ C(n,k)/2^n · mult_k precies 0,97 is.
+Odds.PLINKO_BASE = {
+	[8] = {
+		low    = {5.6,2.1,1.1,1,0.5,1,1.1,2.1,5.6},
+		medium = {13,3,1.3,0.7,0.4,0.7,1.3,3,13},
+		high   = {29,4,1.5,0.3,0.2,0.3,1.5,4,29},
+	},
+	[12] = {
+		low    = {10,3,1.6,1.4,1.1,1,0.5,1,1.1,1.4,1.6,3,10},
+		medium = {33,11,4,2,1.1,0.6,0.3,0.6,1.1,2,4,11,33},
+		high   = {170,24,8.1,2,0.7,0.2,0.2,0.2,0.7,2,8.1,24,170},
+	},
+	[16] = {
+		low    = {16,9,2,1.4,1.4,1.2,1.1,1,0.5,1,1.1,1.2,1.4,1.4,2,9,16},
+		medium = {110,41,10,5,3,1.5,1,0.5,0.3,0.5,1,1.5,3,5,10,41,110},
+		high   = {1000,130,26,9,4,2,0.2,0.2,0.2,0.2,0.2,2,4,9,26,130,1000},
+	},
+} :: { [number]: { [string]: { number } } }
+
+function Odds.binom(n: number, k: number): number
+	local r = 1
+	for i = 1, k do
+		r = r * (n - k + i) / i
+	end
+	return r
+end
+
+function Odds.plinkoRtp(rows: number, tbl: { number }): number
+	local s = 0
+	for i, m in tbl do
+		s += Odds.binom(rows, i - 1) / 2 ^ rows * m
+	end
+	return s
+end
+
+local plinkoCache: { [string]: { number } } = {}
+function Odds.plinkoTable(rows: number, risk: string): { number }
+	local key = rows .. risk
+	if plinkoCache[key] then return plinkoCache[key] end
+	local base = Odds.PLINKO_BASE[rows][risk]
+	local f = KEEP / Odds.plinkoRtp(rows, base)
+	local t = {}
+	for i, m in base do
+		t[i] = math.round(m * f * 100) / 100
+	end
+	-- Spiegelen, zodat links en rechts exact gelijk blijven.
+	for i = 1, math.floor(#t / 2) do
+		t[#t + 1 - i] = t[i]
+	end
+	plinkoCache[key] = t
+	return t
+end
+
+-- Een pad als lijst van 0 (links) en 1 (rechts); het aantal enen is het vakje.
+function Odds.plinkoPath(rows: number): { number }
+	local p = {}
+	for i = 1, rows do
+		p[i] = if rand() &lt; 0.5 then 0 else 1
+	end
+	return p
+end
+
+-- ---------- Paardenrace ----------
+-- Kleuren als hex, niet als Color3: het scherm zet ze om, de wiskunde blijft Roblox-vrij.
+Odds.HORSES = {
+	{ name = "LIGHTNING", color = "e0616e" },
+	{ name = "THUNDER",   color = "e0b555" },
+	{ name = "COMET",     color = "3ecf8e" },
+	{ name = "STORM",     color = "5fb8ff" },
+	{ name = "SPARK",     color = "ff8c3a" },
+	{ name = "MIST",      color = "c084fc" },
+}
+
+function Odds.horseField(): { number }
+	local w = {}
+	local sum = 0
+	for i = 1, #Odds.HORSES do
+		w[i] = 0.5 + rand() * 2.5
+		sum += w[i]
+	end
+	for i = 1, #w do
+		w[i] /= sum
+	end
+	return w
+end
+
+function Odds.horseMultiplier(p: number): number
+	return floor2(KEEP / p)
+end
+
+-- De hele volgorde, op gewicht getrokken (Plackett-Luce). Plaats 1 is de winnaar.
+function Odds.horseRanking(probs: { number }): { number }
+	local left: { { p: number, i: number } } = {}
+	for i, p in probs do
+		table.insert(left, { p = p, i = i })
+	end
+	local order = {}
+	while #left &gt; 0 do
+		local total = 0
+		for _, h in left do total += h.p end
+		local r = rand() * total
+		local k = 1
+		while k &lt; #left do
+			r -= left[k].p
+			if r &lt; 0 then break end
+			k += 1
+		end
+		local weg = table.remove(left, k)
+		table.insert(order, (weg :: { p: number, i: number }).i)
+	end
+	return order
+end
+
+-- ---------- Krasloten ----------
+Odds.SCRATCH_CELLS = 9
+Odds.SCRATCH_TOTAL = 10000
+Odds.SCRATCH_PRIZES = {
+	{ sym = "💎", mult = 50,   weight = 40 },
+	{ sym = "🔔", mult = 15,   weight = 120 },
+	{ sym = "🍀", mult = 8,    weight = 200 },
+	{ sym = "⭐", mult = 4,    weight = 500 },
+	{ sym = "🍒", mult = 2,    weight = 900 },
+	{ sym = "🪙", mult = 1.25, weight = 400 },
+}
+
+function Odds.scratchRtp(): number
+	local a = 0
+	for _, p in Odds.SCRATCH_PRIZES do a += p.weight * p.mult end
+	return a / Odds.SCRATCH_TOTAL
+end
+
+-- 0 = geen drie gelijke, anders de plaats in SCRATCH_PRIZES (1-gebaseerd).
+function Odds.scratchDraw(u: number?): number
+	local r = (u or rand()) * Odds.SCRATCH_TOTAL
+	for i, p in Odds.SCRATCH_PRIZES do
+		r -= p.weight
+		if r &lt; 0 then return i end
+	end
+	return 0
+end
+
+-- Elk verliezend symbool zit twee keer in de pot, dus een vulling kan nooit per ongeluk
+-- een derde gelijke opleveren; bij winst gaat het winnende symbool er drie keer in.
+function Odds.scratchGrid(prize: number): { string }
+	local cells, pool = {}, {}
+	local win = if prize &gt; 0 then Odds.SCRATCH_PRIZES[prize].sym else nil
+	if win then
+		for _ = 1, 3 do table.insert(cells, win) end
+	end
+	for _, p in Odds.SCRATCH_PRIZES do
+		if p.sym ~= win then
+			table.insert(pool, p.sym)
+			table.insert(pool, p.sym)
+		end
+	end
+	for i = #pool, 2, -1 do
+		local j = randInt(i)
+		pool[i], pool[j] = pool[j], pool[i]
+	end
+	while #cells &lt; Odds.SCRATCH_CELLS do
+		table.insert(cells, table.remove(pool) :: string)
+	end
+	for i = #cells, 2, -1 do
+		local j = randInt(i)
+		cells[i], cells[j] = cells[j], cells[i]
+	end
+	return cells
+end
+
+-- Wat een afgekrast lot waard is, gelezen uit het rooster zelf.
+function Odds.scratchPayout(cells: { string }): number
+	for _, p in Odds.SCRATCH_PRIZES do
+		local n = 0
+		for _, c in cells do
+			if c == p.sym then n += 1 end
+		end
+		if n &gt;= 3 then return p.mult end
+	end
+	return 0
+end
+
+-- ---------- 777 ----------
+Odds.SLOT_SYMBOLS = {"7️⃣", "💎", "🔔", "🍇", "🍋", "🍒"}
+Odds.SLOT_TOTAL = 10000
+Odds.SLOT_PRIZES = {
+	{ kind = "triple", sym = "7️⃣", mult = 40,  weight = 40 },
+	{ kind = "triple", sym = "💎", mult = 20,  weight = 80 },
+	{ kind = "triple", sym = "🔔", mult = 12,  weight = 150 },
+	{ kind = "triple", sym = "🍇", mult = 8,   weight = 200 },
+	{ kind = "triple", sym = "🍋", mult = 5,   weight = 230 },
+	{ kind = "triple", sym = "🍒", mult = 3,   weight = 300 },
+	{ kind = "pair",   sym = "🍒", mult = 1.5, weight = 700 },
+}
+
+function Odds.slotRtp(): number
+	local a = 0
+	for _, p in Odds.SLOT_PRIZES do a += p.weight * p.mult end
+	return a / Odds.SLOT_TOTAL
+end
+
+function Odds.slotDraw(u: number?): number
+	local r = (u or rand()) * Odds.SLOT_TOTAL
+	for i, p in Odds.SLOT_PRIZES do
+		r -= p.weight
+		if r &lt; 0 then return i end
+	end
+	return 0
+end
+
+function Odds.slotReels(idx: number): { string }
+	local cherry = "🍒"
+	if idx &gt; 0 then
+		local p = Odds.SLOT_PRIZES[idx]
+		if p.kind == "triple" then return { p.sym, p.sym, p.sym } end
+		local others = {}
+		for _, sy in Odds.SLOT_SYMBOLS do
+			if sy ~= cherry then table.insert(others, sy) end
+		end
+		local r = { cherry, cherry, others[randInt(#others)] }
+		for i = #r, 2, -1 do
+			local j = randInt(i)
+			r[i], r[j] = r[j], r[i]
+		end
+		return r
+	end
+	-- Verlies: geen drie gelijke en geen twee kersen, anders belooft het beeld meer dan
+	-- de uitslag waard is.
+	for _ = 1, 100 do
+		local r = {
+			Odds.SLOT_SYMBOLS[randInt(#Odds.SLOT_SYMBOLS)],
+			Odds.SLOT_SYMBOLS[randInt(#Odds.SLOT_SYMBOLS)],
+			Odds.SLOT_SYMBOLS[randInt(#Odds.SLOT_SYMBOLS)],
+		}
+		if r[1] == r[2] and r[2] == r[3] then continue end
+		local kersen = 0
+		for _, sy in r do
+			if sy == cherry then kersen += 1 end
+		end
+		if kersen == 2 then continue end
+		return r
+	end
+	return { "🍒", "🍋", "🔔" }
+end
+
+function Odds.slotPayout(reels: { string }): number
+	if reels[1] == reels[2] and reels[2] == reels[3] then
+		for _, p in Odds.SLOT_PRIZES do
+			if p.kind == "triple" and p.sym == reels[1] then return p.mult end
+		end
+		return 0
+	end
+	local kersen = 0
+	for _, sy in reels do
+		if sy == "🍒" then kersen += 1 end
+	end
+	if kersen == 2 then
+		for _, p in Odds.SLOT_PRIZES do
+			if p.kind == "pair" then return p.mult end
+		end
+	end
+	return 0
+end
+
+-- ---------- Rad van fortuin ----------
+-- Twintig vakken van gelijke grootte. De som is 19,4 = 0,97 × 20.
+Odds.WHEEL = {0, 1.2, 0, 2, 0, 1.5, 0, 0, 10, 0, 0, 1.2, 0, 2, 0, 1.5, 0, 0, 0, 0}
+
+function Odds.wheelRtp(): number
+	local a = 0
+	for _, v in Odds.WHEEL do a += v end
+	return a / #Odds.WHEEL
+end
+
+function Odds.wheelSpin(): number
+	return randInt(#Odds.WHEEL)
+end
+
+-- ---------- Ride the Bus ----------
+-- Vier keer raden door één geschudde stapel: kleur, hoger of lager, binnen of buiten, en
+-- de soort. Elke multiplier is 0,97 gedeeld door de kans om zover te komen, en die kans
+-- wordt geteld op de kaarten die nog in de stapel zitten. Daardoor levert uitstappen na
+-- elke call precies 97% op, hoe goed of slecht er ook geraden wordt.
+export type Card = { r: string, s: string }
+Odds.BUS_STEPS = {"colour", "highlow", "inout", "suit"}
+Odds.BUS_SUITS = {"♠", "♥", "♦", "♣"}
+Odds.BUS_RANKS = {"A","2","3","4","5","6","7","8","9","10","J","Q","K"}
+
+function Odds.busRank(card: Card): number
+	return (table.find(Odds.BUS_RANKS, card.r) :: number)
+end
+
+-- Voldoet deze kaart aan de call? `shown` zijn de kaarten die al op tafel liggen.
+function Odds.busHit(card: Card, step: number, choice: string, shown: { Card }): boolean
+	if step == 1 then
+		local rood = card.s == "♥" or card.s == "♦"
+		return (choice == "red") == rood
+	end
+	if step == 2 then
+		local r, a = Odds.busRank(card), Odds.busRank(shown[1])
+		return if choice == "higher" then r &gt; a else r &lt; a   -- gelijk verliest altijd
+	end
+	if step == 3 then
+		local r = Odds.busRank(card)
+		local lo = math.min(Odds.busRank(shown[1]), Odds.busRank(shown[2]))
+		local hi = math.max(Odds.busRank(shown[1]), Odds.busRank(shown[2]))
+		return if choice == "inside" then (r &gt; lo and r &lt; hi) else (r &lt; lo or r &gt; hi)
+	end
+	return card.s == choice
+end
+
+function Odds.busChance(deck: { Card }, step: number, choice: string, shown: { Card }): number
+	if #deck == 0 then return 0 end
+	local hits = 0
+	for _, c in deck do
+		if Odds.busHit(c, step, choice, shown) then hits += 1 end
+	end
+	return hits / #deck
+end
+
+function Odds.busOptions(step: number): { { string } }
+	if step == 1 then return { {"red", "RED"}, {"black", "BLACK"} } end
+	if step == 2 then return { {"higher", "HIGHER"}, {"lower", "LOWER"} } end
+	if step == 3 then return { {"inside", "INSIDE"}, {"outside", "OUTSIDE"} } end
+	local out = {}
+	for _, s in Odds.BUS_SUITS do table.insert(out, { s, s }) end
+	return out
+end
+
+-- prob = de kans om hier te zijn gekomen, de zojuist gemaakte call inbegrepen.
+function Odds.busMultiplier(prob: number): number
+	return if prob &gt; 0 then floor2(KEEP / prob) else 0
+end
+
+-- ---------- Blackjack ----------
+function Odds.bjNewShoe(decks: number?): { Card }
+	local shoe = {}
+	for _ = 1, decks or 6 do
+		for _, s in {"♠", "♥", "♦", "♣"} do
+			for _, r in Odds.BUS_RANKS do
+				table.insert(shoe, { r = r, s = s })
+			end
+		end
+	end
+	for i = #shoe, 2, -1 do
+		local j = randInt(i)
+		shoe[i], shoe[j] = shoe[j], shoe[i]
+	end
+	return shoe
+end
+
+function Odds.bjValue(hand: { Card }): (number, boolean)
+	local total, aces = 0, 0
+	for _, c in hand do
+		if c.r == "A" then
+			total += 11
+			aces += 1
+		elseif c.r == "J" or c.r == "Q" or c.r == "K" then
+			total += 10
+		else
+			total += tonumber(c.r) :: number
+		end
+	end
+	while total &gt; 21 and aces &gt; 0 do
+		total -= 10
+		aces -= 1
+	end
+	return total, aces &gt; 0
+end
+
+function Odds.bjIsBlackjack(hand: { Card }): boolean
+	return #hand == 2 and (Odds.bjValue(hand)) == 21
+end
+
+-- De dealer pakt bij tot 17 en blijft staan op zacht 17. Past de hand aan en geeft hem terug.
+function Odds.bjDealerPlay(hand: { Card }, draw: () -&gt; Card): { Card }
+	while (Odds.bjValue(hand)) &lt; 17 do
+		table.insert(hand, draw())
+	end
+	return hand
+end
+
+-- Uitkering als factor van de oorspronkelijke inzet, inzet inbegrepen. 0 = verloren.
+function Odds.bjSettle(player: { Card }, dealer: { Card }): number
+	local p = (Odds.bjValue(player))
+	local d = (Odds.bjValue(dealer))
+	local pBJ, dBJ = Odds.bjIsBlackjack(player), Odds.bjIsBlackjack(dealer)
+	if pBJ and dBJ then return 1 end
+	if pBJ then return 2.5 end
+	if dBJ then return 0 end
+	if p &gt; 21 then return 0 end
+	if d &gt; 21 then return 2 end
+	if p &gt; d then return 2 end
+	if p &lt; d then return 0 end
+	return 1
+end
+
+return Odds
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX6">
+				<Properties>
+					<string name="Name">Theme</string>
+					<ProtectedString name="Source">--!strict
+-- De kleuren, letters en maten uit de CSS van de webversie, één op één.
+-- Alles wat in de CSS een variabele was staat hier, zodat de Roblox-versie er hetzelfde
+-- uitziet en één plek de toon zet.
+
+local function hex(s: string): Color3
+	return Color3.fromHex(s)
+end
+
+local Theme = {}
+
+Theme.color = {
+	bg         = hex("0e1116"),
+	panel      = hex("151a21"),
+	panelLight = hex("1a212a"),
+	border     = hex("2a323d"),
+	neon       = hex("3ecf8e"),
+	neonDim    = hex("2d9e6d"),
+	gold       = hex("e0b555"),
+	green      = hex("3ecf8e"),
+	red        = hex("e0616e"),
+	text       = hex("e7ebf1"),
+	muted      = hex("8d97a6"),
+	-- achtergronden van de speelvelden, zoals in de CSS
+	felt       = hex("2f5a1a"),
+	feltLight  = hex("579a2f"),
+	feltDark   = hex("4f8f2a"),
+	sky        = hex("5fb8ff"),
+	card       = hex("f7f9fc"),
+}
+
+-- De neon-gloed is in de CSS rgba(62,207,142,0.28); in Roblox is dat kleur + transparantie.
+Theme.glow = { color = hex("3ecf8e"), transparency = 0.72 }
+
+Theme.font = {
+	ui  = Enum.Font.GothamMedium,
+	uiBold = Enum.Font.GothamBold,
+	num = Enum.Font.Code,      -- staat het dichtst bij JetBrains Mono
+}
+
+-- De maten die in de CSS het vaakst voorkomen.
+Theme.size = {
+	radiusSmall = 2,
+	radius      = 3,
+	radiusPanel = 4,
+	radiusBig   = 8,
+	gap         = 8,
+	pad         = 12,
+	panelPad    = 14,
+	railWidth   = 64,      -- de smalle zijbalk
+	navWidth    = 240,     -- de uitgeklapte zijbalk
+}
+
+Theme.text = {
+	tiny   = 10,
+	small  = 11,
+	body   = 12,
+	label  = 13,
+	title  = 18,
+	big    = 22,
+	huge   = 40,
+	giant  = 64,
+}
+
+-- Een halfdoorzichtige variant, zoals rgba(0,0,0,0.5) in de CSS.
+function Theme.alpha(c: Color3, a: number): (Color3, number)
+	return c, 1 - a
+end
+
+return Theme
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX7">
+				<Properties>
+					<string name="Name">UI</string>
+					<ProtectedString name="Source">--!strict
+-- De bouwstenen uit de CSS, als Roblox-objecten. Eén plek waar een paneel, een knop en een
+-- fiche vandaan komen, zodat elk scherm er hetzelfde uitziet.
+local Theme = require(script.Parent.Theme)
+
+local UI = {}
+
+-- ---------- kleine hulpjes ----------
+function UI.corner(parent: GuiObject, radius: number?): UICorner
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius or Theme.size.radius)
+	c.Parent = parent
+	return c
+end
+
+function UI.stroke(parent: GuiObject, color: Color3?, thickness: number?): UIStroke
+	local s = Instance.new("UIStroke")
+	s.Color = color or Theme.color.border
+	s.Thickness = thickness or 1
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = parent
+	return s
+end
+
+function UI.padding(parent: GuiObject, all: number?): UIPadding
+	local p = Instance.new("UIPadding")
+	local n = all or Theme.size.pad
+	p.PaddingTop = UDim.new(0, n)
+	p.PaddingBottom = UDim.new(0, n)
+	p.PaddingLeft = UDim.new(0, n)
+	p.PaddingRight = UDim.new(0, n)
+	p.Parent = parent
+	return p
+end
+
+function UI.list(parent: GuiObject, gap: number?, dir: Enum.FillDirection?): UIListLayout
+	local l = Instance.new("UIListLayout")
+	l.FillDirection = dir or Enum.FillDirection.Vertical
+	l.Padding = UDim.new(0, gap or Theme.size.gap)
+	l.SortOrder = Enum.SortOrder.LayoutOrder
+	l.Parent = parent
+	return l
+end
+
+-- ---------- paneel ----------
+-- In de CSS: een verloop van --panel naar --panel-light, een rand en afgeronde hoeken.
+function UI.panel(parent: Instance, name: string?): Frame
+	local f = Instance.new("Frame")
+	f.Name = name or "Panel"
+	f.BackgroundColor3 = Theme.color.panel
+	f.BorderSizePixel = 0
+	f.Size = UDim2.fromScale(1, 0)
+	f.AutomaticSize = Enum.AutomaticSize.Y
+
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(Theme.color.panel, Theme.color.panelLight)
+	g.Rotation = 90
+	g.Parent = f
+
+	UI.corner(f, Theme.size.radiusPanel)
+	UI.stroke(f)
+	UI.padding(f, Theme.size.panelPad)
+	f.Parent = parent
+	return f
+end
+
+-- ---------- tekst ----------
+export type LabelOpts = {
+	size: number?,
+	color: Color3?,
+	font: Enum.Font?,
+	align: Enum.TextXAlignment?,
+	name: string?,
+}
+
+local LEEG: LabelOpts = {}
+
+function UI.label(parent: Instance, text: string, opts: LabelOpts?): TextLabel
+	local o: LabelOpts = opts or LEEG
+	local t = Instance.new("TextLabel")
+	t.Name = o.name or "Label"
+	t.BackgroundTransparency = 1
+	t.Text = text
+	t.TextSize = o.size or Theme.text.body
+	t.TextColor3 = o.color or Theme.color.text
+	t.Font = o.font or Theme.font.ui
+	t.TextXAlignment = o.align or Enum.TextXAlignment.Left
+	t.Size = UDim2.new(1, 0, 0, (o.size or Theme.text.body) + 6)
+	t.RichText = false        -- spelersnamen komen hier langs; nooit als opmaak uitvoeren
+	t.Parent = parent
+	return t
+end
+
+-- Een kopje zoals `.panel-title` in de CSS: klein, hoofdletters, met een pijltje ervoor.
+function UI.panelTitle(parent: Instance, text: string): TextLabel
+	return UI.label(parent, "\u{25BA} " .. string.upper(text), {
+		size = Theme.text.small,
+		color = Theme.color.neon,
+		font = Theme.font.uiBold,
+		name = "PanelTitle",
+	})
+end
+
+-- ---------- knoppen ----------
+export type Button = TextButton
+
+local function pressable(b: TextButton, normal: Color3, hoverColor: Color3)
+	b.MouseEnter:Connect(function()
+		if b.Active then b.BackgroundColor3 = hoverColor end
+	end)
+	b.MouseLeave:Connect(function()
+		b.BackgroundColor3 = normal
+	end)
+end
+
+-- De grote groene knop: `.btn-primary`.
+function UI.primary(parent: Instance, text: string): Button
+	local b = Instance.new("TextButton")
+	b.Name = "Primary"
+	b.Text = text
+	b.Font = Theme.font.uiBold
+	b.TextSize = Theme.text.label
+	b.TextColor3 = Theme.color.bg
+	b.BackgroundColor3 = Theme.color.neon
+	b.BorderSizePixel = 0
+	b.AutoButtonColor = false
+	b.Size = UDim2.new(1, 0, 0, 44)
+	UI.corner(b, Theme.size.radius)
+	pressable(b, Theme.color.neon, Theme.color.neonDim)
+	b.Parent = parent
+	return b
+end
+
+-- De donkere knop met rand: `.btn-secondary`.
+function UI.secondary(parent: Instance, text: string): Button
+	local b = Instance.new("TextButton")
+	b.Name = "Secondary"
+	b.Text = text
+	b.Font = Theme.font.ui
+	b.TextSize = Theme.text.small
+	b.TextColor3 = Theme.color.text
+	b.BackgroundColor3 = Theme.color.bg
+	b.BackgroundTransparency = 0.5
+	b.BorderSizePixel = 0
+	b.AutoButtonColor = false
+	b.Size = UDim2.new(1, 0, 0, 32)
+	UI.corner(b, Theme.size.radius)
+	UI.stroke(b)
+	b.Parent = parent
+	return b
+end
+
+-- Een fiche: `.chip`, de ½ / 2× / MIN / MAX knopjes onder een inzetveld.
+function UI.chip(parent: Instance, text: string): Button
+	local b = Instance.new("TextButton")
+	b.Name = "Chip"
+	b.Text = text
+	b.Font = Theme.font.ui
+	b.TextSize = Theme.text.small
+	b.TextColor3 = Theme.color.text
+	b.BackgroundColor3 = Theme.color.bg
+	b.BackgroundTransparency = 0.5
+	b.BorderSizePixel = 0
+	b.AutoButtonColor = false
+	b.Size = UDim2.new(0, 0, 0, 26)
+	UI.corner(b, Theme.size.radiusSmall)
+	UI.stroke(b)
+	b.Parent = parent
+	return b
+end
+
+-- ---------- invoerveld ----------
+-- `input[type=number]`: donker, rand, cijferlettertype. Op een telefoon hoort er een
+-- toetsenbord bij dat je weer weg kunt doen; in Roblox sluit de TextBox zelf bij Enter.
+function UI.numberBox(parent: Instance, start: string): TextBox
+	local t = Instance.new("TextBox")
+	t.Name = "NumberBox"
+	t.Text = start
+	t.PlaceholderText = "0"
+	t.Font = Theme.font.num
+	t.TextSize = 16
+	t.TextColor3 = Theme.color.text
+	t.BackgroundColor3 = Theme.color.bg
+	t.BackgroundTransparency = 0.4
+	t.BorderSizePixel = 0
+	t.ClearTextOnFocus = false
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.Size = UDim2.new(1, 0, 0, 38)
+	UI.corner(t, Theme.size.radius)
+	local s = UI.stroke(t)
+	t.Focused:Connect(function()
+		s.Color = Theme.color.neon
+	end)
+	t.FocusLost:Connect(function()
+		s.Color = Theme.color.border
+	end)
+	UI.padding(t, 10)
+	t.Parent = parent
+	return t
+end
+
+-- ---------- melding ----------
+-- `.toast`: verschijnt rechtsboven het speelveld en verdwijnt vanzelf.
+export type ToastKind = "green" | "red" | "gold"
+
+function UI.toast(host: Instance, text: string, kind: ToastKind?): ()
+	local k = kind or "green"
+	local color = if k == "red" then Theme.color.red
+		elseif k == "gold" then Theme.color.gold
+		else Theme.color.neon
+
+	local f = Instance.new("Frame")
+	f.BackgroundColor3 = Theme.color.panel
+	f.BorderSizePixel = 0
+	f.Size = UDim2.new(0, 0, 0, 34)
+	f.AutomaticSize = Enum.AutomaticSize.X
+	UI.corner(f, Theme.size.radius)
+	UI.stroke(f, color)
+
+	local t = UI.label(f, text, { size = Theme.text.small, color = color, font = Theme.font.uiBold })
+	t.Size = UDim2.new(0, 0, 1, 0)
+	t.AutomaticSize = Enum.AutomaticSize.X
+	UI.padding(f, 10)
+	f.Parent = host
+
+	task.delay(2.6, function()
+		if f.Parent then f:Destroy() end
+	end)
+end
+
+-- ---------- bedragen ----------
+-- Dezelfde weergave als fmt() in de webversie: altijd twee decimalen.
+function UI.money(n: number): string
+	return string.format("%.2f", n)
+end
+
+return UI
+</ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="Script" referent="RBX8">
+			<Properties>
+				<string name="Name">Server</string>
+				<ProtectedString name="Source">--!strict
+-- Het opstartpunt van de server: de kanalen aanmaken, profielen laden, en elke aanvraag
+-- van een speler langs de afrekening leiden. Geen enkele aanvraag draagt een bedrag; de
+-- server rekent zelf uit wat eruit komt.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Net = require(ReplicatedStorage.Shared.Net)
+local Profiles = require(script.Profiles)
+local Games = require(script.Games)
+local Multi = require(script.Games.Multi)
+
+Net.build()
+
+local function stuurProfiel(speler: Player)
+	local p = Profiles.view(speler)
+	if p then
+		Net.ev("Profile"):FireClient(speler, p)
+	end
+end
+
+Players.PlayerAdded:Connect(function(speler)
+	Profiles.load(speler)
+	stuurProfiel(speler)
+end)
+
+-- Weggaan wordt niet hier afgehandeld. Games en Multi hangen hun teruggave als haakje
+-- aan Profiles, en Profiles draait die haakjes zelf af voordat het profiel wordt
+-- opgeslagen. Met twee losse PlayerRemoving-verbindingen hing dat af van de volgorde
+-- waarin ze toevallig gemaakt zijn, en verdween de inzet als het profiel eerst weg was.
+
+for _, speler in Players:GetPlayers() do
+	Profiles.load(speler)
+	stuurProfiel(speler)
+end
+
+-- ---------- de aanvragen ----------
+-- Eén ingang per soort, met de naam van het spel erbij. Elke tak controleert zelf wat er
+-- binnenkomt; niets wordt op zijn woord geloofd.
+Net.fn("GetProfile").OnServerInvoke = function(speler)
+	return Profiles.view(speler)
+end
+
+Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
+	local uit
+	if spel == "roulette" then uit = Games.roulette(speler, inzet)
+	elseif spel == "plinko" then uit = Games.plinko(speler, inzet, a, b)
+	elseif spel == "scratch" then uit = Games.scratchBuy(speler, inzet)
+	elseif spel == "slots" then uit = Games.slots(speler, inzet)
+	elseif spel == "wheel" then uit = Games.wheel(speler, inzet)
+	elseif spel == "horse" then uit = Games.horse(speler, inzet)
+	elseif spel == "tower" then uit = Multi.towerStart(speler, inzet, a)
+	elseif spel == "mines" then uit = Multi.minesStart(speler, inzet, a)
+	elseif spel == "bus" then uit = Multi.busStart(speler, inzet)
+	else uit = { ok = false, err = "onbekend spel" } end
+	stuurProfiel(speler)
+	return uit
+end
+
+Net.fn("Act").OnServerInvoke = function(speler, spel, zet)
+	local uit
+	if spel == "tower" then uit = Multi.towerPick(speler, zet)
+	elseif spel == "mines" then uit = Multi.minesPick(speler, zet)
+	elseif spel == "bus" then uit = Multi.busCall(speler, zet)
+	elseif spel == "scratch" then uit = Games.scratchReveal(speler, zet)
+	else uit = { ok = false, err = "onbekende zet" } end
+	stuurProfiel(speler)
+	return uit
+end
+
+Net.fn("CashOut").OnServerInvoke = function(speler, spel)
+	local uit
+	if spel == "tower" then uit = Multi.towerCashOut(speler)
+	elseif spel == "mines" then uit = Multi.minesCashOut(speler)
+	elseif spel == "bus" then uit = Multi.busCashOut(speler)
+	else uit = { ok = false, err = "dat spel kent geen uitstappen" } end
+	stuurProfiel(speler)
+	return uit
+end
+
+return nil
+</ProtectedString>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX9">
+				<Properties>
+					<string name="Name">Games</string>
+					<ProtectedString name="Source">--!strict
+-- De spellen, afgerekend op de server. De client stuurt een inzet en een keuze; wat er
+-- uitkomt wordt hier bepaald en teruggegeven. Zo kan niemand zijn eigen uitslag schrijven.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Profiles = require(script.Parent.Profiles)
+
+local Games = {}
+
+-- Een echte trekker op de server; Odds krijgt hem van buiten aangereikt.
+local rng = Random.new()
+Odds.setRandom(function()
+	return rng:NextNumber()
+end)
+
+-- Spellen die uit meerdere beurten bestaan houden hun stand hier vast, per speler.
+-- Nooit bij de client: die zou hem kunnen aanpassen.
+type Open = {
+	game: string,
+	bet: number,
+	-- tower
+	diff: string?,
+	layout: { { boolean } }?,
+	level: number?,
+	-- mines
+	grid: { boolean }?,
+	mines: number?,
+	-- bus
+	deck: { Odds.Card }?,
+	shown: { Odds.Card }?,
+	step: number?,
+	prob: number?,
+	-- blackjack (solo)
+	shoe: { Odds.Card }?,
+	player: { Odds.Card }?,
+	dealer: { Odds.Card }?,
+	doubled: boolean?,
+	-- scratch
+	cells: { string }?,
+	prize: number?,
+	revealed: { boolean }?,
+}
+
+local open: { [number]: Open } = {}
+
+function Games.openOf(speler: Player): Open?
+	return open[speler.UserId]
+end
+
+-- Wat er nog in het spel zit als een speler weggaat: teruggeven, niet laten verdampen.
+-- Profiles roept dit zelf aan, vlak voor het opslaan; zo staat de teruggave gegarandeerd
+-- in het saldo dat wordt weggeschreven.
+function Games.refund(speler: Player): ()
+	local o = open[speler.UserId]
+	if not o then return end
+	open[speler.UserId] = nil
+	Profiles.give(speler, o.bet)
+end
+
+local function start(speler: Player, spel: string, inzet: any): (number?, string?)
+	local p = Profiles.get(speler)
+	if not p then return nil, "geen profiel" end
+	if open[speler.UserId] then return nil, "je hebt nog een ronde open" end
+	local bet = Money.cleanBet(inzet, p.balance)
+	if not bet then return nil, "ongeldige inzet" end
+	if not Profiles.take(speler, bet) then return nil, "onvoldoende saldo" end
+	return bet, nil
+end
+
+local function settle(speler: Player, spel: string, inzet: number, uit: number, mult: number): ()
+	if uit &gt; 0 then Profiles.give(speler, uit) end
+	Profiles.record(speler, spel, inzet, uit, mult)
+end
+
+-- ---------- spellen in één beurt ----------
+
+function Games.roulette(speler: Player, inzetten: any): any
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	if typeof(inzetten) ~= "table" then return { ok = false, err = "geen inzetten" } end
+
+	-- Alles eerst optellen en één keer afschrijven, zodat een gedeeltelijke inzet
+	-- niet half kan slagen.
+	local totaal = 0
+	local schoon: { { key: string, bet: number } } = {}
+	for key, bedrag in inzetten do
+		if typeof(key) ~= "string" then continue end
+		-- Door dezelfde zeef als een enkele inzet: die vangt NaN en oneindig af, wat een
+		-- gewone `b &lt; MIN_BET` nooit doet.
+		local b = Money.cleanAmount(bedrag)
+		if not b then continue end
+		totaal += b
+		table.insert(schoon, { key = key, bet = b })
+	end
+	if #schoon == 0 then return { ok = false, err = "geen inzetten" } end
+	totaal = Money.round2(totaal)
+	if not Profiles.take(speler, totaal) then return { ok = false, err = "onvoldoende saldo" } end
+
+	local n = Odds.ROULETTE_ORDER[rng:NextInteger(1, #Odds.ROULETTE_ORDER)]
+	local uit = 0
+	for _, s in schoon do
+		uit += s.bet * Odds.roulettePayout(s.key, n)
+	end
+	uit = Money.floor2(uit)
+	settle(speler, "roulette", totaal, uit, if uit &gt; 0 then uit / totaal else 0)
+	return { ok = true, number = n, color = Odds.rouletteColor(n), payout = uit, balance = p.balance }
+end
+
+function Games.plinko(speler: Player, inzet: any, rows: any, risk: any): any
+	local rr = tonumber(rows)
+	local ri = tostring(risk)
+	-- Bevestigend controleren in plaats van ontkennend: dan weet de analyzer ook dat
+	-- r vanaf hier zeker een getal is.
+	local r: number
+	if rr == 8 or rr == 12 or rr == 16 then
+		r = rr :: number
+	else
+		return { ok = false, err = "ongeldig aantal rijen" }
+	end
+	if ri ~= "low" and ri ~= "medium" and ri ~= "high" then return { ok = false, err = "ongeldig risico" } end
+	local bet, err = start(speler, "plinko", inzet)
+	if not bet then return { ok = false, err = err } end
+
+	local pad = Odds.plinkoPath(r)
+	local vak = 0
+	for _, stap in pad do vak += stap end
+	local tabel = Odds.plinkoTable(r, ri)
+	local mult = tabel[vak + 1]
+	local uit = Money.floor2(bet * mult)
+	settle(speler, "plinko", bet, uit, mult)
+	local p = Profiles.get(speler)
+	return { ok = true, path = pad, bucket = vak, mult = mult, payout = uit, balance = if p then p.balance else 0 }
+end
+
+function Games.scratchBuy(speler: Player, inzet: any): any
+	local bet, err = start(speler, "scratch", inzet)
+	if not bet then return { ok = false, err = err } end
+	local prize = Odds.scratchDraw()
+	local cells = Odds.scratchGrid(prize)
+	open[speler.UserId] = {
+		game = "scratch", bet = bet, cells = cells, prize = prize,
+		revealed = table.create(Odds.SCRATCH_CELLS, false),
+	}
+	-- De cellen gaan NIET mee naar de client: die krijgt ze pas als hij ze openkrast.
+	local p = Profiles.get(speler)
+	return { ok = true, cells = Odds.SCRATCH_CELLS, balance = if p then p.balance else 0 }
+end
+
+function Games.scratchReveal(speler: Player, index: any): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "scratch" then return { ok = false, err = "geen lot" } end
+	local cells = o.cells :: { string }
+	local revealed = o.revealed :: { boolean }
+	-- Een heel getal binnen het rooster, anders niet. revealed[1.5] leest nil en
+	-- revealed[NaN] = true laat de RemoteFunction klappen.
+	local i = Money.cleanIndex(index, 1, #cells)
+	if not i or revealed[i] then return { ok = false, err = "dat vakje niet" } end
+	revealed[i] = true
+
+	local allesOpen = true
+	for _, v in revealed do
+		if not v then
+			allesOpen = false
+			break
+		end
+	end
+	if not allesOpen then
+		return { ok = true, index = i, symbol = cells[i], done = false }
+	end
+
+	open[speler.UserId] = nil
+	local mult = Odds.scratchPayout(cells)
+	local uit = Money.floor2(o.bet * mult)
+	settle(speler, "scratch", o.bet, uit, mult)
+	local p = Profiles.get(speler)
+	return {
+		ok = true, index = i, symbol = cells[i], done = true,
+		mult = mult, payout = uit, balance = if p then p.balance else 0,
+	}
+end
+
+function Games.slots(speler: Player, inzet: any): any
+	local bet, err = start(speler, "slots", inzet)
+	if not bet then return { ok = false, err = err } end
+	local idx = Odds.slotDraw()
+	local reels = Odds.slotReels(idx)
+	local mult = Odds.slotPayout(reels)
+	local uit = Money.floor2(bet * mult)
+	settle(speler, "slots", bet, uit, mult)
+	local p = Profiles.get(speler)
+	return { ok = true, reels = reels, mult = mult, payout = uit, balance = if p then p.balance else 0 }
+end
+
+function Games.wheel(speler: Player, inzet: any): any
+	local bet, err = start(speler, "wheel", inzet)
+	if not bet then return { ok = false, err = err } end
+	local vak = Odds.wheelSpin()
+	local mult = Odds.WHEEL[vak]
+	local uit = Money.floor2(bet * mult)
+	settle(speler, "wheel", bet, uit, mult)
+	local p = Profiles.get(speler)
+	return { ok = true, slot = vak, mult = mult, payout = uit, balance = if p then p.balance else 0 }
+end
+
+function Games.horse(speler: Player, inzetten: any): any
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	if typeof(inzetten) ~= "table" then return { ok = false, err = "geen inzetten" } end
+
+	local kansen = Odds.horseField()
+	local totaal = 0
+	local schoon: { { i: number, bet: number } } = {}
+	for i, bedrag in inzetten do
+		local idx = Money.cleanIndex(i, 1, #Odds.HORSES)
+		local b = Money.cleanAmount(bedrag)
+		if not idx or not b then continue end
+		totaal += b
+		table.insert(schoon, { i = idx, bet = b })
+	end
+	if #schoon == 0 then return { ok = false, err = "geen inzetten" } end
+	totaal = Money.round2(totaal)
+	if not Profiles.take(speler, totaal) then return { ok = false, err = "onvoldoende saldo" } end
+
+	local volgorde = Odds.horseRanking(kansen)
+	local winnaar = volgorde[1]
+	local uit = 0
+	for _, s in schoon do
+		if s.i == winnaar then
+			uit += Money.floor2(s.bet * Odds.horseMultiplier(kansen[winnaar]))
+		end
+	end
+	uit = Money.floor2(uit)
+	settle(speler, "horse", totaal, uit, if uit &gt; 0 then uit / totaal else 0)
+	return {
+		ok = true, order = volgorde, probs = kansen, winner = winnaar,
+		payout = uit, balance = p.balance,
+	}
+end
+
+Profiles.onLeave(Games.refund)
+
+return Games
+</ProtectedString>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX10">
+					<Properties>
+						<string name="Name">Multi</string>
+						<ProtectedString name="Source">--!strict
+-- De spellen die uit meerdere beurten bestaan. De stand staat op de server: welke tegels
+-- veilig zijn, welke kaarten er nog in de stapel zitten, hoe ver je bent. De client krijgt
+-- alleen te zien wat hij op dat moment mag weten.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Profiles = require(script.Parent.Parent.Profiles)
+
+local Multi = {}
+
+export type Open = {
+	game: string,
+	bet: number,
+	diff: string?,
+	layout: { { boolean } }?,
+	level: number?,
+	grid: { boolean }?,
+	-- Welke tegels al open liggen, niet alleen hoeveel: anders kun je dezelfde veilige
+	-- tegel blijven insturen en zo de multiplier omhoog tikken zonder risico.
+	opened: { [number]: boolean }?,
+	picked: number?,
+	mines: number?,
+	deck: { Odds.Card }?,
+	shown: { Odds.Card }?,
+	step: number?,
+	prob: number?,
+	shoe: { Odds.Card }?,
+	hand: { Odds.Card }?,
+	dealer: { Odds.Card }?,
+	doubled: boolean?,
+}
+
+local open: { [number]: Open } = {}
+
+function Multi.get(speler: Player): Open?
+	return open[speler.UserId]
+end
+
+-- Loopt een speler weg met een ronde open, dan krijgt hij zijn inzet terug. Stil laten
+-- verdampen is het ergste wat je met andermans geld kunt doen.
+function Multi.refund(speler: Player): number
+	local o = open[speler.UserId]
+	if not o then return 0 end
+	open[speler.UserId] = nil
+	local terug = o.bet * (if o.doubled then 2 else 1)
+	Profiles.give(speler, terug)
+	return terug
+end
+
+local function begin(speler: Player, inzet: any): (number?, string?)
+	local p = Profiles.get(speler)
+	if not p then return nil, "geen profiel" end
+	if open[speler.UserId] then return nil, "je hebt nog een ronde open" end
+	local bet = Money.cleanBet(inzet, p.balance)
+	if not bet then return nil, "ongeldige inzet" end
+	if not Profiles.take(speler, bet) then return nil, "onvoldoende saldo" end
+	return bet, nil
+end
+
+local function saldo(speler: Player): number
+	local p = Profiles.get(speler)
+	return if p then p.balance else 0
+end
+
+local function afrekenen(speler: Player, spel: string, inzet: number, uit: number, mult: number)
+	open[speler.UserId] = nil
+	if uit &gt; 0 then Profiles.give(speler, uit) end
+	Profiles.record(speler, spel, inzet, uit, mult)
+end
+
+-- ---------- Dragon Tower ----------
+function Multi.towerStart(speler: Player, inzet: any, diff: any): any
+	local d = tostring(diff)
+	if not Odds.TOWER_DIFF[d] then return { ok = false, err = "onbekende moeilijkheid" } end
+	local bet, err = begin(speler, inzet)
+	if not bet then return { ok = false, err = err } end
+	open[speler.UserId] = { game = "tower", bet = bet, diff = d, layout = Odds.towerLayout(d), level = 0 }
+	return { ok = true, tiles = Odds.TOWER_DIFF[d].tiles, balance = saldo(speler) }
+end
+
+function Multi.towerPick(speler: Player, kolom: any): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "tower" then return { ok = false, err = "geen toren" } end
+	local d = Odds.TOWER_DIFF[o.diff :: string]
+	local k = Money.cleanIndex(kolom, 1, d.tiles)
+	if not k then return { ok = false, err = "die tegel niet" } end
+
+	local niveau = (o.level :: number) + 1
+	local rij = (o.layout :: { { boolean } })[niveau]
+	local veilig = rij[k]
+	if not veilig then
+		afrekenen(speler, "tower", o.bet, 0, 0)
+		return { ok = true, safe = false, row = rij, payout = 0, balance = saldo(speler) }
+	end
+
+	o.level = niveau
+	local mult = Odds.towerMultiplier(o.diff :: string, niveau)
+	if niveau &gt;= Odds.TOWER_LEVELS then
+		local uit = Money.floor2(o.bet * mult)
+		afrekenen(speler, "tower", o.bet, uit, mult)
+		return { ok = true, safe = true, row = rij, done = true, mult = mult, payout = uit, balance = saldo(speler) }
+	end
+	return { ok = true, safe = true, level = niveau, mult = mult }
+end
+
+function Multi.towerCashOut(speler: Player): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "tower" then return { ok = false, err = "geen toren" } end
+	local niveau = o.level :: number
+	if niveau &lt; 1 then return { ok = false, err = "nog niets gehaald" } end
+	local mult = Odds.towerMultiplier(o.diff :: string, niveau)
+	local uit = Money.floor2(o.bet * mult)
+	afrekenen(speler, "tower", o.bet, uit, mult)
+	return { ok = true, mult = mult, payout = uit, balance = saldo(speler) }
+end
+
+-- ---------- Mines ----------
+function Multi.minesStart(speler: Player, inzet: any, mijnen: any): any
+	local m = Money.cleanIndex(mijnen, 1, 24)
+	if not m then return { ok = false, err = "tussen 1 en 24 mijnen" } end
+	local bet, err = begin(speler, inzet)
+	if not bet then return { ok = false, err = err } end
+	open[speler.UserId] = { game = "mines", bet = bet, grid = Odds.minesLayout(m), opened = {}, picked = 0, mines = m }
+	return { ok = true, tiles = Odds.MINES_TILES, balance = saldo(speler) }
+end
+
+function Multi.minesPick(speler: Player, tegel: any): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "mines" then return { ok = false, err = "geen veld" } end
+	local grid = o.grid :: { boolean }
+	local opened = o.opened :: { [number]: boolean }
+	-- Een heel tegelnummer, anders niet: grid[1.5] leest nil, en nil is geen mijn.
+	local i = Money.cleanIndex(tegel, 1, #grid)
+	if not i then return { ok = false, err = "die tegel niet" } end
+	-- Twee keer dezelfde tegel telt niet twee keer mee. Zo staat het ook in de webversie
+	-- (MN.revealed.includes(i) in mnPick).
+	if opened[i] then return { ok = false, err = "die tegel ligt al open" } end
+
+	if grid[i] then
+		afrekenen(speler, "mines", o.bet, 0, 0)
+		return { ok = true, mine = true, grid = grid, payout = 0, balance = saldo(speler) }
+	end
+
+	opened[i] = true
+	local gepakt = (o.picked :: number) + 1
+	o.picked = gepakt
+	local mult = Odds.minesMultiplier(o.mines :: number, gepakt)
+	local over = Odds.MINES_TILES - (o.mines :: number)
+	if gepakt &gt;= over then
+		local uit = Money.floor2(o.bet * mult)
+		afrekenen(speler, "mines", o.bet, uit, mult)
+		return { ok = true, mine = false, done = true, mult = mult, payout = uit, balance = saldo(speler) }
+	end
+	return { ok = true, mine = false, picked = gepakt, mult = mult }
+end
+
+function Multi.minesCashOut(speler: Player): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "mines" then return { ok = false, err = "geen veld" } end
+	local gepakt = o.picked :: number
+	if gepakt &lt; 1 then return { ok = false, err = "nog niets gepakt" } end
+	local mult = Odds.minesMultiplier(o.mines :: number, gepakt)
+	local uit = Money.floor2(o.bet * mult)
+	afrekenen(speler, "mines", o.bet, uit, mult)
+	return { ok = true, mult = mult, payout = uit, grid = o.grid, balance = saldo(speler) }
+end
+
+-- ---------- Ride the Bus ----------
+-- Wat de client mag weten om de knoppen te tekenen: per keuze de kans, geteld op de
+-- kaarten die nog in de stapel zitten. Een kans van 0 wordt straks geweigerd, dus die
+-- knop hoort grijs te staan -- net als in buRender in de webversie.
+local function busKansen(deck: { Odds.Card }, stap: number, shown: { Odds.Card }): { { key: string, label: string, chance: number } }
+	local uit = {}
+	for _, paar in Odds.busOptions(stap) do
+		table.insert(uit, {
+			key = paar[1],
+			label = paar[2],
+			chance = Odds.busChance(deck, stap, paar[1], shown),
+		})
+	end
+	return uit
+end
+
+function Multi.busStart(speler: Player, inzet: any): any
+	local bet, err = begin(speler, inzet)
+	if not bet then return { ok = false, err = err } end
+	local deck = Odds.bjNewShoe(1)
+	open[speler.UserId] = { game = "bus", bet = bet, deck = deck, shown = {}, step = 0, prob = 1 }
+	return { ok = true, options = busKansen(deck, 1, {}), balance = saldo(speler) }
+end
+
+function Multi.busCall(speler: Player, keuze: any): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "bus" then return { ok = false, err = "geen rit" } end
+	local stap = (o.step :: number) + 1
+	if stap &gt; #Odds.BUS_STEPS then return { ok = false, err = "de rit is voorbij" } end
+
+	local k = tostring(keuze)
+	local geldig = false
+	for _, paar in Odds.busOptions(stap) do
+		if paar[1] == k then
+			geldig = true
+			break
+		end
+	end
+	if not geldig then return { ok = false, err = "die call niet" } end
+
+	local deck = o.deck :: { Odds.Card }
+	local shown = o.shown :: { Odds.Card }
+	-- De kans wordt geteld op de kaarten die nog in de stapel zitten, precies zoals in
+	-- de webversie: daardoor klopt de multiplier ook als je slecht raadt.
+	local kans = Odds.busChance(deck, stap, k, shown)
+	-- Een call die niet kan uitkomen is geen call. De webversie weigert hem ook
+	-- (`if (p &lt;= 0) return;` in buCall), en er wordt dus geen kaart getrokken.
+	if kans &lt;= 0 then return { ok = false, err = "die call kan niet uitkomen" } end
+	local kaart = table.remove(deck) :: Odds.Card
+	local raak = Odds.busHit(kaart, stap, k, shown)
+	table.insert(shown, kaart)
+	o.step = stap
+
+	if not raak then
+		afrekenen(speler, "bus", o.bet, 0, 0)
+		return { ok = true, card = kaart, hit = false, payout = 0, balance = saldo(speler) }
+	end
+
+	local prob = (o.prob :: number) * kans
+	o.prob = prob
+	local mult = Odds.busMultiplier(prob)
+	if stap &gt;= #Odds.BUS_STEPS then
+		local uit = Money.floor2(o.bet * mult)
+		afrekenen(speler, "bus", o.bet, uit, mult)
+		return { ok = true, card = kaart, hit = true, done = true, mult = mult, payout = uit, balance = saldo(speler) }
+	end
+	return {
+		ok = true, card = kaart, hit = true, step = stap, mult = mult,
+		options = busKansen(deck, stap + 1, shown),
+	}
+end
+
+function Multi.busCashOut(speler: Player): any
+	local o = open[speler.UserId]
+	if not o or o.game ~= "bus" then return { ok = false, err = "geen rit" } end
+	if (o.step :: number) &lt; 1 then return { ok = false, err = "nog geen call gemaakt" } end
+	local mult = Odds.busMultiplier(o.prob :: number)
+	local uit = Money.floor2(o.bet * mult)
+	afrekenen(speler, "bus", o.bet, uit, mult)
+	return { ok = true, mult = mult, payout = uit, balance = saldo(speler) }
+end
+
+Profiles.onLeave(function(speler: Player)
+	Multi.refund(speler)
+end)
+
+return Multi
+</ProtectedString>
+					</Properties>
+				</Item>
+			</Item>
+			<Item class="ModuleScript" referent="RBX11">
+				<Properties>
+					<string name="Name">Profiles</string>
+					<ProtectedString name="Source">--!strict
+-- Het profiel van een speler: saldo, statistieken, prestaties, titels.
+--
+-- Dit is het grootste verschil met de webversie. Daar rekent alleen crash op de server af
+-- en doen de tien andere spellen dat in de browser, wat in principe te bewerken is. Hier
+-- staat alles in ServerScriptService en kan de client er per definitie niet bij: hij mag
+-- een inzet en een keuze sturen, nooit een bedrag.
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Money = require(game:GetService("ReplicatedStorage").Shared.Money)
+
+local Profiles = {}
+
+export type Stats = {
+	rounds: number,
+	won: number,
+	lost: number,
+	highest: number,
+	profit: number,
+}
+
+export type Profile = {
+	balance: number,
+	rounds: number,
+	won: number,
+	lost: number,
+	profit: number,
+	stats: { [string]: Stats },
+	achievements: { [string]: number },
+	featured: { string },
+	titles: { string },
+	title: string?,
+	titleSeason: number?,
+	resetSeason: number?,
+	seasonStart: number,
+	updatedAt: number,
+}
+
+Profiles.GAMES = {
+	"crash", "roulette", "tower", "mines", "plinko", "blackjack",
+	"horse", "scratch", "wheel", "slots", "bus",
+}
+
+local store = if RunService:IsStudio() then nil else DataStoreService:GetDataStore("NeonCasino_v1")
+local levend: { [number]: Profile } = {}
+local bezig: { [number]: boolean } = {}       -- lezen mislukt: niets overschrijven
+local laden: { [number]: boolean } = {}       -- er wordt nu gelezen (GetAsync hangt)
+local verlaten: { [number]: boolean } = {}    -- vertrokken terwijl er nog gelezen werd
+local afgerond: { [number]: boolean } = {}    -- al afgesloten; niet twee keer schrijven
+
+-- Zoveel seconden zonder levensteken en het slot van een andere server vervalt. Lager en
+-- een server die crasht blokkeert de speler onnodig lang; hoger en twee servers kunnen
+-- elkaar overschrijven.
+local SLOT_VERVAL = 90
+local AUTOSAVE = 120
+local POGINGEN = 4
+
+-- De haakjes die vlak voor het opslaan nog iets recht moeten zetten: een openstaande
+-- inzet teruggeven bijvoorbeeld. Ze draaien BINNEN dit bestand, zodat de volgorde
+-- vastligt en niet afhangt van welke Connect toevallig eerst is gemaakt.
+local haken: { (Player) -&gt; () } = {}
+
+function Profiles.onLeave(f: (Player) -&gt; ()): ()
+	table.insert(haken, f)
+end
+
+local function versStats(): Stats
+	return { rounds = 0, won = 0, lost = 0, highest = 0, profit = 0 }
+end
+
+function Profiles.fresh(): Profile
+	local stats: { [string]: Stats } = {}
+	for _, g in Profiles.GAMES do
+		stats[g] = versStats()
+	end
+	return {
+		balance = Money.START,
+		rounds = 0, won = 0, lost = 0, profit = 0,
+		stats = stats,
+		achievements = {},
+		featured = {},
+		titles = {},
+		title = nil,
+		titleSeason = nil,
+		resetSeason = nil,
+		seasonStart = Money.START,
+		updatedAt = os.time(),
+	}
+end
+
+-- Vult ontbrekende velden aan, zodat een profiel van een oudere versie blijft werken.
+local function heel(p: any): Profile
+	local uit = Profiles.fresh()
+	if typeof(p) ~= "table" then return uit end
+	uit.balance = tonumber(p.balance) or uit.balance
+	uit.rounds = tonumber(p.rounds) or 0
+	uit.won = tonumber(p.won) or 0
+	uit.lost = tonumber(p.lost) or 0
+	uit.profit = tonumber(p.profit) or 0
+	uit.seasonStart = tonumber(p.seasonStart) or Money.START
+	uit.resetSeason = tonumber(p.resetSeason)
+	uit.title = if typeof(p.title) == "string" then p.title else nil
+	uit.titleSeason = tonumber(p.titleSeason)
+	if typeof(p.stats) == "table" then
+		for _, g in Profiles.GAMES do
+			local s = p.stats[g]
+			if typeof(s) == "table" then
+				uit.stats[g] = {
+					rounds = tonumber(s.rounds) or 0,
+					won = tonumber(s.won) or 0,
+					lost = tonumber(s.lost) or 0,
+					highest = tonumber(s.highest) or 0,
+					profit = tonumber(s.profit) or 0,
+				}
+			end
+		end
+	end
+	if typeof(p.achievements) == "table" then
+		for k, v in p.achievements do
+			if typeof(k) == "string" and tonumber(v) then
+				uit.achievements[k] = tonumber(v) :: number
+			end
+		end
+	end
+	if typeof(p.featured) == "table" then
+		for _, v in p.featured do
+			if typeof(v) == "string" and #uit.featured &lt; 3 then
+				table.insert(uit.featured, v)
+			end
+		end
+	end
+	if typeof(p.titles) == "table" then
+		for _, v in p.titles do
+			if typeof(v) == "string" then table.insert(uit.titles, v) end
+		end
+	end
+	return uit
+end
+
+local function sleutel(id: number): string
+	return "speler_" .. id
+end
+
+-- Een DataStore-aanroep mag een keer misgaan: throttling en storingen horen erbij.
+-- Zonder herhaling is een hele sessie weg door een hikje van een halve seconde.
+local function metHerhaling(wat: string, f: () -&gt; any): (boolean, any)
+	local wacht = 0.5
+	for poging = 1, POGINGEN do
+		local ok, res = pcall(f)
+		if ok then return true, res end
+		if poging == POGINGEN then
+			warn("[Profiles] " .. wat .. " mislukt na " .. POGINGEN .. " pogingen: " .. tostring(res))
+			return false, res
+		end
+		task.wait(wacht)
+		wacht *= 2
+	end
+	return false, nil
+end
+
+-- Mag deze server het profiel claimen? Het slot is van niemand, van onszelf, of het is
+-- oud genoeg om vervallen te zijn. Los van Roblox opgeschreven, zodat het te testen is.
+function Profiles.slotVrij(rec: any, jobId: string, nu: number): boolean
+	if typeof(rec) ~= "table" then return true end
+	local job = rec.lockJob
+	if typeof(job) ~= "string" or job == "" or job == jobId then return true end
+	local at = tonumber(rec.lockAt)
+	if not at then return true end
+	return nu - at &gt; SLOT_VERVAL
+end
+
+local function jobId(): string
+	-- In Studio is JobId leeg; dan is er toch maar een server.
+	return if game.JobId ~= "" then game.JobId else "studio"
+end
+
+-- Het profiel plus het slot, zoals het in de DataStore terechtkomt. De slotvelden zitten
+-- bewust NIET in Profile: dan kan Profiles.view ze ook niet per ongeluk doorsturen.
+local function metSlot(p: Profile, vasthouden: boolean): any
+	local rec: any = table.clone(p :: any)
+	rec.updatedAt = os.time()
+	rec.lockJob = if vasthouden then jobId() else nil
+	rec.lockAt = if vasthouden then os.time() else nil
+	return rec
+end
+
+function Profiles.load(speler: Player): Profile
+	local id = speler.UserId
+	if levend[id] then return levend[id] end
+
+	-- Wordt er al gelezen, dan wachten we daarop in plaats van een tweede lezing te
+	-- starten die de eerste zou overschrijven.
+	if laden[id] then
+		local tot = os.clock() + 30
+		while laden[id] and os.clock() &lt; tot do
+			task.wait(0.1)
+		end
+		if levend[id] then return levend[id] end
+	end
+
+	-- Een nieuwe sessie van dezelfde speler op deze server begint met een schone lei.
+	verlaten[id] = nil
+	afgerond[id] = nil
+	bezig[id] = nil
+
+	local p = Profiles.fresh()
+	if not store then
+		levend[id] = p
+		return p
+	end
+
+	laden[id] = true
+
+	local mij = jobId()
+	local geclaimd = false
+	local geblokkeerd = false
+	for ronde = 1, 3 do
+		geblokkeerd = false
+		local ok, res = metHerhaling("profiel lezen voor " .. id, function()
+			return store:UpdateAsync(sleutel(id), function(oud: any): any
+				if not Profiles.slotVrij(oud, mij, os.time()) then
+					geblokkeerd = true
+					return nil
+				end
+				local nieuw = heel(oud)
+				return metSlot(nieuw, true)
+			end)
+		end)
+		if ok and not geblokkeerd then
+			p = heel(res)
+			geclaimd = true
+			break
+		end
+		if not ok then
+			-- Lezen lukte niet. Doorspelen op een vers profiel mag, opslaan niet: anders
+			-- wist deze sessie iemands echte voortgang.
+			bezig[id] = true
+			break
+		end
+		-- Een andere server heeft het profiel nog vast. Even wachten: normaal laat hij
+		-- los zodra zijn laatste save klaar is.
+		task.wait(3)
+	end
+	if geblokkeerd and not geclaimd then
+		warn("[Profiles] " .. id .. " staat nog open op een andere server; deze sessie slaat niet op")
+		bezig[id] = true
+	end
+
+	laden[id] = nil
+	if verlaten[id] or speler.Parent ~= Players then
+		-- Vertrokken terwijl we aan het lezen waren. Niet in `levend` zetten, anders
+		-- blijft er een profiel hangen dat nooit meer wordt losgelaten en dat bij een
+		-- herstart van dezelfde speler als "al geladen" wordt teruggegeven.
+		verlaten[id] = nil
+		bezig[id] = nil
+		if geclaimd then
+			metHerhaling("slot teruggeven voor " .. id, function()
+				return store:UpdateAsync(sleutel(id), function(oud: any): any
+					if typeof(oud) ~= "table" then return nil end
+					oud.lockJob = nil
+					oud.lockAt = nil
+					return oud
+				end)
+			end)
+		end
+		return p
+	end
+
+	levend[id] = p
+	return p
+end
+
+function Profiles.get(speler: Player): Profile?
+	return levend[speler.UserId]
+end
+
+-- `vrijgeven` betekent: dit was de laatste schrijfbeurt, het slot mag los.
+local function schrijf(speler: Player, vrijgeven: boolean): ()
+	local id = speler.UserId
+	local p = levend[id]
+	if not p or not store then return end
+	if bezig[id] then return end   -- lezen was mislukt; niets overschrijven
+	local mij = jobId()
+	metHerhaling("profiel opslaan voor " .. id, function()
+		return store:UpdateAsync(sleutel(id), function(oud: any): any
+			-- Heeft een andere server het slot intussen overgenomen, dan is zijn versie
+			-- de jongste en laten we die met rust.
+			if typeof(oud) == "table" then
+				local job = oud.lockJob
+				if typeof(job) == "string" and job ~= "" and job ~= mij then return nil end
+			end
+			return metSlot(p, not vrijgeven)
+		end)
+	end)
+end
+
+function Profiles.save(speler: Player): ()
+	schrijf(speler, false)
+end
+
+-- De hele afsluiting op een plek: eerst de haakjes (die een openstaande inzet
+-- teruggeven), dan pas opslaan. Andersom verdwijnt het geld, want dan is het saldo al
+-- weggeschreven voordat de teruggave erin staat.
+function Profiles.finish(speler: Player): ()
+	local id = speler.UserId
+	if afgerond[id] then return end
+	afgerond[id] = true
+	if laden[id] then
+		-- Nog aan het lezen: de lezing zelf ruimt straks op.
+		verlaten[id] = true
+		return
+	end
+	for _, f in haken do
+		local ok, err = pcall(function(): any
+			f(speler)
+			return nil
+		end)
+		if not ok then warn("[Profiles] opruimen mislukt voor " .. id .. ": " .. tostring(err)) end
+	end
+	schrijf(speler, true)
+	levend[id] = nil
+	bezig[id] = nil
+	verlaten[id] = nil
+end
+
+function Profiles.release(speler: Player): ()
+	Profiles.finish(speler)
+end
+
+-- ---------- geld ----------
+-- De enige plek waar een saldo verandert. Alles gaat hierlangs, zodat er nergens anders
+-- per ongeluk geld bij kan komen.
+function Profiles.take(speler: Player, bedrag: number): boolean
+	local p = levend[speler.UserId]
+	if not p then return false end
+	-- NaN en oneindig komen hier nooit langs. Een saldo dat eenmaal NaN is, is dat voor
+	-- altijd: elke som ermee wordt weer NaN, en JSON kan het niet eens opslaan.
+	if bedrag ~= bedrag or bedrag == math.huge then return false end
+	if bedrag &lt;= 0 then return false end
+	if p.balance + 1e-9 &lt; bedrag then return false end
+	p.balance = Money.round2(p.balance - bedrag)
+	return true
+end
+
+function Profiles.give(speler: Player, bedrag: number): ()
+	local p = levend[speler.UserId]
+	if not p or bedrag &lt;= 0 then return end
+	if bedrag ~= bedrag or bedrag == math.huge then return end
+	p.balance = Money.round2(p.balance + bedrag)
+end
+
+-- Een afgelopen ronde boeken. `inzet` is wat er is ingezet, `uit` wat eruit kwam.
+function Profiles.record(speler: Player, spel: string, inzet: number, uit: number, mult: number): ()
+	local p = levend[speler.UserId]
+	if not p then return end
+	local s = p.stats[spel]
+	if not s then return end
+	s.rounds += 1
+	p.rounds += 1
+	if uit &gt; inzet + 1e-9 then
+		s.won += 1
+		p.won += 1
+	elseif uit &lt; inzet - 1e-9 then
+		s.lost += 1
+		p.lost += 1
+	end
+	s.profit = Money.round2(s.profit + uit - inzet)
+	p.profit = Money.round2(p.profit + uit - inzet)
+	if mult &gt; s.highest then s.highest = mult end
+end
+
+-- Wat de client mag zien. Precies genoeg om het scherm te vullen, niets meer.
+function Profiles.view(speler: Player): Profile?
+	local p = levend[speler.UserId]
+	if not p then return nil end
+	return p
+end
+
+Players.PlayerRemoving:Connect(function(speler)
+	Profiles.finish(speler)
+end)
+
+-- Bij het sluiten van de server staat er vaak nog van alles open. Dezelfde afsluiting als
+-- bij weggaan, en naast elkaar: Roblox geeft hier maar een halve minuut voor.
+game:BindToClose(function()
+	local bezigMet = 0
+	for _, speler in Players:GetPlayers() do
+		bezigMet += 1
+		task.spawn(function()
+			Profiles.finish(speler)
+			bezigMet -= 1
+		end)
+	end
+	local tot = os.clock() + 25
+	while bezigMet &gt; 0 and os.clock() &lt; tot do
+		task.wait(0.1)
+	end
+end)
+
+-- Tussentijds opslaan. Gaat er iets mis met de laatste schrijfbeurt, dan kost dat
+-- minuten in plaats van een hele sessie.
+task.spawn(function()
+	while true do
+		task.wait(AUTOSAVE)
+		for _, speler in Players:GetPlayers() do
+			if levend[speler.UserId] then Profiles.save(speler) end
+		end
+	end
+end)
+
+return Profiles
+</ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="LocalScript" referent="RBX12">
+			<Properties>
+				<string name="Name">Client</string>
+				<ProtectedString name="Source">--!strict
+-- De schil: de zijbalk links, het scherm rechts, en de routing ertussen. Hetzelfde
+-- indelingsprincipe als de webversie: een smalle balk met pictogrammen die uitklapt, en
+-- per spel een scherm dat je erin schuift.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Net = require(ReplicatedStorage.Shared.Net)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Home = require(script.Views.Home)
+
+local speler = Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "NeonCasino"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = speler:WaitForChild("PlayerGui")
+
+-- De achtergrond, zoals de body in de CSS: donker met twee zachte gloeden.
+local root = Instance.new("Frame")
+root.Name = "Root"
+root.Size = UDim2.fromScale(1, 1)
+root.BackgroundColor3 = Theme.color.bg
+root.BorderSizePixel = 0
+root.Parent = gui
+
+-- ---------- de schermen ----------
+local SCHERMEN = {
+	{ id = "home",    label = "HOME",          groep = "PLAY" },
+	{ id = "crash",   label = "CRASH",         groep = "PLAY" },
+	{ id = "roulette",label = "ROULETTE",      groep = "PLAY" },
+	{ id = "tower",   label = "DRAGON TOWER",  groep = "PLAY" },
+	{ id = "mines",   label = "MINES",         groep = "PLAY" },
+	{ id = "plinko",  label = "PLINKO",        groep = "PLAY" },
+	{ id = "blackjack",label = "BLACKJACK",    groep = "PLAY" },
+	{ id = "scratch", label = "SCRATCH CARDS", groep = "PLAY" },
+	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
+	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
+	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
+	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
+	{ id = "friends", label = "FRIENDS",       groep = "ACCOUNT" },
+	{ id = "achievements", label = "ACHIEVEMENTS", groep = "ACCOUNT" },
+}
+
+local inhoud = Instance.new("Frame")
+inhoud.Name = "Content"
+inhoud.Position = UDim2.new(0, Theme.size.railWidth, 0, 0)
+inhoud.Size = UDim2.new(1, -Theme.size.railWidth, 1, 0)
+inhoud.BackgroundTransparency = 1
+inhoud.Parent = root
+
+local views: { [string]: Frame } = {}
+local _huidige = "home"
+
+local function view(id: string): Frame
+	local v = views[id]
+	if v then return v end
+	local f = Instance.new("Frame")
+	f.Name = id .. "View"
+	f.Size = UDim2.fromScale(1, 1)
+	f.BackgroundTransparency = 1
+	f.Visible = false
+	f.Parent = inhoud
+	views[id] = f
+	return f
+end
+
+-- ---------- de zijbalk ----------
+local rail = Instance.new("Frame")
+rail.Name = "Rail"
+rail.Size = UDim2.new(0, Theme.size.railWidth, 1, 0)
+rail.BackgroundColor3 = Theme.color.panel
+rail.BorderSizePixel = 0
+rail.ZIndex = 5
+rail.Parent = root
+
+local railLijst = Instance.new("ScrollingFrame")
+railLijst.Size = UDim2.new(1, 0, 1, -56)
+railLijst.Position = UDim2.new(0, 0, 0, 56)
+railLijst.BackgroundTransparency = 1
+railLijst.BorderSizePixel = 0
+railLijst.ScrollBarThickness = 0
+railLijst.CanvasSize = UDim2.new()
+railLijst.AutomaticCanvasSize = Enum.AutomaticSize.Y
+railLijst.Parent = rail
+UI.list(railLijst, 2)
+
+local navKnoppen: { [string]: TextButton } = {}
+local navigate: (string) -&gt; ()
+
+local function navItem(item: { id: string, label: string, groep: string }, volgorde: number)
+	local b = Instance.new("TextButton")
+	b.Name = item.id
+	b.Text = string.sub(item.label, 1, 2)
+	b.Font = Theme.font.uiBold
+	b.TextSize = Theme.text.small
+	b.TextColor3 = Theme.color.muted
+	b.BackgroundColor3 = Theme.color.neon
+	b.BackgroundTransparency = 1
+	b.BorderSizePixel = 0
+	b.AutoButtonColor = false
+	b.Size = UDim2.new(1, 0, 0, 48)
+	b.LayoutOrder = volgorde
+	b.Parent = railLijst
+	b.Activated:Connect(function()
+		navigate(item.id)
+	end)
+	navKnoppen[item.id] = b
+end
+
+for i, item in SCHERMEN do
+	navItem(item, i)
+end
+
+-- ---------- routing ----------
+local titelBalk = Instance.new("Frame")
+titelBalk.Name = "Header"
+titelBalk.Size = UDim2.new(1, 0, 0, 52)
+titelBalk.BackgroundColor3 = Theme.color.panel
+titelBalk.BackgroundTransparency = 0.15
+titelBalk.BorderSizePixel = 0
+titelBalk.ZIndex = 4
+titelBalk.Parent = inhoud
+
+local titel = UI.label(titelBalk, "HOME", {
+	size = Theme.text.title, color = Theme.color.neon, font = Theme.font.uiBold, name = "Title",
+})
+titel.Position = UDim2.new(0, 16, 0, 0)
+titel.Size = UDim2.new(1, -220, 1, 0)
+titel.ZIndex = 4
+
+local saldoLabel = UI.label(titelBalk, "$1000.00", {
+	size = Theme.text.big, color = Theme.color.neon, font = Theme.font.num,
+	align = Enum.TextXAlignment.Right, name = "Balance",
+})
+saldoLabel.Position = UDim2.new(1, -200, 0, 0)
+saldoLabel.Size = UDim2.new(0, 184, 1, 0)
+saldoLabel.ZIndex = 4
+
+local toasts = Instance.new("Frame")
+toasts.Name = "Toasts"
+toasts.AnchorPoint = Vector2.new(1, 0)
+toasts.Position = UDim2.new(1, -16, 0, 64)
+toasts.Size = UDim2.new(0, 320, 0, 0)
+toasts.AutomaticSize = Enum.AutomaticSize.Y
+toasts.BackgroundTransparency = 1
+toasts.ZIndex = 20
+toasts.Parent = inhoud
+local toastLijst = UI.list(toasts, 6)
+toastLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
+
+function navigate(id: string)
+	for naam, v in views do
+		v.Visible = naam == id
+	end
+	for naam, b in navKnoppen do
+		local aan = naam == id
+		b.TextColor3 = if aan then Theme.color.neon else Theme.color.muted
+		b.BackgroundTransparency = if aan then 0.88 else 1
+	end
+	for _, item in SCHERMEN do
+		if item.id == id then
+			titel.Text = item.label
+			break
+		end
+	end
+	_huidige = id
+end
+
+-- ---------- de schermen vullen ----------
+local zetSaldoHome: ((number) -&gt; ())? = nil
+
+for _, item in SCHERMEN do
+	local v = view(item.id)
+	local vak = Instance.new("Frame")
+	vak.Size = UDim2.new(1, -32, 1, -68)
+	vak.Position = UDim2.new(0, 16, 0, 60)
+	vak.BackgroundTransparency = 1
+	vak.Parent = v
+
+	if item.id == "home" then
+		zetSaldoHome = Home.build(vak, navigate)
+	else
+		UI.list(vak, Theme.size.gap)
+		local paneel = UI.panel(vak, item.id .. "Panel")
+		UI.panelTitle(paneel, item.label)
+		UI.label(paneel, "Dit scherm komt in een volgende stap.", {
+			size = Theme.text.small, color = Theme.color.muted,
+		})
+	end
+end
+
+navigate("home")
+
+-- ---------- wat de server stuurt ----------
+local function toon(p: any)
+	if typeof(p) ~= "table" then return end
+	local b = tonumber(p.balance)
+	if b then
+		saldoLabel.Text = "$" .. Money.fmt(b)
+		local zet = zetSaldoHome
+		if zet then zet(b) end
+	end
+end
+
+task.spawn(function()
+	local ev = Net.ev("Profile")
+	ev.OnClientEvent:Connect(toon)
+
+	local toast = Net.ev("Toast")
+	toast.OnClientEvent:Connect(function(tekst: any, soort: any)
+		UI.toast(toasts, tostring(tekst), soort)
+	end)
+
+	-- Eén keer ophalen bij het opstarten.
+	local ok, res = pcall(function()
+		return Net.fn("GetProfile"):InvokeServer()
+	end)
+	if ok then toon(res) end
+end)
+
+return nil
+</ProtectedString>
+			</Properties>
+			<Item class="Folder" referent="RBX13">
+				<Properties>
+					<string name="Name">Views</string>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX14">
+					<Properties>
+						<string name="Name">Home</string>
+						<ProtectedString name="Source">--!strict
+-- De lobby: de titel, je saldo, en de tegels van alle spellen, zoals de homepagina in de
+-- webversie. De tegels zijn geen plaatjes maar getekende vlakken, zodat er niets geupload
+-- hoeft te worden voordat het er goed uitziet.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Money = require(ReplicatedStorage.Shared.Money)
+
+local Home = {}
+
+export type Kaart = {
+	id: string,
+	label: string,
+	desc: string,
+	rtp: string,
+	van: Color3,
+	tot: Color3,
+}
+
+-- De kleuren komen uit de `preview-*` klassen van de CSS, zodat elke tegel dezelfde sfeer
+-- houdt als op de webpagina.
+local KAARTEN: { Kaart } = {
+	{ id = "crash", label = "CRASH", rtp = "97%",
+	  desc = "Ride along and cash out before it crashes. Multipliers up to 1000x.",
+	  van = Color3.fromHex("5fb8ff"), tot = Color3.fromHex("2f7fd0") },
+	{ id = "roulette", label = "ROULETTE", rtp = "97.3%",
+	  desc = "European roulette with a single green zero.",
+	  van = Color3.fromHex("6b1f1f"), tot = Color3.fromHex("2a0d0d") },
+	{ id = "tower", label = "DRAGON TOWER", rtp = "97%",
+	  desc = "Climb nine floors, dodge the dragon eggs.",
+	  van = Color3.fromHex("3b1f6b"), tot = Color3.fromHex("170d2a") },
+	{ id = "mines", label = "MINES", rtp = "97%",
+	  desc = "Collect diamonds, dodge the mines.",
+	  van = Color3.fromHex("2a3550"), tot = Color3.fromHex("141a28") },
+	{ id = "plinko", label = "PLINKO", rtp = "97%",
+	  desc = "Drop a ball and watch where it lands.",
+	  van = Color3.fromHex("2b1a45"), tot = Color3.fromHex("120b1e") },
+	{ id = "blackjack", label = "BLACKJACK", rtp = "99%",
+	  desc = "Six decks, dealer stands on all 17s.",
+	  van = Color3.fromHex("14472c"), tot = Color3.fromHex("082013") },
+	{ id = "scratch", label = "SCRATCH CARDS", rtp = "97%",
+	  desc = "Nine squares, three of a kind pays.",
+	  van = Color3.fromHex("1f4a4a"), tot = Color3.fromHex("0c1f1f") },
+	{ id = "wheel", label = "WHEEL", rtp = "97%",
+	  desc = "Twenty segments, one pays ten times.",
+	  van = Color3.fromHex("4a3a12"), tot = Color3.fromHex("1e1707") },
+	{ id = "horse", label = "HORSE RACE", rtp = "97%",
+	  desc = "Six horses, back the one you fancy.",
+	  van = Color3.fromHex("2f5a1a"), tot = Color3.fromHex("13260b") },
+}
+
+-- Een tegel: een gekleurd vlak met de naam, de omschrijving en het uitbetalingspercentage.
+local function tegel(ouder: Instance, k: Kaart, ga: (string) -&gt; ()): Frame
+	local f = Instance.new("Frame")
+	f.Name = k.id
+	f.Size = UDim2.new(0, 260, 0, 190)
+	f.BackgroundColor3 = Theme.color.panel
+	f.BorderSizePixel = 0
+	UI.corner(f, Theme.size.radiusBig)
+	UI.stroke(f)
+	f.Parent = ouder
+
+	local beeld = Instance.new("Frame")
+	beeld.Size = UDim2.new(1, 0, 0, 96)
+	beeld.BackgroundColor3 = k.van
+	beeld.BorderSizePixel = 0
+	beeld.Parent = f
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(k.van, k.tot)
+	g.Rotation = 90
+	g.Parent = beeld
+	local hoek = Instance.new("UICorner")
+	hoek.CornerRadius = UDim.new(0, Theme.size.radiusBig)
+	hoek.Parent = beeld
+
+	local body = Instance.new("Frame")
+	body.Position = UDim2.new(0, 0, 0, 96)
+	body.Size = UDim2.new(1, 0, 1, -96)
+	body.BackgroundTransparency = 1
+	body.Parent = f
+	UI.padding(body, 12)
+	UI.list(body, 4)
+
+	UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiBold })
+	local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
+	d.TextWrapped = true
+	d.Size = UDim2.new(1, 0, 0, 30)
+	UI.label(body, "RTP " .. k.rtp, { size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num })
+
+	local knop = Instance.new("TextButton")
+	knop.Text = ""
+	knop.BackgroundTransparency = 1
+	knop.Size = UDim2.fromScale(1, 1)
+	knop.ZIndex = 3
+	knop.Parent = f
+	knop.Activated:Connect(function()
+		ga(k.id)
+	end)
+	knop.MouseEnter:Connect(function()
+		f.BackgroundColor3 = Theme.color.panelLight
+	end)
+	knop.MouseLeave:Connect(function()
+		f.BackgroundColor3 = Theme.color.panel
+	end)
+	return f
+end
+
+-- Bouwt het scherm en geeft terug hoe je het saldo bijwerkt.
+function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
+	local blad = Instance.new("ScrollingFrame")
+	blad.Size = UDim2.fromScale(1, 1)
+	blad.BackgroundTransparency = 1
+	blad.BorderSizePixel = 0
+	blad.ScrollBarThickness = 4
+	blad.ScrollBarImageColor3 = Theme.color.border
+	blad.CanvasSize = UDim2.new()
+	blad.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	blad.Parent = ouder
+	UI.padding(blad, 4)
+	UI.list(blad, 18)
+
+	local kop = Instance.new("Frame")
+	kop.Size = UDim2.new(1, 0, 0, 0)
+	kop.AutomaticSize = Enum.AutomaticSize.Y
+	kop.BackgroundTransparency = 1
+	kop.LayoutOrder = 1
+	kop.Parent = blad
+	UI.list(kop, 6)
+
+	UI.label(kop, "NEON CASINO", {
+		size = Theme.text.huge, color = Theme.color.neon, font = Theme.font.uiBold,
+	}).Size = UDim2.new(1, 0, 0, 48)
+	UI.label(kop, "\u{25BA} FAIR ODDS \u{00B7} PLAY MONEY ONLY", {
+		size = Theme.text.small, color = Theme.color.muted,
+	})
+
+	local saldoKaart = UI.panel(blad, "BalanceCard")
+	saldoKaart.LayoutOrder = 2
+	saldoKaart.Size = UDim2.new(0, 280, 0, 0)
+	UI.stroke(saldoKaart, Theme.color.neon)
+	UI.label(saldoKaart, "YOUR BALANCE", { size = Theme.text.tiny, color = Theme.color.muted })
+	local bedrag = UI.label(saldoKaart, "$" .. Money.fmt(Money.START), {
+		size = Theme.text.huge, color = Theme.color.neon, font = Theme.font.num,
+	})
+	bedrag.Size = UDim2.new(1, 0, 0, 46)
+
+	local kopje = Instance.new("Frame")
+	kopje.Size = UDim2.new(1, 0, 0, 24)
+	kopje.BackgroundTransparency = 1
+	kopje.LayoutOrder = 3
+	kopje.Parent = blad
+	UI.label(kopje, "AVAILABLE GAMES", {
+		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiBold,
+	})
+
+	local raster = Instance.new("Frame")
+	raster.Size = UDim2.new(1, 0, 0, 0)
+	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.BackgroundTransparency = 1
+	raster.LayoutOrder = 4
+	raster.Parent = blad
+	local rasterLayout = Instance.new("UIGridLayout")
+	rasterLayout.CellSize = UDim2.new(0, 260, 0, 190)
+	rasterLayout.CellPadding = UDim2.new(0, 12, 0, 12)
+	rasterLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rasterLayout.Parent = raster
+
+	for i, k in KAARTEN do
+		tegel(raster, k, ga).LayoutOrder = i
+	end
+
+	return function(nieuw: number)
+		bedrag.Text = "$" .. Money.fmt(nieuw)
+	end
+end
+
+return Home
+</ProtectedString>
+					</Properties>
+				</Item>
+			</Item>
+		</Item>
+	</Item>
+</roblox>
