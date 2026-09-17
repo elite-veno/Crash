@@ -133,15 +133,10 @@ local function paneelMarge(paneel: Frame, boven: number, rechts: number, onder: 
 		p.PaddingBottom = UDim.new(0, onder)
 		p.PaddingLeft = UDim.new(0, links)
 	end
-	local lijn = paneel:FindFirstChild("TopLine")
-	if lijn and lijn:IsA("Frame") then
-		lijn.Position = UDim2.new(0.5, 0, 0, -boven)
-		lijn.Size = UDim2.new(1, links + rechts, 0, 1)
-	end
 end
 
--- In de CSS is .panel zelf een flexbox. Hier kan dat niet: een UIListLayout op het paneel
--- zet ook de haarlijn in de rij. Vandaar één binnenvak per paneel dat de indeling doet.
+-- Een binnenvak dat de indeling doet. Handig waar een paneel zowel een lijst als iets
+-- absoluut geplaatsts moet dragen.
 local function paneelInhoud(paneel: Frame, gap: number, richting: Enum.FillDirection?): Frame
 	local vak = Instance.new("Frame")
 	vak.Name = "Body"

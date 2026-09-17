@@ -67,7 +67,14 @@ end
 
 -- ---------- paneel ----------
 -- .panel: verloop van --panel naar --panel-light, 1px rand, radius 4, padding 18, en
--- bovenlangs een haarlijn in de neongloed (.panel::before).
+-- bovenlangs een lichte lijn in de neongloed (.panel::before).
+--
+-- Die lijn zat eerst als los vlak in het paneel. Dat ging mis zodra een scherm er een
+-- UIListLayout in zette: de lijn werd dan gewoon het eerste item in de lijst en kwam half
+-- buiten het paneel te liggen. Nu wordt hij op de rand zelf getekend, met een verloop in de
+-- UIStroke: neon aan de bovenkant, de gewone randkleur naar beneden toe. Dat is niet
+-- letterlijk hetzelfde als een lijn die naar de zijkanten uitdooft, maar het is wat je ziet
+-- -- een opgelichte bovenrand -- en het kan geen enkele indeling meer in de war schoppen.
 function UI.panel(parent: Instance, name: string?): Frame
 	local f = Instance.new("Frame")
 	f.Name = name or "Panel"
@@ -77,28 +84,19 @@ function UI.panel(parent: Instance, name: string?): Frame
 	f.AutomaticSize = Enum.AutomaticSize.Y
 	UI.gradient(f, Theme.color.panel, Theme.color.panelLight)
 	UI.corner(f, Theme.radius.panel)
-	UI.stroke(f)
+
+	local rand = UI.stroke(f)
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.glow.color),
+		ColorSequenceKeypoint.new(0.18, Theme.color.border),
+		ColorSequenceKeypoint.new(1, Theme.color.border),
+	})
+	g.Parent = rand
+
 	UI.padding(f, Theme.size.panelPad)
 	f.Parent = parent
-
-	-- De haarlijn bovenaan: doorzichtig aan de randen, neon in het midden.
-	local lijn = Instance.new("Frame")
-	lijn.Name = "TopLine"
-	lijn.AnchorPoint = Vector2.new(0.5, 0)
-	lijn.Position = UDim2.new(0.5, 0, 0, -Theme.size.panelPad)
-	lijn.Size = UDim2.new(1, Theme.size.panelPad * 2, 0, 1)
-	lijn.BackgroundColor3 = Theme.glow.color
-	lijn.BorderSizePixel = 0
-	lijn.ZIndex = 2
-	lijn.Parent = f
-	local g = Instance.new("UIGradient")
-	g.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.5, 0.4),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	g.Parent = lijn
-
 	return f
 end
 
