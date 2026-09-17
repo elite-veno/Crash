@@ -19,15 +19,20 @@ def haakjes(t: str) -> str:
 
 def main() -> int:
     delen = ["-- GEGENEREERD door tools/preview/bundle.py", "return {"]
+    # Met een voorvoegsel, want er is zowel een gedeelde Achievements als een scherm dat zo
+    # heet. Zonder onderscheid vraagt het scherm zichzelf op, tot de stapel vol is.
     for p in sorted((WORTEL / "src" / "shared").iterdir()):
         f = p / "init.luau"
         if f.exists():
-            delen.append('\t["' + p.name + '"] = ' + haakjes(f.read_text()) + ",")
+            delen.append('\t["shared:' + p.name + '"] = ' + haakjes(f.read_text()) + ",")
     for f in sorted((WORTEL / "src" / "client" / "Views").glob("*.luau")):
-        delen.append('\t["' + f.stem + '"] = ' + haakjes(f.read_text()) + ",")
+        delen.append('\t["view:' + f.stem + '"] = ' + haakjes(f.read_text()) + ",")
     icons = WORTEL / "src" / "client" / "Icons" / "init.luau"
     if icons.exists():
-        delen.append('\t["Icons"] = ' + haakjes(icons.read_text()) + ",")
+        delen.append('\t["view:Icons"] = ' + haakjes(icons.read_text()) + ",")
+    schil = WORTEL / "src" / "client" / "init.client.luau"
+    if schil.exists():
+        delen.append('\t["__schil"] = ' + haakjes(schil.read_text()) + ",")
     delen.append("}")
     UIT.write_text("\n".join(delen) + "\n")
     print("sources.luau geschreven (" + str(len(delen) - 3) + " modules)")

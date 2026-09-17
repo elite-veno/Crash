@@ -105,6 +105,12 @@ local function nieuw(klasse)
 			if k == "__obj" then return o end
 			local v = o.Props[k]
 			if v ~= nil then return v end
+			if k == "AbsoluteSize" then
+				-- De tekenaar rekent de maten pas later uit; hier is alleen van belang dat
+				-- code die AbsoluteSize leest een breed scherm ziet en niet de smalle stand.
+				return Vector2.new(1536, 1000)
+			end
+			if k == "AbsolutePosition" then return Vector2.new(0, 0) end
 			-- een kind opzoeken op naam, zoals Roblox doet
 			for _, kind in o.Children do
 				if kind.__obj.Props.Name == k then return kind end

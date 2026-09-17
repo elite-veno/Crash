@@ -48,6 +48,23 @@ LAYOUTS = ("UIListLayout", "UIGridLayout", "UIPadding", "UICorner", "UIStroke", 
            "UIFlexItem", "UITableLayout", "UIPageLayout")
 
 
+def rasterMaat(raster, binnenB, binnenH, aantal):
+    """Celmaat, tussenruimte en het aantal kolommen van een UIGridLayout."""
+    rp = raster["props"]
+    cel = rp.get("CellSize", {})
+    cp = rp.get("CellPadding", {})
+    gx = cp.get("xs", 0) * binnenB + cp.get("xo", 0)
+    gy = cp.get("ys", 0) * binnenH + cp.get("yo", 0)
+    cb = cel.get("xs", 0) * binnenB + cel.get("xo", 0)
+    ch = cel.get("ys", 0) * binnenH + cel.get("yo", 0)
+    maxCellen = rp.get("FillDirectionMaxCells", 0) or 0
+    if maxCellen > 0:
+        perRij = int(maxCellen)
+    else:
+        perRij = max(1, int((binnenB + gx) // max(1, cb + gx)))
+    return cb, ch, gx, gy, max(1, perRij)
+
+
 def beperk(n, b, h):
     """UISizeConstraint knijpt een knoop binnen een maat."""
     c = kind(n, "UISizeConstraint")
@@ -106,13 +123,9 @@ def meet(n, ouderB, ouderH):
             else:
                 h = tot + gap * max(0, len(echteKinderen) - 1) + pt + pb
         elif raster:
-            cel = raster["props"].get("CellSize", {})
-            cb = cel.get("xo", 0)
-            ch = cel.get("yo", 0)
-            cp = raster["props"].get("CellPadding", {})
-            perRij = max(1, int((binnenB + cp.get("xo", 0)) // max(1, cb + cp.get("xo", 0))))
+            cb, ch, gx, gy, perRij = rasterMaat(raster, binnenB, max(0.0, h - pt - pb), len(echteKinderen))
             rijen = (len(echteKinderen) + perRij - 1) // perRij
-            h = rijen * ch + max(0, rijen - 1) * cp.get("yo", 0) + pt + pb
+            h = rijen * ch + max(0, rijen - 1) * gy + pt + pb
         else:
             onderkant = 0.0
             for k in echteKinderen:
@@ -253,11 +266,7 @@ def plaats(n, x, y, b, h, uit, diepte=0):
                 cy += kh + gap
     elif raster:
         rp = raster["props"]
-        cel = rp.get("CellSize", {})
-        cb, ch = cel.get("xo", 0), cel.get("yo", 0)
-        cp = rp.get("CellPadding", {})
-        gx, gy = cp.get("xo", 0), cp.get("yo", 0)
-        perRij = max(1, int((bb + gx) // max(1, cb + gx)))
+        cb, ch, gx, gy, perRij = rasterMaat(raster, bb, bh, len(echteKinderen))
         hAlign = str(rp.get("HorizontalAlignment", "Left"))
         rijBreed = perRij * cb + max(0, perRij - 1) * gx
         start = bx + (0 if hAlign == "Left" else ((bb - rijBreed) / 2 if hAlign == "Center" else bb - rijBreed))

@@ -41,7 +41,6 @@ local KOP_H = 30         -- .players-list h3 plus zijn margin-bottom van 10
 
 -- De kleuren die alleen op dit scherm voorkomen; de rest komt uit Theme.
 local KLEUR = {
-	luchtMidden = Color3.fromHex("8dd0ff"),
 	luchtOnder  = Color3.fromHex("b8e4ff"),
 	wolkSchaduw = Color3.fromRGB(180, 200, 220),
 	grasDiep    = Color3.fromHex("3d7a1f"),
@@ -217,14 +216,10 @@ function Crash.build(ouder: Instance): ()
 	UI.stroke(lucht, Theme.color.neon)
 	lucht.Parent = hoofd
 
-	local luchtVerloop = Instance.new("UIGradient")
-	luchtVerloop.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Theme.color.sky),
-		ColorSequenceKeypoint.new(0.5, KLEUR.luchtMidden),
-		ColorSequenceKeypoint.new(1, KLEUR.luchtOnder),
-	})
-	luchtVerloop.Rotation = 90
-	luchtVerloop.Parent = lucht
+	-- De CSS heeft drie stops: #5fb8ff, #8dd0ff op de helft, #b8e4ff onderaan. Die middelste
+	-- ligt op de rechte lijn tussen de andere twee (#8bcfff), dus twee stops geven hetzelfde
+	-- beeld.
+	UI.gradient(lucht, Theme.color.sky, KLEUR.luchtOnder)
 
 	-- de wolken: vier bollen en een schaduw, net als drawCloud()
 	type Wolk = { vak: Frame, maat: number, snelheid: number, x: number, y: number }
@@ -236,6 +231,9 @@ function Crash.build(ouder: Instance): ()
 		vak.Size = UDim2.fromOffset(0, 0)
 		vak.BackgroundTransparency = 1
 		vak.ZIndex = 1
+		-- Tot de lucht zijn maat weet staan ze verdeeld over de breedte; zaaiWolken() zet ze
+		-- daarna in pixels neer, want drijven gaat per pixel.
+		vak.Position = UDim2.new((i - 1) / WOLKEN, 0, 0, 30 + (i * 37) % 110)
 		vak.Parent = lucht
 		rond(vak, 0, 0, maat * 0.5, Theme.color.white, 0.1)
 		rond(vak, maat * 0.4, -maat * 0.2, maat * 0.4, Theme.color.white, 0.1)
@@ -388,6 +386,10 @@ function Crash.build(ouder: Instance): ()
 		tekst.Size = UDim2.fromScale(1, 1)
 		tekst.TextYAlignment = Enum.TextYAlignment.Center
 		local rand = UI.stroke(tekst, randKleur, 2)
+		-- Contextual in plaats van Border: op een label zonder achtergrond legt Roblox de rand
+		-- dan om de letters. Met Border krijg je een kader om het vak, en dat is niet wat
+		-- `-webkit-text-stroke` doet.
+		rand.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
 		return tekst, schaduw, rand
 	end
 
@@ -460,22 +462,51 @@ function Crash.build(ouder: Instance): ()
 	spelersRij.BackgroundTransparency = 1
 	spelersRij.Parent = hoofd
 
-	-- .players-list h3 .count: neon op een neongroen vlak, met een rand in --border.
-	local function telPil(ouderVak: Instance, tekst: string): TextLabel
-		local p = UI.tag(ouderVak, tekst)
-		p.BackgroundTransparency = Theme.alpha.activeNav   -- rgba(62,207,142,0.10)
-		p.AnchorPoint = Vector2.new(1, 0.5)
-		p.Position = UDim2.new(1, 0, 0.5, 0)
-		local s = p:FindFirstChildOfClass("UIStroke")
-		if s then
-			s.Color = Theme.color.border
-			s.Transparency = 0
+	-- .players-list h3 .count: neon tekst op een neongroen vlak met een rand in --border.
+	-- Bij de feed staat er een .live-dot in, dus de pil is een rijtje van stip plus tekst.
+	local function telPil(ouderVak: Instance, tekst: string, metStip: boolean): (TextLabel, Frame?)
+		local pil = Instance.new("Frame")
+		pil.Name = "Count"
+		pil.AnchorPoint = Vector2.new(1, 0.5)
+		pil.Position = UDim2.new(1, 0, 0.5, 0)
+		-- De maat hieronder is de ondergrens: een getal van drie cijfers of het woord LIVE.
+		-- AutomaticSize rekt hem op als er meer in komt te staan.
+		pil.Size = UDim2.fromOffset(if metStip then 54 else 30, 20)
+		pil.AutomaticSize = Enum.AutomaticSize.X
+		pil.BackgroundColor3 = Theme.color.neon
+		pil.BackgroundTransparency = Theme.alpha.activeNav   -- rgba(62,207,142,0.10)
+		pil.BorderSizePixel = 0
+		UI.corner(pil, Theme.radius.pill)
+		UI.stroke(pil)
+		UI.padding4(pil, 0, 8, 0, 8)
+		pil.Parent = ouderVak
+		local pilRij = UI.list(pil, 5, Enum.FillDirection.Horizontal)
+		pilRij.VerticalAlignment = Enum.VerticalAlignment.Center
+		pilRij.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+		local stip: Frame? = nil
+		if metStip then
+			local s = Instance.new("Frame")
+			s.Name = "LiveDot"
+			s.LayoutOrder = 1
+			s.Size = UDim2.fromOffset(7, 7)
+			s.BackgroundColor3 = Theme.color.neon
+			s.BorderSizePixel = 0
+			UI.corner(s, 4)
+			s.Parent = pil
+			stip = s
 		end
-		return p
+
+		local t = UI.label(pil, tekst, { size = Theme.text.small, color = Theme.color.neon })
+		t.LayoutOrder = 2
+		t.Size = UDim2.new(0, 0, 1, 0)
+		t.AutomaticSize = Enum.AutomaticSize.X
+		t.TextYAlignment = Enum.TextYAlignment.Center
+		return t, stip
 	end
 
 	-- .players-list: een paneel met padding 14, een kop, en daaronder een lijst die scrolt.
-	local function lijstPaneel(links: boolean, titel: string): (ScrollingFrame, TextLabel)
+	local function lijstPaneel(links: boolean, titel: string, telling: string, metStip: boolean): (ScrollingFrame, TextLabel, Frame?)
 		local paneel = UI.panel(spelersRij, "PlayersList")
 		paneel.AutomaticSize = Enum.AutomaticSize.None
 		paneel.Position = if links then UDim2.new() else UDim2.new(0.5, RIJGAT / 2, 0, 0)
@@ -492,7 +523,7 @@ function Crash.build(ouder: Instance): ()
 		k.Size = UDim2.new(1, -70, 1, 0)
 		k.TextYAlignment = Enum.TextYAlignment.Center
 		k.TextTruncate = Enum.TextTruncate.AtEnd
-		local telling = telPil(kop, "0")
+		local telLabel, stip = telPil(kop, telling, metStip)
 
 		local lijst = Instance.new("ScrollingFrame")
 		lijst.Name = "Rows"
@@ -506,28 +537,11 @@ function Crash.build(ouder: Instance): ()
 		lijst.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		lijst.Parent = paneel
 		UI.list(lijst, 0)
-		return lijst, telling
+		return lijst, telLabel, stip
 	end
 
-	local tafelLijst, tafelTelling = lijstPaneel(true, "YOUR ROUND")
-	local winstLijst, winstTelling = lijstPaneel(false, "LIVE WINS \u{00B7} ALL PLAYERS")
-
-	-- De .live-dot zit in de webversie ín het pilletje en knippert. Een stipje kan hier
-	-- gewoon links in de pil staan, zolang er links ruimte voor gemaakt wordt.
-	winstTelling.Text = "LIVE"
-	local winstMarge = winstTelling:FindFirstChildOfClass("UIPadding")
-	if winstMarge then
-		winstMarge.PaddingLeft = UDim.new(0, 18)
-	end
-	local levendStip = Instance.new("Frame")
-	levendStip.Name = "LiveDot"
-	levendStip.AnchorPoint = Vector2.new(0, 0.5)
-	levendStip.Position = UDim2.new(0, -13, 0.5, 0)
-	levendStip.Size = UDim2.fromOffset(7, 7)
-	levendStip.BackgroundColor3 = Theme.color.neon
-	levendStip.BorderSizePixel = 0
-	UI.corner(levendStip, 4)
-	levendStip.Parent = winstTelling
+	local tafelLijst, tafelTelling = lijstPaneel(true, "YOUR ROUND", "0", false)
+	local winstLijst, _, levendStip = lijstPaneel(false, "LIVE WINS \u{00B7} ALL PLAYERS", "LIVE", true)
 
 	-- .player-row: naam links, inzet en multiplier rechts, met een streepje eronder.
 	type RijOpts = { zelf: boolean?, gecashed: boolean?, verloren: boolean?, meta: string? }
@@ -602,7 +616,7 @@ function Crash.build(ouder: Instance): ()
 		local t = UI.label(ouderVak, tekst, { size = Theme.text.tiny, color = Theme.color.muted })
 		t.TextWrapped = true
 		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.Size = UDim2.new(1, -6, 0, 0)
+		t.Size = UDim2.new(1, -6, 0, 20)
 		t.TextYAlignment = Enum.TextYAlignment.Top
 		t.LineHeight = 1.7
 	end
@@ -693,7 +707,7 @@ function Crash.build(ouder: Instance): ()
 	local rondeRegel = UI.label(oddsVak, "", { size = Theme.text.tiny, color = Theme.color.muted })
 	rondeRegel.TextWrapped = true
 	rondeRegel.AutomaticSize = Enum.AutomaticSize.Y
-	rondeRegel.Size = UDim2.new(1, 0, 0, 0)
+	rondeRegel.Size = UDim2.new(1, 0, 0, 34)   -- twee regels; AutomaticSize rekt hem op
 	rondeRegel.TextYAlignment = Enum.TextYAlignment.Top
 	rondeRegel.LineHeight = 1.7
 
@@ -701,7 +715,7 @@ function Crash.build(ouder: Instance): ()
 		local t = UI.label(oddsVak, "", { size = 10, color = Theme.color.muted, font = Theme.font.num })
 		t.TextWrapped = true
 		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.Size = UDim2.new(1, 0, 0, 0)
+		t.Size = UDim2.new(1, 0, 0, 14)
 		t.TextYAlignment = Enum.TextYAlignment.Top
 		return t
 	end
@@ -797,7 +811,11 @@ function Crash.build(ouder: Instance): ()
 			local fiche = Instance.new("Frame")
 			fiche.Name = "Chip"
 			fiche.LayoutOrder = i
-			fiche.Size = UDim2.fromOffset(0, 22)
+			-- De cijfers staan in het monospace-lettertype, dus de breedte is te rekenen:
+			-- padding van 10 links en rechts plus 0,6 em per teken. AutomaticSize houdt hem
+			-- ruim genoeg als een multiplier boven de honderd komt.
+			local tekst = Money.fmt(m) .. "\u{00D7}"
+			fiche.Size = UDim2.fromOffset(20 + math.ceil(#tekst * 6.6), 22)
 			fiche.AutomaticSize = Enum.AutomaticSize.X
 			fiche.BackgroundColor3 = Theme.color.black
 			fiche.BackgroundTransparency = 0.6   -- rgba(0,0,0,0.4)
@@ -808,7 +826,7 @@ function Crash.build(ouder: Instance): ()
 			UI.padding4(fiche, 0, 10, 0, 10)
 			fiche.Parent = balkVak
 
-			local t = UI.label(fiche, Money.fmt(m) .. "\u{00D7}", {
+			local t = UI.label(fiche, tekst, {
 				size = Theme.text.small, color = tekstKleur, font = Theme.font.num,
 			})
 			t.Size = UDim2.new(0, 0, 1, 0)
@@ -818,11 +836,14 @@ function Crash.build(ouder: Instance): ()
 	end
 
 	local function toonFairness()
-		if not stand or stand.phase == "idle" then
-			rondeRegel.Text = ""
-			commitRegel.Text = ""
-			zaadRegel.Text = ""
-			puntRegel.Text = ""
+		-- #mpFair staat op `hidden` zolang er geen gedeelde ronde is. Onzichtbare kinderen
+		-- slaat een UIListLayout over, dus dan houdt het paneel ook geen ruimte vrij.
+		local erisEen = stand ~= nil and stand.phase ~= "idle"
+		rondeRegel.Visible = erisEen
+		commitRegel.Visible = erisEen
+		zaadRegel.Visible = erisEen
+		if not erisEen then
+			puntRegel.Visible = false
 			return
 		end
 		local kort = function(s: any): string
@@ -834,6 +855,8 @@ function Crash.build(ouder: Instance): ()
 			tonumber(stand.id) or 0)
 		commitRegel.Text = "commit " .. (if stand.commit then kort(stand.commit) else "\u{2014}")
 		zaadRegel.Text = "seed " .. (if stand.seed then kort(stand.seed) else "revealed when the flight is over")
+		-- De regel met het crashpunt komt er pas bij als het zaad vrijgegeven is.
+		puntRegel.Visible = stand.crashAt ~= nil
 		puntRegel.Text = if stand.crashAt then "crashed at " .. Money.fmt(stand.crashAt) .. "x" else ""
 	end
 
@@ -861,7 +884,8 @@ function Crash.build(ouder: Instance): ()
 		elseif fase == "crashed" then
 			tekst = "CRASHED"
 		else
-			tekst = "IN FLIGHT"
+			-- "idle": de server heeft nog geen ronde. Wachten dus, net als tussen twee rondes.
+			tekst = "WAITING\u{2026}"
 		end
 
 		knop.Text = tekst
@@ -1052,8 +1076,12 @@ function Crash.build(ouder: Instance): ()
 		multTekst.Text = tekst
 		multSchaduw.Text = tekst
 		multRand.Color = if gecrasht then KLEUR.crashRand else KLEUR.tekstRand
-		statusTekst.Text = if gecrasht then "\u{25BA} CRASHED" else "\u{25BA} IN THE AIR"
+		local pilTekst = if gecrasht then "\u{25BA} CRASHED" else "\u{25BA} IN THE AIR"
+		statusTekst.Text = pilTekst
 		statusTekst.TextColor3 = if gecrasht then KLEUR.crashTekst else Theme.color.white
+		-- ondergrens voor de pil: padding van 12 links en rechts plus ruwweg een halve em
+		-- per teken. AutomaticSize maakt hem breder als de letters meer ruimte vragen.
+		statusPil.Size = UDim2.fromOffset(24 + math.ceil(#pilTekst * 7.2), 25)
 	end
 
 	local function toonAftellen(seconden: number)
@@ -1115,7 +1143,9 @@ function Crash.build(ouder: Instance): ()
 		if not zichtbaar or luchtW <= 0 then return end
 		drijf(dt)
 		-- @keyframes livePulse: van vol naar een kwart en terug, in 1,6 seconden
-		levendStip.BackgroundTransparency = 0.375 + 0.375 * math.cos(os.clock() * math.pi * 2 / 1.6)
+		if levendStip then
+			levendStip.BackgroundTransparency = 0.375 + 0.375 * math.cos(os.clock() * math.pi * 2 / 1.6)
+		end
 
 		if not stand then return end
 		local nu = workspace:GetServerTimeNow()

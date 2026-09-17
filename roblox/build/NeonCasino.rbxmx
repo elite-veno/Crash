@@ -5096,9 +5096,23 @@ return Art
 -- Blackjack: zes stapels, dealer pakt bij tot 17. De dichte kaart van de dealer staat hier
 -- niet in het geheugen van de client -- die komt pas over als de dealer speelt.
 --
+-- Het beeld komt regel voor regel uit `#blackjackView` in de markup en uit het blok
+-- "Blackjack" in de CSS. Het bord is `.bj-table`: een kolom van hoogstens 720 breed met 22
+-- pixels lucht, met bovenin de hand van de dealer, daaronder de regel `.bj-message` en
+-- daaronder je eigen hand. Elk kopje is een `.hand-label` met een pilletje (`.val`) waar de
+-- stand in staat; achter YOU staat de inzet in goud.
+--
+-- Links staan het inzetveld, DEAL en de drie knoppen van `.bj-actions` in één `.panel`,
+-- daarna STATISTICS en dan RULES -- precies de volgorde van de markup. De knoppen
+-- verdwijnen niet als je niet aan zet bent, ze gaan uit, net als in de webversie.
+--
 -- De dubbele inzet wordt er overal bij gezet ("DOUBLED"), want zonder dat leek het alsof
 -- je bij een gedubbelde hand te weinig kreeg. Het bedrag klopte altijd; wat ontbrak was
 -- dat het scherm liet zien waar het over ging.
+--
+-- Wat Roblox niet heeft: letter-spacing (0.8px op `.hand-label` en `.bj-message`), de
+-- box-shadow onder een kaart, en het herhalende verloop van de kaartrug -- die is hieronder
+-- nagemaakt met losse balkjes.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
@@ -5109,66 +5123,301 @@ local Blackjack = {}
 
 type Kaart = { r: string, s: string }
 
-local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Frame
+-- ---------- maten uit de CSS ----------
+local TAFEL_B = 720        -- .bj-table max-width
+local TAFEL_GAT = 22       -- .bj-table gap
+local HAND_GAT = 8         -- .hand gap
+local LABEL_GAT = 12       -- .hand-label gap
+local PIL_MIN = 32         -- .hand-label .val min-width
+local PIL_H = 19           -- 11px tekst met padding 2 boven en onder
+local KAART_B = 66         -- .card width
+local KAART_H = 96         -- .card height
+local KAART_GAT = 8        -- .cards gap
+local KAARTEN_H = 100      -- .cards min-height
+local RUG_RAND = 4         -- .card.back border: 4px solid
+local RUG_BAND = 6         -- de bandbreedte uit het repeating-linear-gradient
+local BERICHT_H = 32       -- .bj-message min-height
+local ACTIE_GAT = 6        -- .bj-actions gap
+local ACTIE_H = 38         -- .btn-secondary: 11px tekst met padding 12 boven en onder
+
+-- De kleuren van een speelkaart staan in de CSS als losse hex in `.card` en `.card.back`,
+-- niet als variabele. Ze horen dus hier en niet in het Theme; Theme.color.card is een tint
+-- ernaast en wordt door de andere kaartspellen gebruikt.
+local KAART_WIT = Color3.fromHex("fdfdf5")
+local KAART_INKT = Color3.fromHex("151515")
+local KAART_ROOD = Color3.fromHex("c8102e")
+local RUG_DONKER = Color3.fromHex("0b3d1f")
+local RUG_LICHT = Color3.fromHex("14602f")
+
+-- ---------- bouwsteentjes die alleen dit scherm gebruikt ----------
+-- .card: 66 bij 96, wit, de rang linksboven en het teken rechtsonder. Harten en ruiten zijn
+-- rood. De box-shadow onder de kaart kan Roblox niet en is weggelaten.
+local function kaartVlak(ouder: Instance, kaart: Kaart, volgorde: number): Frame
 	local f = Instance.new("Frame")
-	f.Size = UDim2.fromOffset(70, 98)
+	f.Name = "Card"
+	f.Size = UDim2.fromOffset(KAART_B, KAART_H)
 	f.LayoutOrder = volgorde
-	f.BackgroundColor3 = if kaart then Theme.color.card else Color3.fromHex("1b222c")
+	f.BackgroundColor3 = KAART_WIT
 	f.BorderSizePixel = 0
 	UI.corner(f, Theme.radius.card)
-	UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
-	local tekst = if kaart then kaart.r .. "\n" .. kaart.s else "\u{2756}"
-	local rood = kaart ~= nil and (kaart.s == "\u{2665}" or kaart.s == "\u{2666}")
-	local kleur = if not kaart then Theme.color.muted
-		elseif rood then Color3.fromHex("c0392b")
-		else Color3.fromHex("14181f")
-	local t = UI.label(f, tekst, {
-		size = 22, color = kleur, font = Theme.font.uiMed, align = Enum.TextXAlignment.Center,
+	local rood = kaart.s == "\u{2665}" or kaart.s == "\u{2666}"
+	local kleur = if rood then KAART_ROOD else KAART_INKT
+
+	-- .card .rank { top: 6px; left: 8px; font-size: 18px }
+	local rang = UI.label(f, kaart.r, {
+		size = 18, color = kleur, font = Theme.font.num, name = "Rank",
 	})
-	t.Size = UDim2.fromScale(1, 1)
-	t.TextYAlignment = Enum.TextYAlignment.Center
+	rang.Position = UDim2.fromOffset(8, 6)
+	rang.Size = UDim2.fromOffset(0, 22)
+	rang.AutomaticSize = Enum.AutomaticSize.X
+
+	-- .card .suit { bottom: 4px; right: 8px; font-size: 28px }
+	local teken = UI.label(f, kaart.s, {
+		size = 28, color = kleur, font = Theme.font.num, align = Enum.TextXAlignment.Right,
+		name = "Suit",
+	})
+	teken.AnchorPoint = Vector2.new(1, 1)
+	teken.Position = UDim2.new(1, -8, 1, -4)
+	teken.Size = UDim2.fromOffset(0, 34)
+	teken.AutomaticSize = Enum.AutomaticSize.X
 	return f
+end
+
+-- .card.back: schuine strepen achter een witte rand van vier. Die rand zit in de CSS
+-- binnen de 66 bij 96 (box-sizing: border-box), dus het is hier een wit vlak met een groen
+-- vlak van vier pixels kleiner erin.
+--
+-- Roblox kent geen repeating-linear-gradient. De strepen zijn daarom balkjes van 6 breed
+-- die 45 graden gedraaid staan, met 6 ertussen; het groene vlak snijdt af wat erbuiten valt.
+local function rugVlak(ouder: Instance, volgorde: number): Frame
+	local f = Instance.new("Frame")
+	f.Name = "CardBack"
+	f.Size = UDim2.fromOffset(KAART_B, KAART_H)
+	f.LayoutOrder = volgorde
+	f.BackgroundColor3 = KAART_WIT
+	f.BorderSizePixel = 0
+	UI.corner(f, Theme.radius.card)
+	f.Parent = ouder
+
+	local binnen = Instance.new("Frame")
+	binnen.Name = "Pattern"
+	binnen.Position = UDim2.fromOffset(RUG_RAND, RUG_RAND)
+	binnen.Size = UDim2.new(1, -RUG_RAND * 2, 1, -RUG_RAND * 2)
+	binnen.BackgroundColor3 = RUG_DONKER
+	binnen.BorderSizePixel = 0
+	binnen.ClipsDescendants = true
+	UI.corner(binnen, Theme.radius.card - RUG_RAND)
+	binnen.Parent = f
+
+	local breedte = KAART_B - RUG_RAND * 2
+	local hoogte = KAART_H - RUG_RAND * 2
+	local lengte = breedte + hoogte                 -- lang genoeg om er schuin overheen te lopen
+	-- Dwars op een streep van 45 graden telt alleen de helft van de stap mee, dus om 6 om 6
+	-- te krijgen staan de balkjes wortel twee keer zo ver uit elkaar.
+	local stap = RUG_BAND * 2 * math.sqrt(2)
+	local aantal = math.ceil(lengte / stap)
+	for i = 0, aantal do
+		local streep = Instance.new("Frame")
+		streep.Name = "Stripe"
+		streep.AnchorPoint = Vector2.new(0.5, 0.5)
+		streep.Position = UDim2.fromOffset(
+			math.round(breedte / 2 + (i - aantal / 2) * stap),
+			math.round(hoogte / 2)
+		)
+		streep.Size = UDim2.fromOffset(RUG_BAND, lengte)
+		streep.Rotation = 45
+		streep.BackgroundColor3 = RUG_LICHT
+		streep.BorderSizePixel = 0
+		streep.Parent = binnen
+	end
+	return f
+end
+
+-- .hand-label .val: het pilletje met de stand erin. Zwart met een rand, radius 8, en het
+-- is minstens 32 breed zodat "21" en "7/17" allebei netjes in dezelfde kolom staan.
+local function waardePil(ouder: Instance, volgorde: number): TextLabel
+	local t = UI.label(ouder, "\u{2014}", {
+		size = Theme.text.small, color = Theme.color.text, font = Theme.font.num,
+		align = Enum.TextXAlignment.Center, name = "Val",
+	})
+	t.LayoutOrder = volgorde
+	t.BackgroundColor3 = Theme.color.black
+	t.BackgroundTransparency = Theme.alpha.buttonBg   -- rgba(0,0,0,0.5)
+	t.Size = UDim2.fromOffset(PIL_MIN, PIL_H)
+	t.AutomaticSize = Enum.AutomaticSize.X
+	UI.corner(t, Theme.radius.pill)
+	UI.stroke(t)
+	UI.padding4(t, 0, 8, 0, 8)
+
+	local minstens = Instance.new("UISizeConstraint")
+	minstens.MinSize = Vector2.new(PIL_MIN, PIL_H)
+	minstens.Parent = t
+	return t
+end
+
+-- .hand: het kopje met de stand, en daaronder de kaarten. Geeft het kopje terug (daar hangt
+-- bij de speler het inzetlabel nog achter), het vak met de kaarten en het pilletje.
+local function maakHand(ouder: Instance, naam: string, volgorde: number): (Frame, Frame, TextLabel)
+	local hand = Instance.new("Frame")
+	hand.Name = naam
+	hand.Size = UDim2.new(1, 0, 0, 0)
+	hand.AutomaticSize = Enum.AutomaticSize.Y
+	hand.BackgroundTransparency = 1
+	hand.LayoutOrder = volgorde
+	hand.Parent = ouder
+	UI.list(hand, HAND_GAT)
+
+	local kop = Instance.new("Frame")
+	kop.Name = "Label"
+	kop.Size = UDim2.new(1, 0, 0, PIL_H)
+	kop.BackgroundTransparency = 1
+	kop.Parent = hand
+	local kopLijst = UI.list(kop, LABEL_GAT, Enum.FillDirection.Horizontal)
+	kopLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	local titel = UI.label(kop, naam, { size = Theme.text.small, color = Theme.color.muted })
+	titel.LayoutOrder = 1
+	titel.Size = UDim2.new(0, 0, 1, 0)
+	titel.AutomaticSize = Enum.AutomaticSize.X
+
+	local pil = waardePil(kop, 2)
+
+	-- .cards heeft min-height 100, dus het bord staat al op zijn plek voordat er is gedeeld,
+	-- en flex-wrap: een hand die breder wordt dan de tafel valt door naar een tweede rij.
+	local kaarten = Instance.new("Frame")
+	kaarten.Name = "Cards"
+	kaarten.Size = UDim2.new(1, 0, 0, KAARTEN_H)
+	kaarten.AutomaticSize = Enum.AutomaticSize.Y
+	kaarten.BackgroundTransparency = 1
+	kaarten.Parent = hand
+	local kaartLijst = UI.list(kaarten, KAART_GAT, Enum.FillDirection.Horizontal)
+	kaartLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+	kaartLijst.Wraps = true
+	local kaartHoogte = Instance.new("UISizeConstraint")
+	kaartHoogte.MinSize = Vector2.new(0, KAARTEN_H)
+	kaartHoogte.Parent = kaarten
+
+	return kop, kaarten, pil
 end
 
 function Blackjack.build(ouder: Instance): ()
 	local bord, bediening = Common.columns(ouder, "BLACKJACK")
 
-	local tafel = UI.panel(bord, "Table")
-	UI.list(tafel, 8)
-	UI.panelTitle(tafel, "blackjack \u{00B7} dealer stands on all 17s")
+	-- ---------- het bord ----------
+	-- `.bj-table`: volle breedte tot 720, alles onder elkaar met 22 ertussen.
+	local tafel = Instance.new("Frame")
+	tafel.Name = "BjTable"
+	tafel.Size = UDim2.new(1, 0, 0, 0)
+	tafel.AutomaticSize = Enum.AutomaticSize.Y
+	tafel.BackgroundTransparency = 1
+	tafel.Parent = bord
+	UI.list(tafel, TAFEL_GAT)
+	local breedte = Instance.new("UISizeConstraint")
+	breedte.MaxSize = Vector2.new(TAFEL_B, math.huge)
+	breedte.Parent = tafel
 
-	local dealerKop = UI.label(tafel, "DEALER", {
-		size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiMed,
+	local _, dealerKaarten, dealerPil = maakHand(tafel, "DEALER", 1)
+
+	-- .bj-message: 22px, halfvet, gecentreerd, en minstens 32 hoog zodat de kaarten niet
+	-- verspringen als er even niets staat.
+	local bericht = UI.label(tafel, "PLACE A BET AND DEAL", {
+		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiMed,
+		align = Enum.TextXAlignment.Center, name = "Message",
 	})
-	local dealerRij = Instance.new("Frame")
-	dealerRij.Size = UDim2.new(1, 0, 0, 104)
-	dealerRij.BackgroundTransparency = 1
-	dealerRij.Parent = tafel
-	local dl = UI.list(dealerRij, 8, Enum.FillDirection.Horizontal)
-	dl.VerticalAlignment = Enum.VerticalAlignment.Center
+	bericht.LayoutOrder = 2
+	bericht.Size = UDim2.new(1, 0, 0, 0)
+	bericht.AutomaticSize = Enum.AutomaticSize.Y
+	bericht.TextWrapped = true
+	local berichtHoogte = Instance.new("UISizeConstraint")
+	berichtHoogte.MinSize = Vector2.new(0, BERICHT_H)
+	berichtHoogte.Parent = bericht
 
-	local spelerKop = UI.label(tafel, "YOU", {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
+	local spelerKop, spelerKaarten, spelerPil = maakHand(tafel, "YOU", 3)
+
+	-- #bjBetLabel: de inzet in goud, achter het pilletje.
+	local inzetLabel = UI.label(spelerKop, "", {
+		size = Theme.text.small, color = Theme.color.gold, name = "Stake",
 	})
-	local spelerRij = Instance.new("Frame")
-	spelerRij.Size = UDim2.new(1, 0, 0, 104)
-	spelerRij.BackgroundTransparency = 1
-	spelerRij.Parent = tafel
-	local sl = UI.list(spelerRij, 8, Enum.FillDirection.Horizontal)
-	sl.VerticalAlignment = Enum.VerticalAlignment.Center
+	inzetLabel.LayoutOrder = 3
+	inzetLabel.Size = UDim2.new(0, 0, 1, 0)
+	inzetLabel.AutomaticSize = Enum.AutomaticSize.X
 
-	local balk = Common.banner(tafel)
-	balk.set("PLACE YOUR BET", nil)
+	-- .bj-message.win is neon, .lose rood, .push goud, en anders gewoon de tekstkleur.
+	local function zetBericht(tekst: string, soort: string?)
+		bericht.Text = tekst
+		bericht.TextColor3 = if soort == "win" then Theme.color.neon
+			elseif soort == "lose" then Theme.color.red
+			elseif soort == "push" then Theme.color.gold
+			else Theme.color.text
+	end
 
+	-- ---------- de bediening links ----------
+	-- In de markup staan het inzetveld, DEAL en de drie knoppen in één `.panel`.
+	-- Common.betBox maakt dat paneel, dus de rest gaat erbij in.
+	local betBox = Common.betBox(bediening, 10)
+	local paneel = betBox.panel
+
+	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
+	--
+	-- In de webversie heet deze knop JOIN THE TABLE zodra je aan de gedeelde tafel zit; die
+	-- tafel bestaat in deze poort niet, dus hij houdt de naam uit de markup zelf: DEAL.
+	local dealKnop = UI.primary(paneel, "DEAL")
+	dealKnop.LayoutOrder = 10
+	dealKnop.Font = Theme.font.uiBold
+	UI.gradient(dealKnop, Theme.color.neon, Theme.color.neonDim, 135)
+
+	-- .bj-actions: twee gelijke kolommen met 6 ertussen en 8 lucht erboven; DOUBLE staat
+	-- eronder over de volle breedte (grid-column: 1 / 3).
+	local acties = Instance.new("Frame")
+	acties.Name = "Actions"
+	acties.Size = UDim2.new(1, 0, 0, 0)
+	acties.AutomaticSize = Enum.AutomaticSize.Y
+	acties.BackgroundTransparency = 1
+	acties.LayoutOrder = 11
+	acties.Parent = paneel
+	UI.list(acties, ACTIE_GAT)
+	UI.padding4(acties, 8, 0, 0, 0)
+
+	local bovenRij = Instance.new("Frame")
+	bovenRij.Name = "Row"
+	bovenRij.Size = UDim2.new(1, 0, 0, ACTIE_H)
+	bovenRij.BackgroundTransparency = 1
+	bovenRij.Parent = acties
+	UI.list(bovenRij, ACTIE_GAT, Enum.FillDirection.Horizontal)
+
+	local hitKnop = UI.secondary(bovenRij, "HIT")
+	hitKnop.LayoutOrder = 1
+	hitKnop.Size = UDim2.new(0.5, -ACTIE_GAT / 2, 1, 0)
+	local standKnop = UI.secondary(bovenRij, "STAND")
+	standKnop.LayoutOrder = 2
+	standKnop.Size = UDim2.new(0.5, -ACTIE_GAT / 2, 1, 0)
+	local doubleKnop = UI.secondary(acties, "DOUBLE")
+	doubleKnop.LayoutOrder = 2
+	doubleKnop.Size = UDim2.new(1, 0, 0, ACTIE_H)
+
+	-- ---------- de stand van de hand ----------
 	local actief = false
 	local gedubbeld = false
-	local betBox: Common.BetBox
-	local dealKnop: TextButton
-	local hitKnop: TextButton
-	local standKnop: TextButton
-	local doubleKnop: TextButton
+
+	-- Een knop uit `.bj-actions` aan- of uitzetten. UI.setEnabled dimt de tekst en de
+	-- vulling; in de CSS zakt met `opacity: 0.35` ook de rand mee, dus die gaat hier mee.
+	local function zetActie(b: TextButton, aan: boolean)
+		UI.setEnabled(b, aan)
+		local rand = b:FindFirstChildOfClass("UIStroke")
+		if rand then rand.Transparency = if aan then 0 else 0.65 end
+	end
+
+	-- De knoppen blijven staan en gaan uit, zoals `disabled` in de webversie: DEAL kan
+	-- alleen tussen twee handen door, de andere drie alleen als je aan zet bent.
+	local function zetKnoppen(kanDubbelen: boolean)
+		UI.setEnabled(dealKnop, not actief)
+		zetActie(hitKnop, actief)
+		zetActie(standKnop, actief)
+		zetActie(doubleKnop, actief and kanDubbelen)
+		betBox.lock(actief)
+	end
 
 	local function wis(rij: Frame)
 		for _, k in rij:GetChildren() do
@@ -5182,57 +5431,83 @@ function Blackjack.build(ouder: Instance): ()
 			kaartVlak(rij, k, i)
 		end
 		if dicht then
-			kaartVlak(rij, nil, #kaarten + 1)
+			rugVlak(rij, #kaarten + 1)
 		end
 	end
 
-	-- De inzetregel: hier komt (DOUBLED) bij te staan zodra er gedubbeld is.
-	local function zetKoppen(spelerWaarde: number?, dealerWaarde: number?, inzet: number?)
-		local dub = if gedubbeld then "  \u{00B7}  DOUBLED" else ""
-		spelerKop.Text = "YOU" .. (if spelerWaarde then "  \u{00B7}  " .. spelerWaarde else "")
-			.. (if inzet then "  \u{00B7}  STAKE $" .. Money.fmt(inzet) else "") .. dub
-		dealerKop.Text = "DEALER" .. (if dealerWaarde then "  \u{00B7}  " .. dealerWaarde else "")
+	-- Wat er in het pilletje komt te staan. Bij een zachte hand allebei de waarden, net als
+	-- bjRender() in de webversie: met een aas erin is 7 ook 17.
+	local function pilTekst(waarde: any, zacht: boolean?): string
+		local n = tonumber(waarde)
+		if not n then return "\u{2014}" end
+		if zacht and n &lt;= 21 then return string.format("%d/%d", n - 10, n) end
+		return string.format("%d", n)
 	end
 
-	local function zetKnoppen()
-		dealKnop.Visible = not actief
-		hitKnop.Visible = actief
-		standKnop.Visible = actief
-		doubleKnop.Visible = actief
-		betBox.lock(actief)
-	end
-
-	local function toonEinde(res: any)
-		actief = false
-		gedubbeld = res.doubled == true
-		toonHand(spelerRij, res.player, false)
-		toonHand(dealerRij, res.dealer, false)
-		zetKoppen(res.playerValue, res.dealerValue, res.bet)
-		zetKnoppen()
-
-		local dub = if res.doubled then "  (DOUBLED)" else ""
-		if res.result == "win" then
-			local wat = if res.natural then "BLACKJACK" else "YOU WIN"
-			balk.set(wat .. "  \u{00B7}  +$" .. Money.fmt(res.payout) .. dub, if res.natural then "gold" else "green")
-			Common.toast("+$" .. Money.fmt(res.payout) .. dub, if res.natural then "gold" else "green")
-		elseif res.result == "push" then
-			balk.set("PUSH  \u{00B7}  $" .. Money.fmt(res.payout) .. " BACK" .. dub, nil)
-		else
-			balk.set("DEALER WINS  \u{00B7}  -$" .. Money.fmt(res.bet) .. dub, "red")
+	-- #bjBetLabel: "· STAKE $100.00", met (DOUBLED) erachter zodra er gedubbeld is.
+	local function zetInzet(inzet: any)
+		local n = tonumber(inzet)
+		if not n or n &lt;= 0 then
+			inzetLabel.Text = ""
+			return
 		end
+		inzetLabel.Text = "\u{00B7} STAKE $" .. Money.fmt(n) .. (if gedubbeld then " (DOUBLED)" else "")
 	end
 
 	local function toonSpel(res: any)
 		actief = true
 		gedubbeld = res.doubled == true
-		toonHand(spelerRij, res.player, false)
-		toonHand(dealerRij, { res.dealerUp }, true)
-		zetKoppen(res.playerValue, res.dealerValue, res.bet)
+		toonHand(spelerKaarten, res.player, false)
+		-- De dichte kaart van de dealer is er niet: de server stuurt alleen de open kaart.
+		toonHand(dealerKaarten, { res.dealerUp }, true)
+		spelerPil.Text = pilTekst(res.playerValue, res.playerSoft)
+		dealerPil.Text = pilTekst(res.dealerValue, false)
+		zetInzet(res.bet)
 		-- Dubbelen mag alleen op de eerste twee kaarten, net als aan een echte tafel.
-		doubleKnop.Active = #res.player == 2 and not gedubbeld
-		doubleKnop.BackgroundTransparency = if doubleKnop.Active then 0.1 else 0.6
-		zetKnoppen()
-		balk.set("HIT, STAND OR DOUBLE", nil)
+		zetKnoppen(#res.player == 2 and not gedubbeld)
+		zetBericht("HIT, STAND OR DOUBLE?", nil)
+	end
+
+	local function toonEinde(res: any)
+		actief = false
+		gedubbeld = res.doubled == true
+		toonHand(spelerKaarten, res.player, false)
+		toonHand(dealerKaarten, res.dealer, false)
+		spelerPil.Text = pilTekst(res.playerValue, false)
+		dealerPil.Text = pilTekst(res.dealerValue, false)
+		zetInzet(res.bet)
+		zetKnoppen(false)
+
+		-- Dezelfde regels als bjFinish() in de webversie, in dezelfde volgorde.
+		local dub = if gedubbeld then " (DOUBLED)" else ""
+		local inzet = tonumber(res.bet) or 0
+		local uit = tonumber(res.payout) or 0
+		local winst = uit - inzet
+		local speler = tonumber(res.playerValue) or 0
+		local dealer = tonumber(res.dealerValue) or 0
+		local spelerBJ = res.natural == true
+		local dealerBJ = #res.dealer == 2 and dealer == 21
+		if spelerBJ and dealerBJ then
+			zetBericht("BOTH BLACKJACK \u{00B7} PUSH", "push")
+		elseif spelerBJ then
+			zetBericht("BLACKJACK! +$" .. Money.fmt(winst), "win")
+		elseif dealerBJ then
+			zetBericht("DEALER BLACKJACK" .. dub, "lose")
+		elseif speler &gt; 21 then
+			zetBericht("BUST" .. dub, "lose")
+		elseif dealer &gt; 21 then
+			zetBericht("DEALER BUST" .. dub .. " \u{00B7} +$" .. Money.fmt(winst), "win")
+		elseif res.result == "win" then
+			zetBericht("WON" .. dub .. " \u{00B7} +$" .. Money.fmt(winst), "win")
+		elseif res.result == "push" then
+			zetBericht("PUSH" .. dub .. " \u{00B7} STAKE RETURNED", "push")
+		else
+			zetBericht("LOST" .. dub .. " \u{00B7} -$" .. Money.fmt(inzet), "lose")
+		end
+
+		if res.result == "win" then
+			Common.toast("+$" .. Money.fmt(uit) .. dub, if spelerBJ then "gold" else "green")
+		end
 	end
 
 	local function verwerk(res: any)
@@ -5243,24 +5518,6 @@ function Blackjack.build(ouder: Instance): ()
 			toonSpel(res)
 		end
 	end
-
-	-- ---------- de bediening ----------
-	local regels = UI.panel(bediening, "Rules")
-	UI.list(regels, 4)
-	UI.panelTitle(regels, "rules")
-	Common.statRow(regels, "DECKS", "6")
-	Common.statRow(regels, "BLACKJACK PAYS", "3:2")
-	Common.statRow(regels, "DEALER", "STANDS ON 17")
-	Common.statRow(regels, "DOUBLE", "FIRST TWO CARDS")
-	Common.statRow(regels, "RTP", "99%")
-
-	betBox = Common.betBox(bediening, 10)
-	dealKnop = UI.primary(bediening, "DEAL")
-	hitKnop = UI.primary(bediening, "HIT")
-	standKnop = UI.secondary(bediening, "STAND")
-	standKnop.Size = UDim2.new(1, 0, 0, 40)
-	doubleKnop = UI.secondary(bediening, "DOUBLE")
-	doubleKnop.Size = UDim2.new(1, 0, 0, 40)
 
 	dealKnop.Activated:Connect(function()
 		if actief then return end
@@ -5276,16 +5533,19 @@ function Blackjack.build(ouder: Instance): ()
 		verwerk(Common.call("Act", "blackjack", "stand"))
 	end)
 	doubleKnop.Activated:Connect(function()
+		-- Active staat uit zodra dubbelen niet meer mag; dat is hier ook de grendel.
 		if not actief or not doubleKnop.Active then return end
 		verwerk(Common.call("Act", "blackjack", "double"))
 	end)
 
-	zetKnoppen()
-	zetKoppen(nil, nil, nil)
-	-- De twee panelen waar elke aside in de webversie mee afsluit.
-	Common.statsPanel(bediening, "blackjack")
-	Common.oddsPanel(bediening, "odds", "6 decks, continuously shuffled. Dealer stands on all 17s. Blackjack pays 3:2 and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around 1%.")
+	zetKnoppen(false)
 
+	-- De twee panelen waar de aside in de markup mee afsluit. Bij blackjack is het tweede
+	-- paneel RULES in plaats van ODDS; de tekst is die van de `.odds-note` daar. De
+	-- vetgedrukte stukken (3:2 en 1%) zijn in de CSS goud, maar twee kleuren in één regel
+	-- zou RichText vragen en dat staat in dit project uit, dus het is één kleur.
+	Common.statsPanel(bediening, "blackjack")
+	Common.oddsPanel(bediening, "rules", "6 decks, continuously shuffled (a fresh shoe every hand). Dealer stands on all 17s. Blackjack pays 3:2 and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around 1%.")
 end
 
 return Blackjack
@@ -5972,7 +6232,6 @@ local KOP_H = 30         -- .players-list h3 plus zijn margin-bottom van 10
 
 -- De kleuren die alleen op dit scherm voorkomen; de rest komt uit Theme.
 local KLEUR = {
-	luchtMidden = Color3.fromHex("8dd0ff"),
 	luchtOnder  = Color3.fromHex("b8e4ff"),
 	wolkSchaduw = Color3.fromRGB(180, 200, 220),
 	grasDiep    = Color3.fromHex("3d7a1f"),
@@ -6148,14 +6407,10 @@ function Crash.build(ouder: Instance): ()
 	UI.stroke(lucht, Theme.color.neon)
 	lucht.Parent = hoofd
 
-	local luchtVerloop = Instance.new("UIGradient")
-	luchtVerloop.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Theme.color.sky),
-		ColorSequenceKeypoint.new(0.5, KLEUR.luchtMidden),
-		ColorSequenceKeypoint.new(1, KLEUR.luchtOnder),
-	})
-	luchtVerloop.Rotation = 90
-	luchtVerloop.Parent = lucht
+	-- De CSS heeft drie stops: #5fb8ff, #8dd0ff op de helft, #b8e4ff onderaan. Die middelste
+	-- ligt op de rechte lijn tussen de andere twee (#8bcfff), dus twee stops geven hetzelfde
+	-- beeld.
+	UI.gradient(lucht, Theme.color.sky, KLEUR.luchtOnder)
 
 	-- de wolken: vier bollen en een schaduw, net als drawCloud()
 	type Wolk = { vak: Frame, maat: number, snelheid: number, x: number, y: number }
@@ -6167,6 +6422,9 @@ function Crash.build(ouder: Instance): ()
 		vak.Size = UDim2.fromOffset(0, 0)
 		vak.BackgroundTransparency = 1
 		vak.ZIndex = 1
+		-- Tot de lucht zijn maat weet staan ze verdeeld over de breedte; zaaiWolken() zet ze
+		-- daarna in pixels neer, want drijven gaat per pixel.
+		vak.Position = UDim2.new((i - 1) / WOLKEN, 0, 0, 30 + (i * 37) % 110)
 		vak.Parent = lucht
 		rond(vak, 0, 0, maat * 0.5, Theme.color.white, 0.1)
 		rond(vak, maat * 0.4, -maat * 0.2, maat * 0.4, Theme.color.white, 0.1)
@@ -6319,6 +6577,10 @@ function Crash.build(ouder: Instance): ()
 		tekst.Size = UDim2.fromScale(1, 1)
 		tekst.TextYAlignment = Enum.TextYAlignment.Center
 		local rand = UI.stroke(tekst, randKleur, 2)
+		-- Contextual in plaats van Border: op een label zonder achtergrond legt Roblox de rand
+		-- dan om de letters. Met Border krijg je een kader om het vak, en dat is niet wat
+		-- `-webkit-text-stroke` doet.
+		rand.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
 		return tekst, schaduw, rand
 	end
 
@@ -6391,22 +6653,51 @@ function Crash.build(ouder: Instance): ()
 	spelersRij.BackgroundTransparency = 1
 	spelersRij.Parent = hoofd
 
-	-- .players-list h3 .count: neon op een neongroen vlak, met een rand in --border.
-	local function telPil(ouderVak: Instance, tekst: string): TextLabel
-		local p = UI.tag(ouderVak, tekst)
-		p.BackgroundTransparency = Theme.alpha.activeNav   -- rgba(62,207,142,0.10)
-		p.AnchorPoint = Vector2.new(1, 0.5)
-		p.Position = UDim2.new(1, 0, 0.5, 0)
-		local s = p:FindFirstChildOfClass("UIStroke")
-		if s then
-			s.Color = Theme.color.border
-			s.Transparency = 0
+	-- .players-list h3 .count: neon tekst op een neongroen vlak met een rand in --border.
+	-- Bij de feed staat er een .live-dot in, dus de pil is een rijtje van stip plus tekst.
+	local function telPil(ouderVak: Instance, tekst: string, metStip: boolean): (TextLabel, Frame?)
+		local pil = Instance.new("Frame")
+		pil.Name = "Count"
+		pil.AnchorPoint = Vector2.new(1, 0.5)
+		pil.Position = UDim2.new(1, 0, 0.5, 0)
+		-- De maat hieronder is de ondergrens: een getal van drie cijfers of het woord LIVE.
+		-- AutomaticSize rekt hem op als er meer in komt te staan.
+		pil.Size = UDim2.fromOffset(if metStip then 54 else 30, 20)
+		pil.AutomaticSize = Enum.AutomaticSize.X
+		pil.BackgroundColor3 = Theme.color.neon
+		pil.BackgroundTransparency = Theme.alpha.activeNav   -- rgba(62,207,142,0.10)
+		pil.BorderSizePixel = 0
+		UI.corner(pil, Theme.radius.pill)
+		UI.stroke(pil)
+		UI.padding4(pil, 0, 8, 0, 8)
+		pil.Parent = ouderVak
+		local pilRij = UI.list(pil, 5, Enum.FillDirection.Horizontal)
+		pilRij.VerticalAlignment = Enum.VerticalAlignment.Center
+		pilRij.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+		local stip: Frame? = nil
+		if metStip then
+			local s = Instance.new("Frame")
+			s.Name = "LiveDot"
+			s.LayoutOrder = 1
+			s.Size = UDim2.fromOffset(7, 7)
+			s.BackgroundColor3 = Theme.color.neon
+			s.BorderSizePixel = 0
+			UI.corner(s, 4)
+			s.Parent = pil
+			stip = s
 		end
-		return p
+
+		local t = UI.label(pil, tekst, { size = Theme.text.small, color = Theme.color.neon })
+		t.LayoutOrder = 2
+		t.Size = UDim2.new(0, 0, 1, 0)
+		t.AutomaticSize = Enum.AutomaticSize.X
+		t.TextYAlignment = Enum.TextYAlignment.Center
+		return t, stip
 	end
 
 	-- .players-list: een paneel met padding 14, een kop, en daaronder een lijst die scrolt.
-	local function lijstPaneel(links: boolean, titel: string): (ScrollingFrame, TextLabel)
+	local function lijstPaneel(links: boolean, titel: string, telling: string, metStip: boolean): (ScrollingFrame, TextLabel, Frame?)
 		local paneel = UI.panel(spelersRij, "PlayersList")
 		paneel.AutomaticSize = Enum.AutomaticSize.None
 		paneel.Position = if links then UDim2.new() else UDim2.new(0.5, RIJGAT / 2, 0, 0)
@@ -6423,7 +6714,7 @@ function Crash.build(ouder: Instance): ()
 		k.Size = UDim2.new(1, -70, 1, 0)
 		k.TextYAlignment = Enum.TextYAlignment.Center
 		k.TextTruncate = Enum.TextTruncate.AtEnd
-		local telling = telPil(kop, "0")
+		local telLabel, stip = telPil(kop, telling, metStip)
 
 		local lijst = Instance.new("ScrollingFrame")
 		lijst.Name = "Rows"
@@ -6437,28 +6728,11 @@ function Crash.build(ouder: Instance): ()
 		lijst.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		lijst.Parent = paneel
 		UI.list(lijst, 0)
-		return lijst, telling
+		return lijst, telLabel, stip
 	end
 
-	local tafelLijst, tafelTelling = lijstPaneel(true, "YOUR ROUND")
-	local winstLijst, winstTelling = lijstPaneel(false, "LIVE WINS \u{00B7} ALL PLAYERS")
-
-	-- De .live-dot zit in de webversie ín het pilletje en knippert. Een stipje kan hier
-	-- gewoon links in de pil staan, zolang er links ruimte voor gemaakt wordt.
-	winstTelling.Text = "LIVE"
-	local winstMarge = winstTelling:FindFirstChildOfClass("UIPadding")
-	if winstMarge then
-		winstMarge.PaddingLeft = UDim.new(0, 18)
-	end
-	local levendStip = Instance.new("Frame")
-	levendStip.Name = "LiveDot"
-	levendStip.AnchorPoint = Vector2.new(0, 0.5)
-	levendStip.Position = UDim2.new(0, -13, 0.5, 0)
-	levendStip.Size = UDim2.fromOffset(7, 7)
-	levendStip.BackgroundColor3 = Theme.color.neon
-	levendStip.BorderSizePixel = 0
-	UI.corner(levendStip, 4)
-	levendStip.Parent = winstTelling
+	local tafelLijst, tafelTelling = lijstPaneel(true, "YOUR ROUND", "0", false)
+	local winstLijst, _, levendStip = lijstPaneel(false, "LIVE WINS \u{00B7} ALL PLAYERS", "LIVE", true)
 
 	-- .player-row: naam links, inzet en multiplier rechts, met een streepje eronder.
 	type RijOpts = { zelf: boolean?, gecashed: boolean?, verloren: boolean?, meta: string? }
@@ -6533,7 +6807,7 @@ function Crash.build(ouder: Instance): ()
 		local t = UI.label(ouderVak, tekst, { size = Theme.text.tiny, color = Theme.color.muted })
 		t.TextWrapped = true
 		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.Size = UDim2.new(1, -6, 0, 0)
+		t.Size = UDim2.new(1, -6, 0, 20)
 		t.TextYAlignment = Enum.TextYAlignment.Top
 		t.LineHeight = 1.7
 	end
@@ -6541,22 +6815,14 @@ function Crash.build(ouder: Instance): ()
 	-- ---------- de aside ----------
 	-- Eén paneel, precies zoals de markup: het inzetveld met de fiches, de schakelaar voor
 	-- automatisch uitstappen, het doelveld dat daarbij hoort, en de knop.
+	-- De volgorde in de aside is de volgorde waarin de panelen erbij komen: inzetvak,
+	-- statistieken, kansen. Common.columns zette de kop en het saldo er al boven.
 	local betBox = Common.betBox(bediening, 10)
 	local zetPaneel = betBox.panel
-	-- Common.columns zet de kop op 1 en het saldopaneel op 2. Wat er daarna bij komt heeft
-	-- LayoutOrder 0 en zou dus bóven de kop eindigen; vandaar de nummers hier.
-	zetPaneel.LayoutOrder = 3
-	-- De haarlijn van .panel::before is een gewoon kind, en de UIListLayout van het inzetvak
-	-- zet elk kind in de rij. Bovenaan dus, waar de CSS hem ook tekent.
-	local haarlijn = zetPaneel:FindFirstChild("TopLine")
-	if haarlijn and haarlijn:IsA("Frame") then
-		haarlijn.LayoutOrder = -1
-	end
 
 	-- .toggle-row: de schakelaar plus zijn etiket, samen aan te klikken.
 	local schakelRij = Instance.new("TextButton")
 	schakelRij.Name = "ToggleRow"
-	schakelRij.LayoutOrder = 1
 	schakelRij.Text = ""
 	schakelRij.AutoButtonColor = false
 	schakelRij.BackgroundTransparency = 1
@@ -6595,7 +6861,6 @@ function Crash.build(ouder: Instance): ()
 	-- precies dat: alles wat erin staat wordt in één keer doorzichtig.
 	local autoVak = Instance.new("CanvasGroup")
 	autoVak.Name = "AutoField"
-	autoVak.LayoutOrder = 2
 	autoVak.Size = UDim2.new(1, 0, 0, 63)
 	autoVak.BackgroundTransparency = 1
 	autoVak.GroupTransparency = 0.6
@@ -6616,7 +6881,6 @@ function Crash.build(ouder: Instance): ()
 	autoVeld.TextEditable = false     -- pointer-events: none zolang de schakelaar uit staat
 
 	local knop = UI.primary(zetPaneel, "PLACE BET")
-	knop.LayoutOrder = 3
 	-- .btn-bet: verloop van 135 graden, neon naar neon-dim. De knop wisselt van kleur met
 	-- de fase, net als de klassen btn-bet, btn-cashout en btn-waiting.
 	local knopVerloop = UI.gradient(knop, Theme.color.neon, Theme.color.neonDim, 135)
@@ -6624,11 +6888,9 @@ function Crash.build(ouder: Instance): ()
 	knopRand.Transparency = 1
 
 	-- ---------- statistieken, kansen en het bewijs ----------
-	local statsVak = Common.statsPanel(bediening, "crash")
-	statsVak.LayoutOrder = 4
+	Common.statsPanel(bediening, "crash")
 	local oddsVak = Common.oddsPanel(bediening, "odds",
 		"RTP 97%. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x. Auto cash-out pays exactly at your target.")
-	oddsVak.LayoutOrder = 5
 
 	-- #mpFair: de tweede .odds-note in hetzelfde paneel. In de CSS is "Shared round #n" goud
 	-- en de rest grijs; twee kleuren in één regel zou RichText vragen, en dat staat in dit
@@ -6636,7 +6898,7 @@ function Crash.build(ouder: Instance): ()
 	local rondeRegel = UI.label(oddsVak, "", { size = Theme.text.tiny, color = Theme.color.muted })
 	rondeRegel.TextWrapped = true
 	rondeRegel.AutomaticSize = Enum.AutomaticSize.Y
-	rondeRegel.Size = UDim2.new(1, 0, 0, 0)
+	rondeRegel.Size = UDim2.new(1, 0, 0, 34)   -- twee regels; AutomaticSize rekt hem op
 	rondeRegel.TextYAlignment = Enum.TextYAlignment.Top
 	rondeRegel.LineHeight = 1.7
 
@@ -6644,7 +6906,7 @@ function Crash.build(ouder: Instance): ()
 		local t = UI.label(oddsVak, "", { size = 10, color = Theme.color.muted, font = Theme.font.num })
 		t.TextWrapped = true
 		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.Size = UDim2.new(1, 0, 0, 0)
+		t.Size = UDim2.new(1, 0, 0, 14)
 		t.TextYAlignment = Enum.TextYAlignment.Top
 		return t
 	end
@@ -6740,7 +7002,11 @@ function Crash.build(ouder: Instance): ()
 			local fiche = Instance.new("Frame")
 			fiche.Name = "Chip"
 			fiche.LayoutOrder = i
-			fiche.Size = UDim2.fromOffset(0, 22)
+			-- De cijfers staan in het monospace-lettertype, dus de breedte is te rekenen:
+			-- padding van 10 links en rechts plus 0,6 em per teken. AutomaticSize houdt hem
+			-- ruim genoeg als een multiplier boven de honderd komt.
+			local tekst = Money.fmt(m) .. "\u{00D7}"
+			fiche.Size = UDim2.fromOffset(20 + math.ceil(#tekst * 6.6), 22)
 			fiche.AutomaticSize = Enum.AutomaticSize.X
 			fiche.BackgroundColor3 = Theme.color.black
 			fiche.BackgroundTransparency = 0.6   -- rgba(0,0,0,0.4)
@@ -6751,7 +7017,7 @@ function Crash.build(ouder: Instance): ()
 			UI.padding4(fiche, 0, 10, 0, 10)
 			fiche.Parent = balkVak
 
-			local t = UI.label(fiche, Money.fmt(m) .. "\u{00D7}", {
+			local t = UI.label(fiche, tekst, {
 				size = Theme.text.small, color = tekstKleur, font = Theme.font.num,
 			})
 			t.Size = UDim2.new(0, 0, 1, 0)
@@ -6761,11 +7027,14 @@ function Crash.build(ouder: Instance): ()
 	end
 
 	local function toonFairness()
-		if not stand or stand.phase == "idle" then
-			rondeRegel.Text = ""
-			commitRegel.Text = ""
-			zaadRegel.Text = ""
-			puntRegel.Text = ""
+		-- #mpFair staat op `hidden` zolang er geen gedeelde ronde is. Onzichtbare kinderen
+		-- slaat een UIListLayout over, dus dan houdt het paneel ook geen ruimte vrij.
+		local erisEen = stand ~= nil and stand.phase ~= "idle"
+		rondeRegel.Visible = erisEen
+		commitRegel.Visible = erisEen
+		zaadRegel.Visible = erisEen
+		if not erisEen then
+			puntRegel.Visible = false
 			return
 		end
 		local kort = function(s: any): string
@@ -6777,6 +7046,8 @@ function Crash.build(ouder: Instance): ()
 			tonumber(stand.id) or 0)
 		commitRegel.Text = "commit " .. (if stand.commit then kort(stand.commit) else "\u{2014}")
 		zaadRegel.Text = "seed " .. (if stand.seed then kort(stand.seed) else "revealed when the flight is over")
+		-- De regel met het crashpunt komt er pas bij als het zaad vrijgegeven is.
+		puntRegel.Visible = stand.crashAt ~= nil
 		puntRegel.Text = if stand.crashAt then "crashed at " .. Money.fmt(stand.crashAt) .. "x" else ""
 	end
 
@@ -6804,7 +7075,8 @@ function Crash.build(ouder: Instance): ()
 		elseif fase == "crashed" then
 			tekst = "CRASHED"
 		else
-			tekst = "IN FLIGHT"
+			-- "idle": de server heeft nog geen ronde. Wachten dus, net als tussen twee rondes.
+			tekst = "WAITING\u{2026}"
 		end
 
 		knop.Text = tekst
@@ -6995,8 +7267,12 @@ function Crash.build(ouder: Instance): ()
 		multTekst.Text = tekst
 		multSchaduw.Text = tekst
 		multRand.Color = if gecrasht then KLEUR.crashRand else KLEUR.tekstRand
-		statusTekst.Text = if gecrasht then "\u{25BA} CRASHED" else "\u{25BA} IN THE AIR"
+		local pilTekst = if gecrasht then "\u{25BA} CRASHED" else "\u{25BA} IN THE AIR"
+		statusTekst.Text = pilTekst
 		statusTekst.TextColor3 = if gecrasht then KLEUR.crashTekst else Theme.color.white
+		-- ondergrens voor de pil: padding van 12 links en rechts plus ruwweg een halve em
+		-- per teken. AutomaticSize maakt hem breder als de letters meer ruimte vragen.
+		statusPil.Size = UDim2.fromOffset(24 + math.ceil(#pilTekst * 7.2), 25)
 	end
 
 	local function toonAftellen(seconden: number)
@@ -7058,7 +7334,9 @@ function Crash.build(ouder: Instance): ()
 		if not zichtbaar or luchtW &lt;= 0 then return end
 		drijf(dt)
 		-- @keyframes livePulse: van vol naar een kwart en terug, in 1,6 seconden
-		levendStip.BackgroundTransparency = 0.375 + 0.375 * math.cos(os.clock() * math.pi * 2 / 1.6)
+		if levendStip then
+			levendStip.BackgroundTransparency = 0.375 + 0.375 * math.cos(os.clock() * math.pi * 2 / 1.6)
+		end
 
 		if not stand then return end
 		local nu = workspace:GetServerTimeNow()
@@ -8565,11 +8843,21 @@ return Mines
 					<Properties>
 						<string name="Name">Plinko</string>
 						<ProtectedString name="Source">--!strict
--- Plinko: de pinnen, het balletje dat langs het pad van de server valt, en de bakjes
--- eronder. De cijfers in de bakjes staan onder elkaar in plaats van in het midden, net als
--- na de laatste fix in de webversie, zodat ze op een smal scherm niet over elkaar vallen.
+-- Plinko: een driehoek van pinnen die het hele bord vult, en onderlangs de rij bakjes met
+-- hun multiplier erin -- roze aan de buitenkant, via oranje en goud naar groen in het
+-- midden. Het balletje valt langs het pad dat de server heeft getrokken.
+--
+-- Het beeld komt regel voor regel uit de webversie: `#plinkoView` in de markup, `.board`,
+-- `.plinko-wrap`, `.seg`, `.payout-line` en `.pk-chip` in de CSS, en pkGeometry()/pkDraw()
+-- in het script. Die laatste twee tekenen op een canvas; hier is elke pin, elk bakje en het
+-- balletje een Frame, uitgerekend met dezelfde pixelformules.
+--
+-- Wat Roblox niet heeft: letter-spacing (de 1px uit `.seg button` is weggelaten), de
+-- box-shadow onder het balletje (hier een tweede, grotere en doorzichtige neonstip
+-- eromheen), flex-wrap op de uitslagbalk (de webversie bewaart er tien, en tien passen er
+-- naast elkaar) en een vette variant van het cijferlettertype (`.pk-chip` is 700).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Odds = require(ReplicatedStorage.Shared.Odds)
@@ -8578,220 +8866,542 @@ local Common = require(script.Parent.Common)
 
 local Plinko = {}
 
-local RIJEN = {8, 12, 16}
-local RISICO = {"low", "medium", "high"}
+-- De twee knoppenbalken uit de markup: 8 / 12 / 16 en LOW / MID / HIGH. Het opschrift van
+-- het middelste risico is "MID", de waarde die naar de server gaat blijft "medium".
+local RIJEN = { 8, 12, 16 }
+local RISICO = {
+	{ key = "low", label = "LOW" },
+	{ key = "medium", label = "MID" },
+	{ key = "high", label = "HIGH" },
+}
 
--- Warme kleuren aan de randen, koel in het midden: zo leest een speler de tabel in één
--- oogopslag, precies als de CSS-klassen in de webversie.
-local function bakKleur(mult: number): Color3
-	if mult &gt;= 20 then return Color3.fromHex("e0616e") end
-	if mult &gt;= 5 then return Color3.fromHex("e08a55") end
-	if mult &gt;= 1.5 then return Theme.color.gold end
-	if mult &gt;= 1 then return Color3.fromHex("4a7f63") end
-	return Color3.fromHex("2a323d")
+-- ---------- maten uit de CSS en uit pkGeometry() ----------
+local WRAP_MIN = 340        -- .plinko-wrap min-height
+local STRIP_H = 26          -- .result-strip min-height
+local STRIP_GAT = 6         -- .result-strip gap
+local TOP_Y = 24            -- g.topY
+local ONDER = 70            -- (h - 70): de ruimte die de bakjes onderaan overhouden
+local BAK_GAT = 6           -- g.bucketY = topY + rows * spacingY + 6
+local BAK_H = 30            -- g.bucketH
+local BAK_R = 4             -- roundRect(..., 4)
+local RIJ_S = 0.14          -- PK_ROW_MS: hoe lang het balletje over één rij doet
+local VAL_S = 0.22          -- de val van de laatste pin in het bakje
+local FLITS_S = 0.5         -- zo lang licht het geraakte bakje op (now - lastHit &lt; 500)
+local MAX_UITSLAGEN = 10    -- PK.results wordt afgekapt op tien
+
+-- rgba(216,255,216,0.85): een bleekgroene pin.
+local PIN = Color3.fromRGB(216, 255, 216)
+local PIN_DOORZICHT = 0.15
+-- De twee kleuren uit pkColor() die niet in de :root staan; de andere twee zijn --red
+-- en --gold.
+local ORANJE = Color3.fromHex("ff8c3a")
+local BAK_GROEN = Color3.fromHex("3fa96a")
+local BAK_DOORZICHT = 0.2   -- globalAlpha 0.8 voor een bakje dat niet net geraakt is
+
+local STREEP = Color3.fromHex("1a3a1a")   -- .payout-line border-bottom
+
+-- Een bord waar nog niemand naar gekeken heeft. AbsoluteSize is pas een frame later bekend,
+-- dus zonder deze maat staat het bord bij het openen van het scherm nog even leeg.
+local NOMINAAL = Vector2.new(900, 520)
+
+type Meetkunde = {
+	w: number, h: number,
+	cx: number, topY: number, sx: number, sy: number, bakY: number, bakH: number,
+}
+
+-- pkGeometry(): de pinafstand is de kleinste van "breed genoeg" en "hoog genoeg", zodat de
+-- driehoek altijd binnen het vak past.
+local function meetkunde(w: number, h: number, rijen: number): Meetkunde
+	local sx = math.min(w / (rijen + 3), (h - ONDER) / rijen * 1.1)
+	local sy = (h - ONDER) / rijen
+	return {
+		w = w, h = h, cx = w / 2, topY = TOP_Y, sx = sx, sy = sy,
+		bakY = TOP_Y + rijen * sy + BAK_GAT, bakH = BAK_H,
+	}
+end
+
+-- De plek van een pin, een bakje of het balletje. Het rekenwerk gaat in pixels, precies als
+-- op het canvas, maar de uitkomst wordt als verhouding neergezet: dan blijft het bord
+-- kloppen zolang de gemeten maat nog niet binnen is, in plaats van in de hoek te kruipen.
+local function plek(m: Meetkunde, x: number, y: number, yBij: number?): UDim2
+	return UDim2.new(x / m.w, 0, y / m.h, yBij or 0)
+end
+
+-- pkColor(): warm aan de randen, koel in het midden. De grens hangt aan de hoogste
+-- multiplier van de tabel, dus hij verschuift mee met het risico.
+local function bakKleur(mult: number, tabel: { number }): Color3
+	local hoogste = 0
+	for _, m in tabel do
+		if m &gt; hoogste then hoogste = m end
+	end
+	if mult &gt;= hoogste * 0.5 then return Theme.color.red end
+	if mult &gt;= 3 then return ORANJE end
+	if mult &gt;= 1 then return Theme.color.gold end
+	return BAK_GROEN
+end
+
+-- Hoe breed wordt dit opschrift. Het canvas heeft measureText() en meet de echte letters;
+-- hier is het een schatting. Opmeten kan met TextService, maar dat is een aanroep per bakje
+-- bij elke hertekening, en een bakje bevat nooit meer dan een getal. In een vette
+-- schreefloze letter is een cijfer ongeveer 0,56 keer de tekstgrootte breed, een punt 0,30
+-- en de x 0,52. Aan de ruime kant schatten mag: dan kiest een bakje liever een korter
+-- opschrift dan eentje dat uitsteekt.
+local function tekstBreedte(txt: string, px: number): number
+	local som = 0
+	for i = 1, #txt do
+		local c = string.sub(txt, i, i)
+		som += if c == "." then 0.30 elseif c == "x" then 0.52 else 0.56
+	end
+	return som * px
+end
+
+-- Het opschrift van een bakje: van uitgebreid naar zo kort als het nog netjes leest, en
+-- pas daarna kleiner. Precies de volgorde uit pkDraw().
+local function bakOpschrift(m: number, ruimte: number, basis: number): (string, number)
+	local opties = {
+		Money.fmt(m) .. "x",
+		Money.fmt(m),
+		if m &gt;= 10 then string.format("%d", math.round(m)) else string.format("%g", math.round(m * 10) / 10),
+	}
+	local label = opties[#opties]
+	for _, optie in opties do
+		if tekstBreedte(optie, basis) &lt;= ruimte then
+			label = optie
+			break
+		end
+	end
+	local px = basis
+	while px &gt; 5 and tekstBreedte(label, px) &gt; ruimte do
+		px -= 0.5
+	end
+	return label, px
+end
+
+-- ---------- bouwsteentjes die alleen dit scherm gebruikt ----------
+-- .field-label: alleen een naam, want ROWS en RISK hebben geen hint.
+local function veldKop(ouder: Instance, naam: string): TextLabel
+	local t = UI.label(ouder, naam, { size = Theme.text.small, color = Theme.color.muted })
+	t.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	return t
+end
+
+-- .payout-line: naam links, waarde rechts in het cijferlettertype, haarlijntje eronder.
+local function payoutRegel(ouder: Instance, naam: string, orde: number): TextLabel
+	local rij = Instance.new("Frame")
+	rij.Name = naam
+	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.BackgroundTransparency = 1
+	rij.LayoutOrder = orde
+	rij.Parent = ouder
+
+	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.text, name = "Key" })
+	local v = UI.label(rij, "\u{2014}", {
+		size = Theme.text.small, color = Theme.color.gold, font = Theme.font.num,
+		align = Enum.TextXAlignment.Right, name = "Value",
+	})
+
+	local lijn = Instance.new("Frame")
+	lijn.Name = "Rule"
+	lijn.AnchorPoint = Vector2.new(0, 1)
+	lijn.Position = UDim2.new(0, 0, 1, 0)
+	lijn.Size = UDim2.new(1, 0, 0, 1)
+	lijn.BackgroundColor3 = STREEP
+	lijn.BackgroundTransparency = 0.5   -- rgba(26,58,26,0.5)
+	lijn.BorderSizePixel = 0
+	lijn.Parent = rij
+	return v
+end
+
+-- .seg: gelijke knoppen met 4 pixels ertussen, de gekozene in neon. Geeft de knoppen terug
+-- plus de randen, want beide veranderen mee met de keuze.
+local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (string, string) -&gt; (TextButton, UIStroke))
+	local seg = Instance.new("Frame")
+	seg.Name = "Seg"
+	seg.Size = UDim2.new(1, 0, 0, 30)   -- 11px tekst met padding 8 boven en onder
+	seg.BackgroundTransparency = 1
+	seg.LayoutOrder = orde
+	seg.Parent = ouder
+	UI.list(seg, 4, Enum.FillDirection.Horizontal)
+
+	local gat = 4 * (aantal - 1) / aantal
+	local function knop(naam: string, tekst: string): (TextButton, UIStroke)
+		local b = Instance.new("TextButton")
+		b.Name = naam
+		b.Text = tekst
+		b.Font = Theme.font.ui
+		b.TextSize = Theme.text.tiny
+		b.TextColor3 = Theme.color.text
+		b.BackgroundColor3 = Theme.color.black
+		b.BackgroundTransparency = Theme.alpha.buttonBg
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.RichText = false
+		b.Size = UDim2.new(1 / aantal, -gat, 1, 0)
+		UI.corner(b, Theme.radius.chip)
+		local rand = UI.stroke(b, Theme.color.border)
+		b.Parent = seg
+		return b, rand
+	end
+	return seg, knop
 end
 
 function Plinko.build(ouder: Instance): ()
 	local bord, bediening = Common.columns(ouder, "PLINKO")
 
-	local vak = UI.panel(bord, "Board")
-	UI.list(vak, 8)
-	UI.panelTitle(vak, "plinko")
+	-- ---------- het bord ----------
+	-- `.plinko-wrap` vult wat het bord overhoudt, met de uitslagbalk eronder: hoogte min de
+	-- balk en de tussenruimte. De min-height van 340 staat er ook in de CSS.
+	local vak = Instance.new("Frame")
+	vak.Name = "PlinkoWrap"
+	vak.Size = UDim2.new(1, 0, 1, -(STRIP_H + Theme.size.asideGap))
+	vak.BackgroundTransparency = 1
+	vak.Parent = bord
+	local minHoogte = Instance.new("UISizeConstraint")
+	minHoogte.MinSize = Vector2.new(0, WRAP_MIN)
+	minHoogte.Parent = vak
 
-	local veld = Instance.new("Frame")
-	veld.Name = "Field"
-	veld.Size = UDim2.new(1, 0, 0, 320)
-	veld.BackgroundColor3 = Theme.color.bg
-	veld.BackgroundTransparency = 0.4
-	veld.BorderSizePixel = 0
-	UI.corner(veld, Theme.radius.button)
-	veld.Parent = vak
+	-- .result-strip: de laatste tien multipliers, de nieuwste vooraan.
+	local strip = Instance.new("Frame")
+	strip.Name = "Results"
+	strip.Size = UDim2.new(1, 0, 0, STRIP_H)
+	strip.BackgroundTransparency = 1
+	strip.Parent = bord
+	local striplijst = UI.list(strip, STRIP_GAT, Enum.FillDirection.Horizontal)
+	striplijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	striplijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
-	local bakkenRij = Instance.new("Frame")
-	bakkenRij.Name = "Buckets"
-	bakkenRij.Size = UDim2.new(1, 0, 0, 44)
-	bakkenRij.BackgroundTransparency = 1
-	bakkenRij.Parent = vak
-
-	local balk = Common.banner(vak)
-	balk.set("DROP A BALL", nil)
-
+	-- ---------- de stand van het scherm ----------
 	local rijen = 12
 	local risico = "medium"
+	-- Zolang de server nog antwoordt of het balletje nog valt neemt het scherm geen tweede
+	-- worp aan; in de webversie vallen er meerdere tegelijk, maar daar is de uitslag er
+	-- meteen en hier hangt hij aan een aanroep.
+	local bezig = false
 	local pinnen: { Frame } = {}
 	local bakken: { Frame } = {}
+	local uitslagen: { { mult: number, kleur: Color3 } } = {}
+	local g: Meetkunde? = nil
+	-- Waarmee het bord dat er nu staat getekend is. AbsoluteSize komt tijdens het slepen van
+	-- een venster tientallen keren per seconde langs; tweehonderd Frames opnieuw maken voor
+	-- dezelfde maat is zonde.
+	local getekend: Vector2? = nil
 
-	-- Het veld opnieuw tekenen als het aantal rijen of het risico verandert.
-	local function teken()
+	-- Het bord opnieuw neerzetten: bij een ander aantal rijen, een ander risico, en als het
+	-- vak van maat verandert -- in de webversie doet de resize-handler precies dat.
+	local function tekenBord(altijd: boolean?)
+		-- Zolang het vak nog niet gemeten is, of zo laag staat dat er geen pinafstand
+		-- overblijft, rekent het bord met het nominale formaat; de verhoudingen uit plek()
+		-- zetten hem dan alsnog over de volle breedte neer.
+		local gemeten = vak.AbsoluteSize
+		local maat = if typeof(gemeten) == "Vector2" and gemeten.X &gt; 0 and (gemeten.Y - ONDER) &gt; rijen
+			then gemeten
+			else NOMINAAL
+		if not altijd and maat == getekend then return end
+		getekend = maat
+
 		for _, p in pinnen do p:Destroy() end
 		table.clear(pinnen)
 		for _, b in bakken do b:Destroy() end
 		table.clear(bakken)
 
-		local hoogteStap = 1 / (rijen + 1)
-		for r = 1, rijen do
-			for k = 0, r do
+		local m = meetkunde(maat.X, maat.Y, rijen)
+		g = m
+
+		-- De pinnen: rij i heeft i+3 pinnen, gecentreerd om het midden.
+		local straal = math.max(2, m.sx * 0.09)
+		for i = 0, rijen - 1 do
+			local y = m.topY + (i + 0.5) * m.sy
+			for j = 0, i + 2 do
 				local p = Instance.new("Frame")
+				p.Name = "Peg"
 				p.AnchorPoint = Vector2.new(0.5, 0.5)
-				-- Elke rij is een pin breder; het midden blijft het midden.
-				p.Position = UDim2.fromScale(0.5 + (k - r / 2) / (rijen + 1), hoogteStap * (r + 0.2))
-				p.Size = UDim2.fromOffset(5, 5)
-				p.BackgroundColor3 = Theme.color.muted
+				p.Position = plek(m, m.cx + (j - (i + 2) / 2) * m.sx, y)
+				p.Size = UDim2.fromOffset(straal * 2, straal * 2)
+				p.BackgroundColor3 = PIN
+				p.BackgroundTransparency = PIN_DOORZICHT
 				p.BorderSizePixel = 0
-				UI.corner(p, 3)
-				p.Parent = veld
+				UI.corner(p, straal)
+				p.Parent = vak
 				table.insert(pinnen, p)
 			end
 		end
 
+		-- De bakjes: één meer dan er rijen zijn, 90% van de pinafstand breed.
 		local tabel = Odds.plinkoTable(rijen, risico)
-		for i, m in tabel do
-			local b = Instance.new("Frame")
-			b.Name = "Bucket" .. i
-			b.Size = UDim2.new(1 / #tabel, -2, 1, 0)
-			b.Position = UDim2.new((i - 1) / #tabel, 1, 0, 0)
-			b.BackgroundColor3 = bakKleur(m)
-			b.BorderSizePixel = 0
-			UI.corner(b, Theme.radius.chip)
-			b.Parent = bakkenRij
+		local bw = m.sx * 0.9
+		local basis = math.max(7, math.min(11, m.sx * 0.32))
+		for b = 0, rijen do
+			local mult = tabel[b + 1]
+			local f = Instance.new("Frame")
+			f.Name = "Bucket" .. b
+			f.AnchorPoint = Vector2.new(0.5, 0)
+			f.Position = plek(m, m.cx + (b - rijen / 2) * m.sx, m.bakY)
+			f.Size = UDim2.fromOffset(bw, m.bakH)
+			f.BackgroundColor3 = bakKleur(mult, tabel)
+			f.BackgroundTransparency = BAK_DOORZICHT
+			f.BorderSizePixel = 0
+			UI.corner(f, BAK_R)
+			f.Parent = vak
 
-			-- De multiplier bovenin, het nummer van het bakje onderin. Nooit allebei in het
-			-- midden: dan staan ze op een telefoon over elkaar.
-			local boven = UI.label(b, Money.fmt(m) .. "\u{00D7}", {
-				size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.num,
+			local tekst, px = bakOpschrift(mult, bw - 2, basis)
+			local l = UI.label(f, tekst, {
+				size = px, color = Theme.color.black, font = Theme.font.uiBold,
 				align = Enum.TextXAlignment.Center,
 			})
-			boven.Position = UDim2.new(0, 0, 0, 2)
-			boven.Size = UDim2.new(1, 0, 0, 14)
-
-			local onder = UI.label(b, tostring(i - 1), {
-				size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.num,
-				align = Enum.TextXAlignment.Center,
-			})
-			onder.AnchorPoint = Vector2.new(0, 1)
-			onder.Position = UDim2.new(0, 0, 1, -2)
-			onder.Size = UDim2.new(1, 0, 0, 12)
-			onder.TextTransparency = 0.45
-
-			table.insert(bakken, b)
+			l.Size = UDim2.fromScale(1, 1)
+			l.TextYAlignment = Enum.TextYAlignment.Center
+			table.insert(bakken, f)
 		end
 	end
 
-	-- Het balletje langs het pad laten vallen dat de server heeft getrokken.
+	-- De uitslagbalk opnieuw vullen: `.pk-chip` heeft de kleur van het bakje, als tekst en
+	-- als rand, op een zwarte ondergrond.
+	local function tekenStrip()
+		for _, k in strip:GetChildren() do
+			if k:IsA("TextLabel") then k:Destroy() end
+		end
+		for i, r in uitslagen do
+			local c = Instance.new("TextLabel")
+			c.Name = "Chip" .. i
+			c.LayoutOrder = i
+			c.Text = Money.fmt(r.mult) .. "\u{00D7}"
+			c.Font = Theme.font.num
+			c.TextSize = Theme.text.tiny
+			c.TextColor3 = r.kleur
+			c.BackgroundColor3 = Theme.color.black
+			c.BackgroundTransparency = 0.6   -- rgba(0,0,0,0.4)
+			c.BorderSizePixel = 0
+			c.RichText = false
+			c.AutomaticSize = Enum.AutomaticSize.X
+			c.Size = UDim2.fromOffset(0, STRIP_H)
+			UI.corner(c, 10)
+			UI.stroke(c, r.kleur)
+			UI.padding4(c, 4, 9, 4, 9)
+			c.Parent = strip
+		end
+	end
+
+	-- Het balletje langs het pad laten vallen dat de server heeft getrokken. De baan is
+	-- dezelfde formule als in pkDraw(): per rij een halve pinafstand opzij, en na de pin een
+	-- boogje omhoog voordat hij de volgende raakt.
 	local function laatVallen(pad: { number }, bak: number)
+		local m = g
+		if not m then return end
+
+		local straal = math.max(4, m.sx * 0.22)
+
+		-- shadowBlur 10 in de kleur van het balletje: hier een grotere, doorzichtige stip
+		-- eromheen, want Roblox kent geen schaduw op een Frame. Het balletje zelf is het
+		-- kind, want een kind tekent altijd boven zijn ouder -- andersom zou de waas
+		-- eroverheen liggen in plaats van erachter.
+		local gloed = Instance.new("Frame")
+		gloed.Name = "Ball"
+		gloed.AnchorPoint = Vector2.new(0.5, 0.5)
+		gloed.Size = UDim2.fromOffset((straal + 5) * 2, (straal + 5) * 2)
+		gloed.BackgroundColor3 = Theme.color.neon
+		gloed.BackgroundTransparency = Theme.glow.transparency
+		gloed.BorderSizePixel = 0
+		gloed.ZIndex = 4
+		UI.corner(gloed, straal + 5)
+		gloed.Parent = vak
+
 		local bal = Instance.new("Frame")
+		bal.Name = "Core"
 		bal.AnchorPoint = Vector2.new(0.5, 0.5)
-		bal.Position = UDim2.fromScale(0.5, 0)
-		bal.Size = UDim2.fromOffset(11, 11)
+		bal.Position = UDim2.fromScale(0.5, 0.5)
+		bal.Size = UDim2.fromOffset(straal * 2, straal * 2)
 		bal.BackgroundColor3 = Theme.color.neon
 		bal.BorderSizePixel = 0
-		bal.ZIndex = 4
-		UI.corner(bal, 6)
-		bal.Parent = veld
+		UI.corner(bal, straal)
+		bal.Parent = gloed
 
-		local x = 0
-		local hoogteStap = 1 / (#pad + 1)
-		for r, stap in pad do
-			x += stap - 0.5
-			local doel = UDim2.fromScale(0.5 + x / (#pad + 1), hoogteStap * (r + 0.6))
-			local tw = TweenService:Create(bal, TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Position = doel,
-			})
-			tw:Play()
-			tw.Completed:Wait()
+		local n = #pad
+		local totaal = n * RIJ_S + VAL_S
+		local t0 = os.clock()
+		while true do
+			local nu = os.clock() - t0
+			local rowF = math.min(n, nu / RIJ_S)
+			local i = math.floor(rowF)
+			local frac = rowF - i
+			local x = m.cx
+			for k = 1, math.min(i, n) do
+				x += (if pad[k] == 1 then 0.5 else -0.5) * m.sx
+			end
+			local y: number
+			if i &lt; n then
+				local richting = if pad[i + 1] == 1 then 0.5 else -0.5
+				-- Voorbij de pin (frac &gt; 0.5) schuift hij naar de volgende stand, met een wipje.
+				local p = math.max(0, (frac - 0.5) / 0.5)
+				x += richting * m.sx * p
+				y = m.topY + rowF * m.sy - math.sin(p * math.pi) * m.sy * 0.25
+			else
+				local p = math.min(1, (nu - n * RIJ_S) / VAL_S)
+				y = m.topY + n * m.sy + p * (m.bakY - m.topY - n * m.sy + 8)
+			end
+			gloed.Position = plek(m, x, y)
+			if nu &gt;= totaal or not gloed.Parent then break end
+			RunService.Heartbeat:Wait()
 		end
+		gloed:Destroy()
+
+		-- Het geraakte bakje licht op en zakt vier pixels: dat is de hit-tak in pkDraw().
 		local eind = bakken[bak + 1]
 		if eind then
-			local tw = TweenService:Create(bal, TweenInfo.new(0.12), { Position = UDim2.fromScale((bak + 0.5) / #bakken, 1) })
-			tw:Play()
-			tw.Completed:Wait()
-			-- Het bakje knippert even op, zodat je ziet waar hij viel.
-			local oud = eind.BackgroundColor3
-			eind.BackgroundColor3 = Theme.color.text
-			task.delay(0.25, function()
-				if eind.Parent then eind.BackgroundColor3 = oud end
+			local rust = eind.Position
+			eind.BackgroundTransparency = 0
+			eind.Position = UDim2.new(rust.X, UDim.new(rust.Y.Scale, rust.Y.Offset + 4))
+			task.delay(FLITS_S, function()
+				-- Tussendoor kan het bord opnieuw getekend zijn; dan is dit bakje weg.
+				if eind.Parent then
+					eind.BackgroundTransparency = BAK_DOORZICHT
+					eind.Position = rust
+				end
 			end)
 		end
-		task.delay(0.2, function()
-			bal:Destroy()
-		end)
 	end
 
-	-- ---------- de bediening ----------
-	local keuzes = UI.panel(bediening, "Setup")
-	UI.list(keuzes, 6)
-	UI.panelTitle(keuzes, "rows")
-	local rijRij = Common.row(keuzes, 28)
-	local rijKnoppen: { [number]: TextButton } = {}
-	UI.panelTitle(keuzes, "risk")
-	local riskRij = Common.row(keuzes, 28)
-	local riskKnoppen: { [string]: TextButton } = {}
-
-	local function markeer()
-		for n, b in rijKnoppen do
-			b.BackgroundTransparency = if n == rijen then 0.1 else 0.5
-			b.TextColor3 = if n == rijen then Theme.color.bg else Theme.color.text
-			b.BackgroundColor3 = if n == rijen then Theme.color.neon else Theme.color.bg
-		end
-		for k, b in riskKnoppen do
-			b.BackgroundTransparency = if k == risico then 0.1 else 0.5
-			b.TextColor3 = if k == risico then Theme.color.bg else Theme.color.text
-			b.BackgroundColor3 = if k == risico then Theme.color.neon else Theme.color.bg
-		end
-	end
-
-	for _, n in RIJEN do
-		local b = UI.chip(rijRij, tostring(n))
-		b.Size = UDim2.new(1 / #RIJEN, -4, 0, 28)
-		b.Activated:Connect(function()
-			rijen = n
-			teken()
-			markeer()
-		end)
-		rijKnoppen[n] = b
-	end
-	for _, k in RISICO do
-		local b = UI.chip(riskRij, string.upper(k))
-		b.Size = UDim2.new(1 / #RISICO, -4, 0, 28)
-		b.Activated:Connect(function()
-			risico = k
-			teken()
-			markeer()
-		end)
-		riskKnoppen[k] = b
-	end
-
+	-- ---------- de bediening links ----------
+	-- In de markup staan het inzetveld, ROWS, RISK, de maxregel en DROP in één `.panel`.
+	-- Common.betBox maakt dat paneel, dus de rest gaat erbij in; de LayoutOrder geldt alleen
+	-- binnen dit paneel, waar het inzetveld op nul staat en dus voorop blijft.
 	local betBox = Common.betBox(bediening, 10)
-	local knop = UI.primary(bediening, "DROP BALL")
+	local paneel = betBox.panel
 
-	local bezig = false
-	knop.Activated:Connect(function()
+	-- Een `.field-group`: de 8 boven is de margin-bottom van het blok erboven, de 8 onder
+	-- die van deze groep zelf (14 min de 6 uit de lijst).
+	local function veldGroep(orde: number): Frame
+		local f = Instance.new("Frame")
+		f.Name = "FieldGroup"
+		f.Size = UDim2.new(1, 0, 0, 0)
+		f.AutomaticSize = Enum.AutomaticSize.Y
+		f.BackgroundTransparency = 1
+		f.LayoutOrder = orde
+		f.Parent = paneel
+		UI.list(f, 6)
+		UI.padding4(f, 8, 0, 8, 0)
+		return f
+	end
+
+	local rijenVeld = veldGroep(10)
+	veldKop(rijenVeld, "ROWS")
+	local _, rijKnop = segRij(rijenVeld, #RIJEN, 2)
+	local rijKnoppen: { [number]: { knop: TextButton, rand: UIStroke } } = {}
+
+	local risicoVeld = veldGroep(11)
+	veldKop(risicoVeld, "RISK")
+	local _, riskKnop = segRij(risicoVeld, #RISICO, 2)
+	local riskKnoppen: { [string]: { knop: TextButton, rand: UIStroke } } = {}
+
+	local maxLabel = payoutRegel(paneel, "MAX MULTIPLIER", 12)
+
+	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
+	local dropKnop = UI.primary(paneel, "DROP")
+	dropKnop.LayoutOrder = 13
+	dropKnop.Font = Theme.font.uiBold
+	UI.gradient(dropKnop, Theme.color.neon, Theme.color.neonDim, 135)
+
+	-- pkRender(): de gekozen knoppen aanzetten en de hoogste multiplier bijwerken.
+	local function markeer()
+		for n, k in rijKnoppen do
+			local aan = n == rijen
+			k.knop.BackgroundColor3 = if aan then Theme.color.neon else Theme.color.black
+			k.knop.BackgroundTransparency = if aan then 0 else Theme.alpha.buttonBg
+			k.knop.TextColor3 = if aan then Theme.color.bg else Theme.color.text
+			k.knop.Font = if aan then Theme.font.uiBold else Theme.font.ui
+			k.rand.Color = if aan then Theme.color.neon else Theme.color.border
+		end
+		for key, k in riskKnoppen do
+			local aan = key == risico
+			k.knop.BackgroundColor3 = if aan then Theme.color.neon else Theme.color.black
+			k.knop.BackgroundTransparency = if aan then 0 else Theme.alpha.buttonBg
+			k.knop.TextColor3 = if aan then Theme.color.bg else Theme.color.text
+			k.knop.Font = if aan then Theme.font.uiBold else Theme.font.ui
+			k.rand.Color = if aan then Theme.color.neon else Theme.color.border
+		end
+		local tabel = Odds.plinkoTable(rijen, risico)
+		local hoogste = 0
+		for _, m in tabel do
+			if m &gt; hoogste then hoogste = m end
+		end
+		maxLabel.Text = Money.fmt(hoogste) .. "\u{00D7}"
+	end
+
+	for i, n in RIJEN do
+		local b, rand = rijKnop("Rows" .. n, tostring(n))
+		b.LayoutOrder = i
+		b.MouseEnter:Connect(function()
+			if rijen ~= n then rand.Color = Theme.color.neon end
+		end)
+		b.MouseLeave:Connect(function()
+			rand.Color = if rijen == n then Theme.color.neon else Theme.color.border
+		end)
+		b.Activated:Connect(function()
+			-- Midden in een worp van rijen wisselen zet het balletje op een bord dat er niet
+			-- meer is; de webversie laat oude ballen daarom ook staan tot ze klaar zijn.
+			if bezig then return end
+			rijen = n
+			tekenBord(true)
+			markeer()
+		end)
+		rijKnoppen[n] = { knop = b, rand = rand }
+	end
+
+	for i, r in RISICO do
+		local b, rand = riskKnop("Risk" .. r.key, r.label)
+		b.LayoutOrder = i
+		b.MouseEnter:Connect(function()
+			if risico ~= r.key then rand.Color = Theme.color.neon end
+		end)
+		b.MouseLeave:Connect(function()
+			rand.Color = if risico == r.key then Theme.color.neon else Theme.color.border
+		end)
+		b.Activated:Connect(function()
+			if bezig then return end
+			risico = r.key
+			tekenBord(true)
+			markeer()
+		end)
+		riskKnoppen[r.key] = { knop = b, rand = rand }
+	end
+
+	dropKnop.Activated:Connect(function()
 		if bezig then return end
 		bezig = true
-		knop.Text = "DROPPING..."
+		-- De webversie laat de knop staan; hier duurt de aanroep merkbaar, dus hij zegt wat
+		-- hij doet in plaats van dood te lijken.
+		dropKnop.Text = "DROPPING..."
 		local res = Common.call("Bet", "plinko", betBox.get(), rijen, risico)
 		if not res then
 			bezig = false
-			knop.Text = "DROP BALL"
+			dropKnop.Text = "DROP"
 			return
 		end
 		laatVallen(res.path, res.bucket)
-		if res.payout &gt; 0 then
-			balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
-			Common.toast("+$" .. Money.fmt(res.payout), if res.mult &gt;= 10 then "gold" else "green")
-		else
-			balk.set(Money.fmt(res.mult) .. "\u{00D7}", "red")
+
+		local tabel = Odds.plinkoTable(rijen, risico)
+		table.insert(uitslagen, 1, { mult = res.mult, kleur = bakKleur(res.mult, tabel) })
+		if #uitslagen &gt; MAX_UITSLAGEN then table.remove(uitslagen) end
+		tekenStrip()
+		-- flash() in pkUpdate(): alleen bij een multiplier van 1 of hoger, goud vanaf 3.
+		if res.mult &gt;= 1 then
+			Common.toast(
+				Money.fmt(res.mult) .. "\u{00D7} \u{00B7} +$" .. Money.fmt(res.payout),
+				if res.mult &gt;= 3 then "gold" else "green"
+			)
 		end
 		bezig = false
-		knop.Text = "DROP BALL"
+		dropKnop.Text = "DROP"
 	end)
 
-	teken()
+	-- Het vak wordt pas na de eerste frame gemeten, en het schuift mee als het venster van
+	-- maat verandert; allebei vragen om hetzelfde bord opnieuw.
+	vak:GetPropertyChangedSignal("AbsoluteSize"):Connect(tekenBord)
+	task.defer(tekenBord)
 	markeer()
+
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "plinko")
 	Common.oddsPanel(bediening, "odds", "Every row is a fair 50/50. The payout table is normalised to RTP 97% per row count and risk level. Higher risk means bigger outliers and more small losses.")
-
 end
 
 return Plinko
@@ -9690,9 +10300,21 @@ return Roulette
 						<string name="Name">Scratch</string>
 						<ProtectedString name="Source">--!strict
 -- Krasloten: negen vakjes die je één voor één openkrast. De server houdt de symbolen vast
--- tot je een vakje aanraakt, dus je kunt niet vooruit kijken -- en de rand blijft grijs tot
--- het hele lot open ligt, zodat de spanning erin blijft.
+-- tot je een vakje aanraakt, dus je kunt niet vooruit kijken -- en pas als het hele lot
+-- open ligt, verklapt het scherm welke drie het geworden zijn.
+--
+-- Het beeld komt uit `#scratchView` in de markup en uit `.scratch-grid`, `.tile`,
+-- `.sc-legend` en `.payout-line` in de CSS. Rechts één vierkant rooster van drie bij drie,
+-- volle breedte tot 360 pixels, en verder niets: geen balk eronder, want die staat in de
+-- webversie ook niet op het bord. Links het inzetvak -- dat hier PRICE PER CARD heet in
+-- plaats van STAKE -- met de RESULT-regel en de twee knoppen erin, en daaronder PRIZES,
+-- STATISTICS en ODDS, in die volgorde.
+--
+-- Wat Roblox niet heeft: letter-spacing (de 1px uit `.sc-prize .sy` is weggelaten), de
+-- box-shadow onder de knoppen, en de gloedring om een winnend vakje -- daarvoor staat hier
+-- alleen de neonrand. De klop van `.btn-cashout` is een gouden rand die op en neer gaat.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Odds = require(ReplicatedStorage.Shared.Odds)
@@ -9701,127 +10323,338 @@ local Common = require(script.Parent.Common)
 
 local Scratch = {}
 
+-- ---------- maten uit de CSS ----------
+local RASTER_MAX = 360     -- .scratch-grid max-width
+local GAT = 10             -- .scratch-grid gap
+-- Drie kolommen met twee keer 10 pixels lucht binnen 360: 113 per vakje.
+local CEL = (RASTER_MAX - 2 * GAT) // 3
+local SYMBOOL = 30         -- .scratch-grid .tile font-size
+
+-- .tile background rgba(0,0,0,0.5), .tile.gem rgba(62,207,142,0.16), .tile.dim opacity 0.45.
+local GEM_VUL = 0.84
+local DOF = 0.55
+
+local STREEP = Color3.fromHex("1a3a1a")       -- .payout-line border-bottom
+local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het verloop
+
+-- ---------- bouwsteentjes die alleen dit scherm gebruikt ----------
+-- .payout-line: naam links, waarde rechts in het cijferlettertype, haarlijntje eronder.
+-- Geeft allebei de labels terug, want hier verandert ook de naam mee: TO GO zolang je
+-- krast, RESULT zodra het lot af is.
+local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLabel, TextLabel)
+	local rij = Instance.new("Frame")
+	rij.Name = "PayoutLine"
+	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.BackgroundTransparency = 1
+	rij.LayoutOrder = orde
+	rij.Parent = ouder
+
+	local k = UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.text, name = "Key" })
+	local v = UI.label(rij, "\u{2014}", {
+		size = Theme.text.small, color = Theme.color.gold, font = Theme.font.num,
+		align = Enum.TextXAlignment.Right, name = "Value",
+	})
+	-- De 6 pixels padding boven en onder uit .payout-line: de tekst staat midden in de rij,
+	-- de haarlijn eronder sluit hem af.
+	for _, t in { k, v } do
+		t.Size = UDim2.fromScale(1, 1)
+		t.TextYAlignment = Enum.TextYAlignment.Center
+	end
+
+	local lijn = Instance.new("Frame")
+	lijn.Name = "Rule"
+	lijn.AnchorPoint = Vector2.new(0, 1)
+	lijn.Position = UDim2.new(0, 0, 1, 0)
+	lijn.Size = UDim2.new(1, 0, 0, 1)
+	lijn.BackgroundColor3 = STREEP
+	lijn.BackgroundTransparency = 0.5   -- rgba(26,58,26,0.5)
+	lijn.BorderSizePixel = 0
+	lijn.Parent = rij
+	return k, v
+end
+
+-- .sc-prize: drie keer het symbool links, de multiplier rechts in goud. Twaalf pixels --
+-- het paneel staat in de markup op 10, maar deze regel zet zijn eigen maat.
+local function prijsRegel(ouder: Instance, symbolen: string, mult: string, orde: number): ()
+	local rij = Instance.new("Frame")
+	rij.Name = "Prize"
+	rij.Size = UDim2.new(1, 0, 0, 18)
+	rij.BackgroundTransparency = 1
+	rij.LayoutOrder = orde
+	rij.Parent = ouder
+
+	UI.label(rij, symbolen, { size = Theme.text.body, color = Theme.color.text, name = "Sym" })
+	UI.label(rij, mult, {
+		size = Theme.text.body, color = Theme.color.gold, font = Theme.font.num,
+		align = Enum.TextXAlignment.Right, name = "Mult",
+	})
+end
+
 function Scratch.build(ouder: Instance): ()
 	local bord, bediening = Common.columns(ouder, "SCRATCH CARDS")
 
-	local kaart = UI.panel(bord, "Card")
-	UI.list(kaart, 10)
-	UI.panelTitle(kaart, "scratch card")
-
+	-- ---------- het bord ----------
+	-- `.scratch-grid`: `repeat(3, 1fr)` met 10 pixels ertussen, volle breedte tot 360, en
+	-- `aspect-ratio: 1` per vakje. Een vakje van hele pixels blijft alleen vierkant als het
+	-- rooster het ook is, dus de maat wordt uitgerekend in plaats van geschaald: de breedte
+	-- van het bord, afgetopt op 360, min twee keer de tussenruimte, door drie.
 	local raster = Instance.new("Frame")
-	raster.Size = UDim2.new(1, 0, 0, 0)
-	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.Name = "Grid"
+	raster.Size = UDim2.fromOffset(CEL * 3 + 2 * GAT, CEL * 3 + 2 * GAT)
 	raster.BackgroundTransparency = 1
-	raster.Parent = kaart
-	local layout = Instance.new("UIGridLayout")
-	layout.CellSize = UDim2.new(0, 96, 0, 96)
-	layout.CellPadding = UDim2.fromOffset(8, 8)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.Parent = raster
+	raster.Parent = bord
 
-	local balk = Common.banner(kaart)
-	balk.set("BUY A CARD", nil)
+	local rooster = Instance.new("UIGridLayout")
+	rooster.CellSize = UDim2.fromOffset(CEL, CEL)
+	rooster.CellPadding = UDim2.fromOffset(GAT, GAT)
+	-- Drie per rij vastzetten: anders zou één pixel te weinig het derde vakje naar de
+	-- volgende rij duwen en stond er een kolom van negen.
+	rooster.FillDirectionMaxCells = 3
+	rooster.SortOrder = Enum.SortOrder.LayoutOrder
+	rooster.Parent = raster
+
+	-- Krimpt het bord onder de 360, dan krimpen de vakjes mee -- zoals `width: 100%` dat in
+	-- de browser doet.
+	local celNu = CEL
+	local function meet()
+		local breed = math.min(RASTER_MAX, bord.AbsoluteSize.X)
+		if breed &lt;= 0 then return end
+		local cel = math.max(24, math.floor((breed - 2 * GAT) / 3))
+		if cel == celNu then return end
+		celNu = cel
+		rooster.CellSize = UDim2.fromOffset(cel, cel)
+		raster.Size = UDim2.fromOffset(cel * 3 + 2 * GAT, cel * 3 + 2 * GAT)
+	end
+	bord:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	task.defer(meet)
+
+	-- ---------- de stand van de ronde ----------
+	local actief = false                       -- er ligt een lot dat nog open moet
+	local getoond = false                      -- SC.shown: er is een lot, gekocht of afgerekend
+	local inzet = 0
+	local mult = 0
+	local symbolen: { [number]: string } = {}  -- wat de server per vakje prijsgaf
+	local winnaar: string? = nil               -- het symbool van de winnende drie, na afloop
+	-- In de browser gebeurt een kras meteen; hier ligt er een vraag aan de server tussen.
+	-- Zolang die onderweg is neemt het scherm niets aan, anders krast een tweede klik een
+	-- tweede vakje open zonder dat het eerste geschilderd is.
+	local bezig = false
 
 	local vakjes: { TextButton } = {}
 	local randen: { UIStroke } = {}
-	local actief = false
-	local open = 0
-	local krasAlles: TextButton
-
-	local function zetVak(i: number, tekst: string, opgekrast: boolean)
-		local b = vakjes[i]
-		b.Text = tekst
-		b.BackgroundColor3 = if opgekrast then Theme.color.panelLight else Theme.color.bg
-		b.TextTransparency = if opgekrast then 0 else 1
-		randen[i].Color = Theme.color.border
-	end
+	local teken: () -&gt; ()
 
 	local function kras(i: number)
-		if not actief then return end
+		if bezig or not actief or symbolen[i] then return end
+		bezig = true
 		local res = Common.call("Act", "scratch", i)
+		bezig = false
 		if not res then return end
-		open += 1
-		zetVak(i, res.symbol, true)
+		symbolen[i] = res.symbol
 		if not res.done then
-			balk.set(open .. " / " .. Odds.SCRATCH_CELLS .. " REVEALED", nil)
+			teken()
 			return
 		end
 
-		-- Pas nu mag de kaart verklappen of er gewonnen is.
+		-- Pas nu mag de kaart verklappen of er gewonnen is. Welk symbool de drie gelijke
+		-- waren rekent het scherm zelf uit de negen vakjes uit; de server stuurt alleen de
+		-- multiplier mee, en zonder dat symbool weet het bord niet wat het moet oplichten.
 		actief = false
-		krasAlles.Visible = false
+		mult = res.mult
+		winnaar = nil
 		if res.payout &gt; 0 then
-			balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
-			Common.toast("+$" .. Money.fmt(res.payout), if res.mult &gt;= 15 then "gold" else "green")
-			for j = 1, Odds.SCRATCH_CELLS do
-				randen[j].Color = Theme.color.neon
+			for _, p in Odds.SCRATCH_PRIZES do
+				local n = 0
+				for j = 1, Odds.SCRATCH_CELLS do
+					if symbolen[j] == p.sym then n += 1 end
+				end
+				if n &gt;= 3 then
+					winnaar = p.sym
+					break
+				end
 			end
+		end
+		teken()
+
+		-- Dezelfde twee meldingen als scSettle() in de webversie.
+		if res.payout &gt; inzet then
+			Common.toast((winnaar or "") .. " THREE OF A KIND \u{00B7} +$" .. Money.fmt(res.payout), "green")
 		else
-			balk.set("NO MATCH", "red")
+			Common.toast("NO THREE OF A KIND", "red")
 		end
 	end
 
 	for i = 1, Odds.SCRATCH_CELLS do
 		local b = Instance.new("TextButton")
 		b.Name = "Cell" .. i
-		b.Text = ""
+		b.Text = "\u{00B7}"
 		b.Font = Theme.font.ui
-		b.TextSize = 40
+		b.TextSize = SYMBOOL
 		b.TextColor3 = Theme.color.text
-		b.BackgroundColor3 = Theme.color.bg
+		b.BackgroundColor3 = Theme.color.black
+		b.BackgroundTransparency = Theme.alpha.buttonBg
 		b.BorderSizePixel = 0
 		b.AutoButtonColor = false
+		b.Active = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.radius.button)
-		randen[i] = UI.stroke(b, Theme.color.border)
-		b.Parent = raster
+		UI.corner(b, Theme.radius.panel)   -- .tile border-radius 4
+		local rand = UI.stroke(b, Theme.color.border)
+		b.MouseEnter:Connect(function()
+			-- .tile.clickable:hover: alleen een neonrand; optillen kan niet, de roosterplek
+			-- ligt vast.
+			if b.Active then rand.Color = Theme.color.neon end
+		end)
+		b.MouseLeave:Connect(function()
+			if b.Active then rand.Color = Theme.color.border end
+		end)
 		b.Activated:Connect(function()
 			kras(i)
 		end)
+		b.Parent = raster
 		vakjes[i] = b
+		randen[i] = rand
 	end
 
-	-- ---------- de bediening ----------
-	local tabel = UI.panel(bediening, "Paytable")
-	UI.list(tabel, 4)
-	UI.panelTitle(tabel, "three of a kind pays")
-	for _, p in Odds.SCRATCH_PRIZES do
-		Common.statRow(tabel, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}")
-	end
-
+	-- ---------- de bediening links ----------
+	-- In de markup staan het inzetveld, de uitslagregel en de twee knoppen in één `.panel`.
+	-- Common.betBox maakt dat paneel, dus de rest gaat erbij in; de LayoutOrder hieronder
+	-- geldt alleen bínnen dat paneel, waar het inzetveld op nul staat en dus voorop blijft.
 	local betBox = Common.betBox(bediening, 10)
-	local kopen = UI.primary(bediening, "BUY CARD")
-	krasAlles = UI.secondary(bediening, "REVEAL ALL")
+	local paneel = betBox.panel
+	-- Het veld heet hier PRICE PER CARD: je koopt een lot, je zet niet in op een uitkomst.
+	for _, kind in paneel:GetDescendants() do
+		if kind:IsA("TextLabel") and kind.Text == "STAKE" then
+			kind.Text = "PRICE PER CARD"
+		end
+	end
+
+	local statusNaam, statusWaarde = payoutRegel(paneel, "RESULT", 11)
+
+	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
+	local kopen = UI.primary(paneel, "BUY A CARD")
+	kopen.LayoutOrder = 12
+	kopen.Font = Theme.font.uiBold
+	UI.gradient(kopen, Theme.color.neon, Theme.color.neonDim, 135)
+
+	-- .btn-primary.btn-cashout: goud, en hij klopt één keer per seconde. Die klop is in de
+	-- CSS een box-shadow; hier is het een gouden rand die op en neer gaat.
+	local krasAlles = UI.primary(paneel, "SCRATCH THEM ALL")
+	krasAlles.LayoutOrder = 13
+	krasAlles.Font = Theme.font.uiBold
+	krasAlles.BackgroundColor3 = Theme.color.gold
+	krasAlles.TextColor3 = Theme.color.bg
 	krasAlles.Visible = false
+	UI.gradient(krasAlles, Theme.color.gold, GOUD_DONKER, 135)
+	local klopRand = UI.stroke(krasAlles, Theme.color.gold, 2)
+	klopRand.Transparency = 1
+	local klop = TweenService:Create(
+		klopRand,
+		TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.5 }   -- rgba(224,181,85,0.5) uit @keyframes pulse-gold
+	)
+
+	-- ► PRIZES: de zes winnende rijen, drie keer het symbool en wat het uitkeert.
+	local prijzen = UI.panel(bediening, "Prizes")
+	UI.list(prijzen, 6)   -- .sc-legend gap
+	UI.panelTitle(prijzen, "\u{25BA} prizes")
+	for i, p in Odds.SCRATCH_PRIZES do
+		prijsRegel(prijzen, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}", i)
+	end
+
+	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	Common.statsPanel(bediening, "scratch")
+	Common.oddsPanel(bediening, "odds", "Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP 97%, chance of a prize 21.6%.")
+
+	-- ---------- tekenen ----------
+	-- Eén plek die de negen vakjes, de uitslagregel en de twee knoppen op de stand zet,
+	-- precies zoals scRender() dat in de webversie doet.
+	function teken()
+		local dicht = 0
+		for i = 1, Odds.SCRATCH_CELLS do
+			local b = vakjes[i]
+			local rand = randen[i]
+			local sym = symbolen[i]
+			local gem = sym ~= nil and sym == winnaar
+
+			b.Text = if sym then sym else (if getoond then "?" else "\u{00B7}")
+			b.Active = actief and sym == nil
+			if b.Active then dicht += 1 end
+
+			if gem then
+				-- .tile.sc-open.gem: pas oplichten als het lot af is, anders verraadt de
+				-- eerste treffer al welk symbool het wordt.
+				b.BackgroundColor3 = Theme.color.neon
+				b.BackgroundTransparency = GEM_VUL
+				b.TextColor3 = Theme.color.neon
+				rand.Color = Theme.color.neon
+			elseif sym then
+				-- .tile.sc-open: het opengekraste vakje wordt lichter dan de rest.
+				b.BackgroundColor3 = Theme.color.panelLight
+				b.BackgroundTransparency = 0
+				b.TextColor3 = Theme.color.text
+				rand.Color = Theme.color.border
+			else
+				b.BackgroundColor3 = Theme.color.black
+				b.BackgroundTransparency = Theme.alpha.buttonBg
+				b.TextColor3 = Theme.color.text
+				rand.Color = Theme.color.border
+			end
+
+			-- .tile.dim: zonder lot ligt het hele bord op de achtergrond.
+			b.TextTransparency = if getoond then 0 else DOF
+			rand.Transparency = if getoond then 0 else DOF
+			if not getoond then
+				b.BackgroundTransparency += (1 - b.BackgroundTransparency) * DOF
+			end
+		end
+
+		statusNaam.Text = if actief then "TO GO" else "RESULT"
+		if actief then
+			statusWaarde.Text = dicht .. (if dicht == 1 then " cell" else " cells")
+		elseif getoond then
+			statusWaarde.Text = if mult &gt; 0 then Money.fmt(mult) .. "\u{00D7}" else "no prize"
+		else
+			statusWaarde.Text = "\u{2014}"
+		end
+
+		kopen.Visible = not actief
+		krasAlles.Visible = actief
+		if actief then
+			klop:Play()
+		else
+			klop:Pause()
+			klopRand.Transparency = 1
+		end
+	end
 
 	kopen.Activated:Connect(function()
-		if actief then return end
-		local res = Common.call("Bet", "scratch", betBox.get())
+		if bezig or actief then return end
+		local bedrag = betBox.get()
+		bezig = true
+		local res = Common.call("Bet", "scratch", bedrag)
+		bezig = false
 		if not res then return end
+		inzet = bedrag
 		actief = true
-		open = 0
-		krasAlles.Visible = true
-		for i = 1, Odds.SCRATCH_CELLS do
-			zetVak(i, "", false)
-		end
-		balk.set("SCRATCH THE SQUARES", nil)
+		getoond = true
+		mult = 0
+		winnaar = nil
+		table.clear(symbolen)
+		teken()
 	end)
 
 	krasAlles.Activated:Connect(function()
 		if not actief then return end
 		for i = 1, Odds.SCRATCH_CELLS do
-			if actief and vakjes[i].TextTransparency == 1 then
+			if actief and not symbolen[i] then
 				kras(i)
 				task.wait(0.08)
 			end
 		end
 	end)
-	-- De twee panelen waar elke aside in de webversie mee afsluit.
-	Common.statsPanel(bediening, "scratch")
-	Common.oddsPanel(bediening, "odds", "Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP 97%, chance of a prize 21.6%.")
 
+	teken()
 end
 
 return Scratch
