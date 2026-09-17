@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""Rekent de indeling van een Roblox-UI-boom uit en tekent er SVG van.
+
+Genoeg van Roblox nagerekend om te kunnen zien of een scherm klopt: UIListLayout,
+UIGridLayout, UIPadding, AutomaticSize, AnchorPoint, UICorner, UIStroke, UIGradient en
+rotatie. Het is geen exacte kopie van de engine -- tekstbreedte wordt geschat -- maar je ziet
+wel meteen of een paneel op de verkeerde plek staat of een bord te klein is.
+"""
+import json
+import sys
+
+
+def kleur(c, val="#000000"):
+    if not c or c.get("t") != "Color3":
+        return val
+    return "#%02x%02x%02x" % (
+        max(0, min(255, round(c["r"] * 255))),
+        max(0, min(255, round(c["g"] * 255))),
+        max(0, min(255, round(c["b"] * 255))),
+    )
+
+
+def udim2(v, ouderB, ouderH):
+    if not v or v.get("t") != "UDim2":
+        return 0.0, 0.0
+    return v["xs"] * ouderB + v["xo"], v["ys"] * ouderH + v["yo"]
+
+
+def kind(n, klasse):
+    for k in n["children"]:
+        if k["class"] == klasse:
+            return k
+    return None
+
+
+def kinderen(n, klasse):
+    return [k for k in n["children"] if k["class"] == klasse]
+
+
+# Ruwe breedte van een letter, als fractie van de tekstgrootte. Code is monospace en breder.
+def tekstBreedte(tekst, maat, font):
+    f = 0.60 if str(font).startswith("Code") else 0.52
+    return len(tekst) * maat * f
+
+
+LAYOUTS = ("UIListLayout", "UIGridLayout", "UIPadding", "UICorner", "UIStroke", "UIGradient",
+           "UIAspectRatioConstraint", "UITextSizeConstraint", "UIScale", "UISizeConstraint",
+           "UIFlexItem", "UITableLayout", "UIPageLayout")
+
+
+def beperk(n, b, h):
+    """UISizeConstraint knijpt een knoop binnen een maat."""
+    c = kind(n, "UISizeConstraint")
+    if not c:
+        return b, h
+    mx = c["props"].get("MaxSize")
+    mn = c["props"].get("MinSize")
+    if mx and mx.get("t") == "Vector2":
+        b, h = min(b, mx["x"]), min(h, mx["y"])
+    if mn and mn.get("t") == "Vector2":
+        b, h = max(b, mn["x"]), max(h, mn["y"])
+    return b, h
+
+
+def zichtbaar(n):
+    return n["props"].get("Visible", True)
+
+
+def meet(n, ouderB, ouderH):
+    """Geeft (breedte, hoogte) van een knoop, met AutomaticSize meegerekend."""
+    p = n["props"]
+    b, h = udim2(p.get("Size"), ouderB, ouderH)
+    auto = p.get("AutomaticSize")
+
+    # de eigen inhoud meten
+    pad = kind(n, "UIPadding")
+    pl = pr = pt = pb = 0
+    if pad:
+        pl = pad["props"].get("PaddingLeft", {}).get("o", 0)
+        pr = pad["props"].get("PaddingRight", {}).get("o", 0)
+        pt = pad["props"].get("PaddingTop", {}).get("o", 0)
+        pb = pad["props"].get("PaddingBottom", {}).get("o", 0)
+
+    if auto in ("X", "XY") and n["class"] in ("TextLabel", "TextButton", "TextBox"):
+        b = tekstBreedte(p.get("Text", ""), p.get("TextSize", 14), p.get("Font", "")) + pl + pr
+
+    lijst = kind(n, "UILayout") or kind(n, "UIListLayout")
+    raster = kind(n, "UIGridLayout")
+    echteKinderen = [k for k in n["children"] if k["class"] not in LAYOUTS and zichtbaar(k)]
+
+    if auto in ("Y", "XY") and echteKinderen:
+        binnenB = max(0.0, b - pl - pr)
+        if lijst:
+            gap = lijst["props"].get("Padding", {}).get("o", 0)
+            horizontaal = lijst["props"].get("FillDirection") == "Horizontal"
+            tot = 0.0
+            hoogste = 0.0
+            for k in echteKinderen:
+                kb, kh = meet(k, binnenB, 0)
+                if horizontaal:
+                    hoogste = max(hoogste, kh)
+                else:
+                    tot += kh
+            if horizontaal:
+                h = hoogste + pt + pb
+            else:
+                h = tot + gap * max(0, len(echteKinderen) - 1) + pt + pb
+        elif raster:
+            cel = raster["props"].get("CellSize", {})
+            cb = cel.get("xo", 0)
+            ch = cel.get("yo", 0)
+            cp = raster["props"].get("CellPadding", {})
+            perRij = max(1, int((binnenB + cp.get("xo", 0)) // max(1, cb + cp.get("xo", 0))))
+            rijen = (len(echteKinderen) + perRij - 1) // perRij
+            h = rijen * ch + max(0, rijen - 1) * cp.get("yo", 0) + pt + pb
+        else:
+            onderkant = 0.0
+            for k in echteKinderen:
+                kb, kh = meet(k, binnenB, 0)
+                kx, ky = udim2(k["props"].get("Position"), binnenB, 0)
+                onderkant = max(onderkant, ky + kh)
+            h = onderkant + pt + pb
+    return beperk(n, b, h)
+
+
+def plaats(n, x, y, b, h, uit, diepte=0):
+    """Tekent een knoop op (x, y) met maat (b, h) en gaat door met de kinderen."""
+    if not zichtbaar(n):
+        return
+    p = n["props"]
+    anker = p.get("AnchorPoint")
+    if anker and anker.get("t") == "Vector2":
+        x -= anker["x"] * b
+        y -= anker["y"] * h
+
+    rot = p.get("Rotation", 0) or 0
+    groep = None
+    if abs(rot) > 0.01:
+        groep = '<g transform="rotate(%.2f %.2f %.2f)">' % (rot, x + b / 2, y + h / 2)
+        uit.append(groep)
+
+    klasse = n["class"]
+    if klasse in ("Frame", "TextLabel", "TextButton", "TextBox", "ScrollingFrame", "ImageLabel"):
+        doorzicht = p.get("BackgroundTransparency", 0)
+        if doorzicht < 0.999:
+            hoek = kind(n, "UICorner")
+            r = hoek["props"].get("CornerRadius", {}).get("o", 0) if hoek else 0
+            verloop = kind(n, "UIGradient")
+            vul = kleur(p.get("BackgroundColor3"), "#ffffff")
+            if verloop:
+                kps = verloop["props"].get("Color", {}).get("k", [])
+                if len(kps) >= 2 and isinstance(kps[0].get("v"), dict):
+                    van = kleur(kps[0]["v"])
+                    tot = kleur(kps[-1]["v"])
+                    draai = verloop["props"].get("Rotation", 0)
+                    gid = "g%d" % len(uit)
+                    x2, y2 = (0, 1) if abs(draai - 90) < 1 else (1, 0)
+                    if abs(draai - 135) < 1:
+                        x2, y2 = 1, 1
+                    uit.append(
+                        '<defs><linearGradient id="%s" x1="0" y1="0" x2="%d" y2="%d">'
+                        '<stop offset="0" stop-color="%s"/><stop offset="1" stop-color="%s"/>'
+                        "</linearGradient></defs>" % (gid, x2, y2, van, tot))
+                    vul = "url(#%s)" % gid
+            uit.append(
+                '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%.1f" fill="%s" '
+                'fill-opacity="%.2f"/>' % (x, y, max(0, b), max(0, h), r, vul, 1 - doorzicht))
+        streep = kind(n, "UIStroke")
+        if streep:
+            sp = streep["props"]
+            st = sp.get("Transparency", 0)
+            if st < 0.999:
+                hoek = kind(n, "UICorner")
+                r = hoek["props"].get("CornerRadius", {}).get("o", 0) if hoek else 0
+                uit.append(
+                    '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%.1f" fill="none" '
+                    'stroke="%s" stroke-width="%.1f" stroke-opacity="%.2f"/>'
+                    % (x, y, max(0, b), max(0, h), r, kleur(sp.get("Color"), "#888888"),
+                       sp.get("Thickness", 1), 1 - st))
+
+    tekst = p.get("Text", "")
+    if klasse in ("TextLabel", "TextButton", "TextBox") and tekst and p.get("TextTransparency", 0) < 0.999:
+        maat = p.get("TextSize", 14)
+        uitlijn = p.get("TextXAlignment", "Left")
+        anchor = {"Left": "start", "Center": "middle", "Right": "end"}.get(str(uitlijn), "start")
+        tx = x + (2 if anchor == "start" else (b / 2 if anchor == "middle" else b - 2))
+        yalign = str(p.get("TextYAlignment", "Center"))
+        if yalign == "Top":
+            ty = y + maat
+        elif yalign == "Bottom":
+            ty = y + h - 2
+        else:
+            ty = y + h / 2 + maat * 0.36
+        font = "monospace" if str(p.get("Font", "")).startswith("Code") else "Inter, sans-serif"
+        gewicht = "600" if "Bold" in str(p.get("Font", "")) or "Med" in str(p.get("Font", "")) else "400"
+        veilig = (tekst.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+        uit.append(
+            '<text x="%.1f" y="%.1f" font-family="%s" font-size="%.1f" font-weight="%s" '
+            'fill="%s" fill-opacity="%.2f" text-anchor="%s">%s</text>'
+            % (tx, ty, font, maat, gewicht, kleur(p.get("TextColor3"), "#ffffff"),
+               1 - p.get("TextTransparency", 0), anchor, veilig))
+
+    # ---------- de kinderen ----------
+    # ClipsDescendants: alles buiten het vak wordt afgesneden. Zonder dit lijken de parten
+    # van het rad buiten de cirkel te steken, terwijl Roblox ze netjes bijknipt.
+    clip = None
+    if p.get("ClipsDescendants"):
+        hoek = kind(n, "UICorner")
+        r = hoek["props"].get("CornerRadius", {}).get("o", 0) if hoek else 0
+        cid = "c%d" % len(uit)
+        uit.append('<defs><clipPath id="%s"><rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                   'rx="%.1f"/></clipPath></defs>' % (cid, x, y, max(0, b), max(0, h), r))
+        uit.append('<g clip-path="url(#%s)">' % cid)
+        clip = True
+
+    pad = kind(n, "UIPadding")
+    pl = pr = pt = pb = 0
+    if pad:
+        pl = pad["props"].get("PaddingLeft", {}).get("o", 0)
+        pr = pad["props"].get("PaddingRight", {}).get("o", 0)
+        pt = pad["props"].get("PaddingTop", {}).get("o", 0)
+        pb = pad["props"].get("PaddingBottom", {}).get("o", 0)
+    bx, by = x + pl, y + pt
+    bb, bh = max(0.0, b - pl - pr), max(0.0, h - pt - pb)
+
+    echteKinderen = [k for k in n["children"] if k["class"] not in LAYOUTS and zichtbaar(k)]
+    # Roblox sorteert op LayoutOrder en houdt bij gelijke waarde de volgorde waarin de
+    # kinderen zijn toegevoegd. sorted() in Python is stabiel, dus dat komt overeen.
+    echteKinderen = sorted(echteKinderen, key=lambda k: k["props"].get("LayoutOrder", 0))
+
+    lijst = kind(n, "UIListLayout")
+    raster = kind(n, "UIGridLayout")
+
+    if lijst:
+        lp = lijst["props"]
+        gap = lp.get("Padding", {}).get("o", 0)
+        horizontaal = lp.get("FillDirection") == "Horizontal"
+        maten = [meet(k, bb, bh) for k in echteKinderen]
+        totaal = sum((m[0] if horizontaal else m[1]) for m in maten) + gap * max(0, len(maten) - 1)
+        hAlign = str(lp.get("HorizontalAlignment", "Left"))
+        vAlign = str(lp.get("VerticalAlignment", "Top"))
+        if horizontaal:
+            cx = bx + (0 if hAlign == "Left" else ((bb - totaal) / 2 if hAlign == "Center" else bb - totaal))
+            for k, (kb, kh) in zip(echteKinderen, maten):
+                cy = by + (0 if vAlign == "Top" else ((bh - kh) / 2 if vAlign == "Center" else bh - kh))
+                plaats(k, cx, cy, kb, kh, uit, diepte + 1)
+                cx += kb + gap
+        else:
+            cy = by + (0 if vAlign == "Top" else ((bh - totaal) / 2 if vAlign == "Center" else bh - totaal))
+            for k, (kb, kh) in zip(echteKinderen, maten):
+                cx = bx + (0 if hAlign == "Left" else ((bb - kb) / 2 if hAlign == "Center" else bb - kb))
+                plaats(k, cx, cy, kb, kh, uit, diepte + 1)
+                cy += kh + gap
+    elif raster:
+        rp = raster["props"]
+        cel = rp.get("CellSize", {})
+        cb, ch = cel.get("xo", 0), cel.get("yo", 0)
+        cp = rp.get("CellPadding", {})
+        gx, gy = cp.get("xo", 0), cp.get("yo", 0)
+        perRij = max(1, int((bb + gx) // max(1, cb + gx)))
+        hAlign = str(rp.get("HorizontalAlignment", "Left"))
+        rijBreed = perRij * cb + max(0, perRij - 1) * gx
+        start = bx + (0 if hAlign == "Left" else ((bb - rijBreed) / 2 if hAlign == "Center" else bb - rijBreed))
+        for i, k in enumerate(echteKinderen):
+            rij, kol = divmod(i, perRij)
+            plaats(k, start + kol * (cb + gx), by + rij * (ch + gy), cb, ch, uit, diepte + 1)
+    else:
+        for k in echteKinderen:
+            kb, kh = meet(k, bb, bh)
+            kx, ky = udim2(k["props"].get("Position"), bb, bh)
+            plaats(k, bx + kx, by + ky, kb, kh, uit, diepte + 1)
+
+    if clip:
+        uit.append("</g>")
+    if groep:
+        uit.append("</g>")
+
+
+def main() -> int:
+    boom = json.load(sys.stdin)
+    b, h = udim2(boom["props"].get("Size"), 0, 0)
+    uit = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">'
+           % (b, h, b, h),
+           '<rect width="%d" height="%d" fill="#0e1116"/>' % (b, h)]
+    plaats(boom, 0, 0, b, h, uit)
+    uit.append("</svg>")
+    sys.stdout.write("\n".join(uit))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

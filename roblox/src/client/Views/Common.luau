@@ -141,9 +141,12 @@ function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame
 
 	-- .crash-header: de terugknop en de naam van het spel, naast elkaar.
 	if titel then
+		-- Geen LayoutOrder: die staat overal op nul, en bij gelijke waarde houdt Roblox de
+		-- volgorde waarin de kinderen zijn toegevoegd. De kop wordt als eerste toegevoegd,
+		-- dus hij staat bovenaan. Zette ik hier 1 neer, dan kwam hij juist onder alles wat
+		-- een scherm daarna toevoegt -- want dat staat op nul.
 		local kop = Instance.new("Frame")
 		kop.Name = "Header"
-		kop.LayoutOrder = 1
 		kop.Size = UDim2.new(1, 0, 0, 34)
 		kop.BackgroundTransparency = 1
 		kop.Parent = aside
@@ -166,7 +169,6 @@ function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame
 
 	-- Het saldopaneel, zoals `.panel.balance` in de markup: alles gecentreerd.
 	local saldoVak = UI.panel(aside, "Balance")
-	saldoVak.LayoutOrder = 2
 	UI.list(saldoVak, 2)
 	local kopje = UI.label(saldoVak, "BALANCE", {
 		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
