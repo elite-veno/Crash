@@ -1255,6 +1255,19 @@
   .prof-slot.filled.gold { border-color: rgba(224,181,85,0.55); }
   .prof-slot.filled.silver { border-color: rgba(200,208,220,0.45); }
   .prof-slot.filled.bronze { border-color: rgba(62,207,142,0.4); }
+  /* Een gevuld vakje op je eigen profiel legt de badge weer af als je erop klikt. */
+  .prof-slot.takeoff { cursor: pointer; position: relative; transition: border-color 0.15s, background 0.15s; }
+  .prof-slot.takeoff:hover { border-color: var(--red); background: rgba(224,97,110,0.08); }
+  .prof-slot.takeoff .x {
+    position: absolute; top: 6px; right: 8px;
+    font-size: 13px; line-height: 1; color: var(--muted); opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .prof-slot.takeoff:hover .x { opacity: 1; color: var(--red); }
+  /* Op een aanraakscherm is er geen hover, dus daar staat het kruisje er gewoon. */
+  @media (hover: none) { .prof-slot.takeoff .x { opacity: 0.55; } }
+  .prof-slot.takeoff:hover .nm::after { content: ' \2014 tap to remove'; color: var(--red); font-weight: 400; }
+  @media (max-width: 900px) { .prof-slot.takeoff:hover .nm::after { content: ''; } }
   .prof-slot .ic { font-size: 30px; }
   .prof-slot .nm { font-size: 12px; font-weight: 600; }
   .prof-slot:not(.filled) .nm { font-weight: 400; }
@@ -7960,6 +7973,21 @@ function profRender() {
       const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = a.icon;
       const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = a.title;
       slot.appendChild(ic); slot.appendChild(nm);
+      // Op je eigen profiel is het vakje zelf de manier om hem weer af te leggen: anders
+      // moet je de kaart ervan opzoeken in de lijst eronder.
+      if (mine) {
+        slot.classList.add('takeoff');
+        slot.title = 'Click to stop showing ' + a.title;
+        slot.setAttribute('role', 'button');
+        slot.tabIndex = 0;
+        const x = document.createElement('div'); x.className = 'x'; x.textContent = '\u2715';
+        slot.appendChild(x);
+        const off = () => profToggleFeatured(a.id);
+        slot.addEventListener('click', off);
+        slot.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); off(); }
+        });
+      }
     } else {
       const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = '—';
       const nm = document.createElement('div'); nm.className = 'nm';
@@ -8035,7 +8063,7 @@ function profRender() {
   head.className = 'section-heading';
   const h2 = document.createElement('h2'); h2.textContent = 'BADGES';
   const cnt = document.createElement('span'); cnt.className = 'count';
-  cnt.textContent = mine ? 'CLICK TO SHOW UP TO THREE' : Object.keys(unlocked).length + ' EARNED';
+  cnt.textContent = mine ? 'CLICK TO SHOW UP TO THREE \u00b7 CLICK A SLOT ABOVE TO REMOVE' : Object.keys(unlocked).length + ' EARNED';
   const div = document.createElement('div'); div.className = 'divider';
   head.appendChild(h2); head.appendChild(cnt); head.appendChild(div);
   host.appendChild(head);
