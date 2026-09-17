@@ -71,6 +71,11 @@ end
 
 -- Twee kolommen: links het speelveld, rechts de bediening. Zoals `.game-layout` in de CSS.
 -- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query daar.
+--
+-- Het omschakelen gebeurt door de richting van de UIListLayout te draaien, niet door de
+-- vakken zelf te verplaatsen. Dat scheelt een valkuil: wie posities uitrekent uit
+-- AbsoluteSize en die posities vervolgens zet, verandert AbsoluteSize weer, en dan blijft
+-- het heen en weer meten. Roblox legt hier zelf neer wat waar hoort.
 function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
 	local breedte = rechtsBreed or 300
 	local rij = Instance.new("Frame")
@@ -79,9 +84,12 @@ function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
 	rij.AutomaticSize = Enum.AutomaticSize.Y
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
+	local indeling = UI.list(rij, 12, Enum.FillDirection.Horizontal)
+	indeling.VerticalAlignment = Enum.VerticalAlignment.Top
 
 	local links = Instance.new("Frame")
 	links.Name = "Board"
+	links.LayoutOrder = 1
 	links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
 	links.AutomaticSize = Enum.AutomaticSize.Y
 	links.BackgroundTransparency = 1
@@ -90,36 +98,31 @@ function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
 
 	local rechts = Instance.new("Frame")
 	rechts.Name = "Controls"
-	rechts.AnchorPoint = Vector2.new(1, 0)
-	rechts.Position = UDim2.fromScale(1, 0)
+	rechts.LayoutOrder = 2
 	rechts.Size = UDim2.new(0, breedte, 0, 0)
 	rechts.AutomaticSize = Enum.AutomaticSize.Y
 	rechts.BackgroundTransparency = 1
 	rechts.Parent = rij
 	UI.list(rechts, Theme.size.gap)
 
-	-- Smal scherm: alles onder elkaar. Roblox heeft geen media queries, dus dit gaat met
-	-- de hand, op dezelfde grens als de CSS.
+	-- Alleen omschakelen als de stand echt verandert; anders doet elke meting werk voor
+	-- niets.
+	local smalNu: boolean? = nil
 	local function meet()
-		local smal = rij.AbsoluteSize.X < 760
+		local smal = rij.AbsoluteSize.X > 0 and rij.AbsoluteSize.X < 760
+		if smal == smalNu then return end
+		smalNu = smal
 		if smal then
+			indeling.FillDirection = Enum.FillDirection.Vertical
 			links.Size = UDim2.new(1, 0, 0, 0)
-			rechts.AnchorPoint = Vector2.new(0, 0)
-			rechts.Position = UDim2.new(0, 0, 0, links.AbsoluteSize.Y + 12)
 			rechts.Size = UDim2.new(1, 0, 0, 0)
-			rij.Size = UDim2.new(1, 0, 0, links.AbsoluteSize.Y + rechts.AbsoluteSize.Y + 12)
-			rij.AutomaticSize = Enum.AutomaticSize.None
 		else
+			indeling.FillDirection = Enum.FillDirection.Horizontal
 			links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
-			rechts.AnchorPoint = Vector2.new(1, 0)
-			rechts.Position = UDim2.fromScale(1, 0)
 			rechts.Size = UDim2.new(0, breedte, 0, 0)
-			rij.AutomaticSize = Enum.AutomaticSize.Y
 		end
 	end
 	rij:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
-	links:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
-	rechts:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
 	task.defer(meet)
 
 	return links, rechts
