@@ -3797,6 +3797,7 @@ local AchievementsView = require(script.Views.Achievements)
 local VipView = require(script.Views.Vip)
 local FriendsView = require(script.Views.Friends)
 local Common = require(script.Views.Common)
+local Icons = require(script.Icons)
 
 -- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
 -- elkaar en praten alleen met de server.
@@ -3834,22 +3835,22 @@ root.Parent = gui
 type Scherm = { id: string, label: string, icon: string, groep: string, badge: string? }
 
 local SCHERMEN: { Scherm } = {
-	{ id = "home",         label = "HOME",          icon = "\u{2302}", groep = "PLAY" },
-	{ id = "crash",        label = "CRASH",         icon = "\u{2197}", groep = "PLAY", badge = "LIVE" },
-	{ id = "roulette",     label = "ROULETTE",      icon = "\u{25CE}", groep = "PLAY", badge = "LIVE" },
-	{ id = "tower",        label = "DRAGON TOWER",  icon = "\u{25B3}", groep = "PLAY", badge = "LIVE" },
-	{ id = "mines",        label = "MINES",         icon = "\u{25A6}", groep = "PLAY", badge = "LIVE" },
-	{ id = "plinko",       label = "PLINKO",        icon = "\u{25BD}", groep = "PLAY", badge = "LIVE" },
-	{ id = "blackjack",    label = "BLACKJACK",     icon = "\u{2660}", groep = "PLAY", badge = "LIVE" },
-	{ id = "scratch",      label = "SCRATCH CARDS", icon = "\u{25A4}", groep = "PLAY", badge = "LIVE" },
-	{ id = "wheel",        label = "WHEEL",         icon = "\u{2733}", groep = "PLAY", badge = "LIVE" },
-	{ id = "horse",        label = "HORSE RACE",    icon = "\u{265E}", groep = "PLAY", badge = "LIVE" },
-	{ id = "slots",        label = "777",           icon = "\u{2756}", groep = "VIP",  badge = "VIP" },
-	{ id = "bus",          label = "RIDE THE BUS",  icon = "\u{25B7}", groep = "VIP",  badge = "VIP" },
-	{ id = "profile",      label = "PROFILE",       icon = "\u{25CB}", groep = "ACCOUNT" },
-	{ id = "vip",          label = "VIP ZONE",      icon = "\u{2726}", groep = "ACCOUNT" },
-	{ id = "friends",      label = "FRIENDS",       icon = "\u{263A}", groep = "ACCOUNT" },
-	{ id = "achievements", label = "ACHIEVEMENTS",  icon = "\u{2691}", groep = "ACCOUNT" },
+	{ id = "home",         label = "HOME",          icon = "home", groep = "PLAY" },
+	{ id = "crash",        label = "CRASH",         icon = "crash", groep = "PLAY", badge = "LIVE" },
+	{ id = "roulette",     label = "ROULETTE",      icon = "roulette", groep = "PLAY", badge = "LIVE" },
+	{ id = "tower",        label = "DRAGON TOWER",  icon = "tower", groep = "PLAY", badge = "LIVE" },
+	{ id = "mines",        label = "MINES",         icon = "mines", groep = "PLAY", badge = "LIVE" },
+	{ id = "plinko",       label = "PLINKO",        icon = "plinko", groep = "PLAY", badge = "LIVE" },
+	{ id = "blackjack",    label = "BLACKJACK",     icon = "blackjack", groep = "PLAY", badge = "LIVE" },
+	{ id = "scratch",      label = "SCRATCH CARDS", icon = "scratch", groep = "PLAY", badge = "LIVE" },
+	{ id = "wheel",        label = "WHEEL",         icon = "wheel", groep = "PLAY", badge = "LIVE" },
+	{ id = "horse",        label = "HORSE RACE",    icon = "horse", groep = "PLAY", badge = "LIVE" },
+	{ id = "slots",        label = "777",           icon = "slots", groep = "VIP",  badge = "VIP" },
+	{ id = "bus",          label = "RIDE THE BUS",  icon = "bus", groep = "VIP",  badge = "VIP" },
+	{ id = "profile",      label = "PROFILE",       icon = "profile", groep = "ACCOUNT" },
+	{ id = "vip",          label = "VIP ZONE",      icon = "vip", groep = "ACCOUNT" },
+	{ id = "friends",      label = "FRIENDS",       icon = "friends", groep = "ACCOUNT" },
+	{ id = "achievements", label = "ACHIEVEMENTS",  icon = "achievements", groep = "ACCOUNT" },
 }
 
 -- De twee VIP-spellen zijn alleen bereikbaar zolang de pas geldt; anders kom je uit bij de
@@ -4013,12 +4014,20 @@ local function navItem(item: Scherm, volgorde: number)
 	streep.ZIndex = 12
 	streep.Parent = b
 
-	local icoon = UI.label(b, item.icon, {
-		size = 17, color = Theme.color.text, align = Enum.TextXAlignment.Center, name = "Icon",
-	})
-	icoon.Position = UDim2.new(0, Theme.size.navPadX, 0, 0)
-	icoon.Size = UDim2.new(0, Theme.size.navIcon, 1, 0)
+	-- .nav-icon: een lijntekening van 24 bij 24, geen letterteken.
+	local icoonVak = Instance.new("Frame")
+	icoonVak.Name = "IconBox"
+	icoonVak.AnchorPoint = Vector2.new(0, 0.5)
+	icoonVak.Position = UDim2.new(0, Theme.size.navPadX, 0.5, 0)
+	icoonVak.Size = UDim2.fromOffset(Theme.size.navIcon, Theme.size.navIcon)
+	icoonVak.BackgroundTransparency = 1
+	icoonVak.ZIndex = 11
+	icoonVak.Parent = b
+	local icoon = Icons.build(icoonVak, item.icon, Theme.size.navIcon)
 	icoon.ZIndex = 11
+	for _, k in icoon:GetDescendants() do
+		if k:IsA("GuiObject") then k.ZIndex = 11 end
+	end
 
 	local label = UI.label(b, item.label, {
 		size = Theme.text.body, color = Theme.color.text, name = "NavLabel",
@@ -4144,7 +4153,7 @@ function verfBalk()
 		local aan = naam == huidige or (VIP_ROUTES[naam] and huidige == "vip" and not vipOpen)
 		local zweeft = hoverOp == naam and not aan
 		local streep = b:FindFirstChild("Marker") :: Frame?
-		local icoon = b:FindFirstChild("Icon") :: TextLabel?
+		local icoonVak = b:FindFirstChild("IconBox") :: Frame?
 		local label = b:FindFirstChild("NavLabel") :: TextLabel?
 
 		if aan then
@@ -4165,9 +4174,9 @@ function verfBalk()
 		local opSlot = VIP_ROUTES[naam] == true and not vipOpen
 		local kleur = if aan then Theme.color.neon else Theme.color.text
 		local dim = if opSlot then Theme.alpha.locked else 0
-		if icoon then
-			icoon.TextColor3 = kleur
-			icoon.TextTransparency = dim
+		if icoonVak then
+			local ic = icoonVak:FindFirstChild("Icon") :: Frame?
+			if ic then Icons.tint(ic, kleur, dim) end
 		end
 		if label then
 			label.TextColor3 = kleur
@@ -4271,11 +4280,209 @@ end)
 return nil
 </ProtectedString>
 			</Properties>
-			<Item class="Folder" referent="RBX20">
+			<Item class="ModuleScript" referent="RBX20">
+				<Properties>
+					<string name="Name">Icons</string>
+					<ProtectedString name="Source">--!strict
+-- De pictogrammen uit de zijbalk. In de webversie zijn dat lijntekeningen van 24 bij 24 met
+-- een streekdikte van 1,8; losse tekens zagen er daarnaast uit als een noodoplossing.
+--
+-- Roblox kan geen paden tekenen, dus elk pictogram wordt opgebouwd uit dunne balkjes en
+-- rondjes. Alles rekent in dezelfde 24x24 als de SVG, zodat de coördinaten uit crash.html
+-- rechtstreeks over te nemen zijn. Wat een boog is in het origineel wordt hier een paar
+-- korte segmenten -- op vierentwintig pixels ziet niemand het verschil.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UI = require(ReplicatedStorage.Shared.UI)
+
+local Icons = {}
+
+local V = 24         -- viewBox
+local STREEK = 1.8   -- stroke-width
+
+function Icons.build(ouder: Instance, naam: string, maat: number): Frame
+	local vak = Instance.new("Frame")
+	vak.Name = "Icon"
+	vak.Size = UDim2.fromOffset(maat, maat)
+	vak.BackgroundTransparency = 1
+	vak.Parent = ouder
+
+	local schaal = maat / V
+	local dikte = math.max(1, math.round(STREEK * schaal))
+
+	local function lijn(x1: number, y1: number, x2: number, y2: number)
+		local dx, dy = x2 - x1, y2 - y1
+		local lengte = math.sqrt(dx * dx + dy * dy) * schaal
+		local f = Instance.new("Frame")
+		f.Name = "Stroke"
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = UDim2.fromOffset((x1 + x2) / 2 * schaal, (y1 + y2) / 2 * schaal)
+		f.Size = UDim2.fromOffset(math.max(lengte, dikte), dikte)
+		f.BackgroundColor3 = Color3.new(1, 1, 1)
+		f.BorderSizePixel = 0
+		f.Rotation = math.deg(math.atan2(dy, dx))
+		UI.corner(f, dikte / 2)
+		f.Parent = vak
+	end
+
+	-- Een rondje: hol (alleen een rand) of vol.
+	local function rond(cx: number, cy: number, r: number, vol: boolean?)
+		local f = Instance.new("Frame")
+		f.Name = "Stroke"
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = UDim2.fromOffset(cx * schaal, cy * schaal)
+		f.Size = UDim2.fromOffset(r * 2 * schaal, r * 2 * schaal)
+		f.BackgroundColor3 = Color3.new(1, 1, 1)
+		f.BackgroundTransparency = if vol then 0 else 1
+		f.BorderSizePixel = 0
+		UI.corner(f, r * schaal)
+		if not vol then
+			UI.stroke(f, Color3.new(1, 1, 1), dikte)
+		end
+		f.Parent = vak
+	end
+
+	-- Een rechthoek met alleen een rand.
+	local function kader(x: number, y: number, w: number, h: number, radius: number)
+		local f = Instance.new("Frame")
+		f.Name = "Stroke"
+		f.Position = UDim2.fromOffset(x * schaal, y * schaal)
+		f.Size = UDim2.fromOffset(w * schaal, h * schaal)
+		f.BackgroundTransparency = 1
+		f.BorderSizePixel = 0
+		UI.corner(f, radius * schaal)
+		UI.stroke(f, Color3.new(1, 1, 1), dikte)
+		f.Parent = vak
+		return f
+	end
+
+	-- Een reeks punten aan elkaar: een gebroken lijn.
+	local function boog(punten: { { number } })
+		for i = 1, #punten - 1 do
+			lijn(punten[i][1], punten[i][2], punten[i + 1][1], punten[i + 1][2])
+		end
+	end
+
+	-- Een cirkelboog in stapjes, voor schouders en oren.
+	local function arc(cx: number, cy: number, r: number, vanGraden: number, totGraden: number, stappen: number)
+		local punten = {}
+		for i = 0, stappen do
+			local h = math.rad(vanGraden + (totGraden - vanGraden) * i / stappen)
+			table.insert(punten, { cx + math.cos(h) * r, cy + math.sin(h) * r })
+		end
+		boog(punten)
+	end
+
+	if naam == "home" then
+		boog({ {3, 12}, {12, 4}, {21, 12} })
+		boog({ {5, 10}, {5, 20}, {19, 20}, {19, 10} })
+	elseif naam == "crash" then
+		lijn(3, 20, 20, 4)
+		boog({ {14, 4}, {20, 4}, {20, 10} })
+	elseif naam == "roulette" then
+		rond(12, 12, 9)
+		rond(12, 12, 4)
+		lijn(12, 3, 12, 7)
+		lijn(12, 17, 12, 21)
+		lijn(3, 12, 7, 12)
+		lijn(17, 12, 21, 12)
+	elseif naam == "tower" then
+		boog({ {12, 2}, {4, 7}, {4, 13} })
+		arc(12, 13, 8, 180, 90, 5)
+		arc(12, 13, 8, 0, 90, 5)
+		boog({ {20, 13}, {20, 7}, {12, 2} })
+		boog({ {9, 12}, {11, 14}, {15, 10} })
+	elseif naam == "mines" then
+		kader(4, 4, 16, 16, 2)
+		for _, p in {{9, 9}, {15, 9}, {12, 12}, {9, 15}, {15, 15}} do
+			rond(p[1], p[2], 1.5, true)
+		end
+	elseif naam == "plinko" then
+		for _, p in {{6, 6}, {12, 6}, {18, 6}, {9, 12}, {15, 12}, {6, 18}, {12, 18}, {18, 18}} do
+			rond(p[1], p[2], 1.5, true)
+		end
+	elseif naam == "blackjack" then
+		kader(3, 5, 14, 18, 2)
+		kader(7, 1, 14, 18, 2).BackgroundTransparency = 0.15
+	elseif naam == "scratch" then
+		kader(2, 6, 20, 12, 2)
+		-- de gestippelde scheidingen worden hier korte streepjes
+		for _, x in {8, 16} do
+			for _, y in {7, 11, 15} do
+				lijn(x, y, x, y + 2)
+			end
+		end
+		lijn(11, 11, 13, 13)
+		lijn(13, 11, 11, 13)
+	elseif naam == "wheel" then
+		rond(12, 13, 8)
+		lijn(12, 5, 12, 21)
+		lijn(4, 13, 20, 13)
+		lijn(6.3, 7.3, 17.7, 18.7)
+		lijn(17.7, 7.3, 6.3, 18.7)
+	elseif naam == "slots" then
+		-- 777 heeft in de webversie geen eigen pictogram: drie rollen naast elkaar.
+		for _, x in {5, 10, 15} do
+			kader(x, 5, 4, 14, 1)
+		end
+	elseif naam == "horse" then
+		boog({ {4, 20}, {7, 12}, {11, 10}, {14, 5}, {17, 6}, {20, 10}, {18, 11}, {16, 9},
+		       {15, 12}, {17, 16}, {15, 17}, {12, 12}, {8, 14}, {6, 20} })
+	elseif naam == "bus" then
+		-- ook zonder eigen pictogram: een bus als een doos met twee wielen.
+		kader(3, 5, 18, 12, 2)
+		lijn(3, 11, 21, 11)
+		rond(7, 19, 2)
+		rond(17, 19, 2)
+	elseif naam == "profile" then
+		rond(12, 8, 4)
+		arc(12, 21, 8, 180, 360, 8)
+	elseif naam == "vip" then
+		boog({ {3, 8}, {7, 11}, {12, 5}, {17, 11}, {21, 8}, {19, 19}, {5, 19}, {3, 8} })
+	elseif naam == "friends" then
+		rond(9, 8, 3.2)
+		arc(9, 20, 6.5, 180, 360, 7)
+		arc(16.5, 8.5, 3.2, -80, 80, 5)
+		boog({ {18, 14.6}, {20.5, 15.6}, {21.9, 19} })
+	elseif naam == "achievements" then
+		lijn(8, 21, 16, 21)
+		lijn(12, 17, 12, 21)
+		lijn(6, 4, 18, 4)
+		lijn(6, 4, 6, 8)
+		lijn(18, 4, 18, 8)
+		arc(12, 8, 6, 0, 180, 6)
+		boog({ {6, 6}, {3, 6}, {3, 8} })
+		arc(7, 8, 4, 180, 90, 4)
+		boog({ {18, 6}, {21, 6}, {21, 8} })
+		arc(17, 8, 4, 0, 90, 4)
+	end
+
+	return vak
+end
+
+-- De kleur van een heel pictogram in één keer zetten.
+function Icons.tint(vak: Frame, kleur: Color3, doorzicht: number): ()
+	for _, k in vak:GetDescendants() do
+		if k:IsA("Frame") then
+			k.BackgroundColor3 = kleur
+			if k.BackgroundTransparency &lt; 0.9 then
+				k.BackgroundTransparency = doorzicht
+			end
+		elseif k:IsA("UIStroke") then
+			k.Color = kleur
+			k.Transparency = doorzicht
+		end
+	end
+end
+
+return Icons
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="Folder" referent="RBX21">
 				<Properties>
 					<string name="Name">Views</string>
 				</Properties>
-				<Item class="ModuleScript" referent="RBX21">
+				<Item class="ModuleScript" referent="RBX22">
 					<Properties>
 						<string name="Name">Achievements</string>
 						<ProtectedString name="Source">--!strict
@@ -4519,7 +4726,7 @@ return Achievements
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX22">
+				<Item class="ModuleScript" referent="RBX23">
 					<Properties>
 						<string name="Name">Art</string>
 						<ProtectedString name="Source">--!strict
@@ -4855,7 +5062,7 @@ return Art
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX23">
+				<Item class="ModuleScript" referent="RBX24">
 					<Properties>
 						<string name="Name">Blackjack</string>
 						<ProtectedString name="Source">--!strict
@@ -5058,7 +5265,7 @@ return Blackjack
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX24">
+				<Item class="ModuleScript" referent="RBX25">
 					<Properties>
 						<string name="Name">Bus</string>
 						<ProtectedString name="Source">--!strict
@@ -5272,7 +5479,7 @@ return Bus
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX25">
+				<Item class="ModuleScript" referent="RBX26">
 					<Properties>
 						<string name="Name">Common</string>
 						<ProtectedString name="Source">--!strict
@@ -5690,7 +5897,7 @@ return Common
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX26">
+				<Item class="ModuleScript" referent="RBX27">
 					<Properties>
 						<string name="Name">Crash</string>
 						<ProtectedString name="Source">--!strict
@@ -5988,7 +6195,7 @@ return Crash
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX27">
+				<Item class="ModuleScript" referent="RBX28">
 					<Properties>
 						<string name="Name">Friends</string>
 						<ProtectedString name="Source">--!strict
@@ -6143,7 +6350,7 @@ return Friends
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX28">
+				<Item class="ModuleScript" referent="RBX29">
 					<Properties>
 						<string name="Name">Home</string>
 						<ProtectedString name="Source">--!strict
@@ -6634,7 +6841,7 @@ return Home
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX29">
+				<Item class="ModuleScript" referent="RBX30">
 					<Properties>
 						<string name="Name">Horse</string>
 						<ProtectedString name="Source">--!strict
@@ -6893,7 +7100,7 @@ return Horse
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX30">
+				<Item class="ModuleScript" referent="RBX31">
 					<Properties>
 						<string name="Name">Mines</string>
 						<ProtectedString name="Source">--!strict
@@ -7100,7 +7307,7 @@ return Mines
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX31">
+				<Item class="ModuleScript" referent="RBX32">
 					<Properties>
 						<string name="Name">Plinko</string>
 						<ProtectedString name="Source">--!strict
@@ -7337,7 +7544,7 @@ return Plinko
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX32">
+				<Item class="ModuleScript" referent="RBX33">
 					<Properties>
 						<string name="Name">Profile</string>
 						<ProtectedString name="Source">--!strict
@@ -7501,7 +7708,7 @@ return Profile
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX33">
+				<Item class="ModuleScript" referent="RBX34">
 					<Properties>
 						<string name="Name">Roulette</string>
 						<ProtectedString name="Source">--!strict
@@ -7783,7 +7990,7 @@ return Roulette
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX34">
+				<Item class="ModuleScript" referent="RBX35">
 					<Properties>
 						<string name="Name">Scratch</string>
 						<ProtectedString name="Source">--!strict
@@ -7926,7 +8133,7 @@ return Scratch
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX35">
+				<Item class="ModuleScript" referent="RBX36">
 					<Properties>
 						<string name="Name">Slots</string>
 						<ProtectedString name="Source">--!strict
@@ -8049,7 +8256,7 @@ return Slots
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX36">
+				<Item class="ModuleScript" referent="RBX37">
 					<Properties>
 						<string name="Name">Tower</string>
 						<ProtectedString name="Source">--!strict
@@ -8283,7 +8490,7 @@ return Tower
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX37">
+				<Item class="ModuleScript" referent="RBX38">
 					<Properties>
 						<string name="Name">Vip</string>
 						<ProtectedString name="Source">--!strict
@@ -8476,7 +8683,7 @@ return Vip
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX38">
+				<Item class="ModuleScript" referent="RBX39">
 					<Properties>
 						<string name="Name">Wheel</string>
 						<ProtectedString name="Source">--!strict

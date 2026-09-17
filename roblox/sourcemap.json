@@ -152,6 +152,13 @@
        ],
        "children": [
         {
+         "name": "Icons",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/client/Icons/init.luau"
+         ]
+        },
+        {
          "name": "Views",
          "className": "Folder",
          "children": [
