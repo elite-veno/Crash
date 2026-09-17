@@ -5936,7 +5936,9 @@ function scRender(popIndex) {
     const cls = ['tile'];
     if (SC.active && !SC.revealed[i]) cls.push('clickable');
     if (open) cls.push('sc-open');
-    if (open && SC.prize >= 0 && SC.cells[i] === ODDS.SCRATCH_PRIZES[SC.prize].sym) cls.push('gem');
+    // Pas oplichten als het lot af is. Deed hij dat al tijdens het krassen, dan verraadde
+    // de eerste treffer meteen welk symbool het wordt en was de rest van het lot voor niets.
+    if (open && !SC.active && SC.prize >= 0 && SC.cells[i] === ODDS.SCRATCH_PRIZES[SC.prize].sym) cls.push('gem');
     if (!SC.shown) cls.push('dim');
     if (i === popIndex) cls.push('pop');
     t.className = cls.join(' ');
