@@ -4798,14 +4798,27 @@ function pkDraw() {
     c.fill();
     c.globalAlpha = 1;
     c.fillStyle = '#000';
-    c.font = `bold ${Math.max(7, Math.min(11, g.spacingX * 0.32))}px Inter, system-ui, sans-serif`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    let label = fmt(table[b]) + 'x';
-    if (c.measureText(label).width > bw - 2) label = label.replace(/x$/, '');
-    if (c.measureText(label).width > bw - 2 && table[b] >= 10) label = String(Math.round(table[b]));
-    // narrow buckets (phones, 16 rows): alternate the label height so neighbours do not overlap
-    const stagger = c.measureText(label).width > bw - 2 ? (b % 2 ? 7 : -6) : 0;
-    c.fillText(label, x, g.bucketY + yOff + g.bucketH / 2 + stagger);
+    // Elk cijfer hoort midden in zijn eigen vakje te staan. Op een telefoon met zestien
+    // rijen past '3.92x' daar niet in, en dat werd eerder opgelost door de labels om en
+    // om omhoog en omlaag te zetten. Dat leest als een rommelige zigzag. Nu maken we het
+    // label passend in plaats van het te verschuiven: eerst korter, dan kleiner.
+    const room = bw - 2;
+    const basis = Math.max(7, Math.min(11, g.spacingX * 0.32));
+    const past = (txt, px) => {
+      c.font = `bold ${px}px Inter, system-ui, sans-serif`;
+      return c.measureText(txt).width <= room;
+    };
+    // Van uitgebreid naar zo kort als het nog netjes leest: 3.92x -> 3.92 -> 3.9 -> 4.
+    // Verder inkorten (de nul weglaten, '.5') doen we niet: dat scheelt nauwelijks breedte
+    // en leest als een tikfout. Past de kortste vorm niet, dan verkleinen we hem.
+    const m = table[b];
+    const opties = [fmt(m) + 'x', fmt(m), m >= 10 ? String(Math.round(m)) : String(Number(m.toFixed(1)))];
+    let label = opties[opties.length - 1], px = basis;
+    for (const optie of opties) { if (past(optie, basis)) { label = optie; break; } }
+    while (px > 5 && !past(label, px)) px -= 0.5;
+    c.font = `bold ${px}px Inter, system-ui, sans-serif`;
+    c.fillText(label, x, g.bucketY + yOff + g.bucketH / 2);
   }
 
   // balls (only those dropped on the current board configuration are drawn on this geometry)
