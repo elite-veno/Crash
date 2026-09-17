@@ -3059,6 +3059,7 @@
   <div class="panel modal-panel">
     <div class="panel-title">► SAFETY NET</div>
     <div class="odds-note">You are broke. Stop the marker as close to the middle as you can. <b>$10</b> is guaranteed; a perfect stop is worth <b>$40</b>.</div>
+    <div class="odds-note" id="bkHint" style="margin-top: -4px;">Hit <b>SPACE</b> or tap STOP.</div>
     <div class="bk-bar"><div class="bk-marker" id="bkMarker"></div></div>
     <div class="bk-scale"><span>$10</span><span>$40</span><span>$10</span></div>
     <div class="bk-result" id="bkResult"></div>
@@ -5842,6 +5843,10 @@ function bkOpen() {
   $('bkResult').textContent = '';
   $('bkStopBtn').hidden = false;
   $('bkCloseBtn').hidden = true;
+  const hint = $('bkHint');
+  if (hint) hint.hidden = false;
+  // De knop krijgt de aandacht: zo werkt de spatiebalk ook voor wie met het toetsenbord navigeert.
+  try { $('bkStopBtn').focus({ preventScroll: true }); } catch { $('bkStopBtn').focus(); }
   const frame = () => {
     if (gen !== BK.gen || !BK.running) return;
     $('bkMarker').style.left = (bkPos() * 100) + '%';
@@ -5864,6 +5869,8 @@ function bkStop() {
   achCheck(null);
   $('bkStopBtn').hidden = true;
   $('bkCloseBtn').hidden = false;
+  const hint = $('bkHint');
+  if (hint) hint.hidden = true;
   flash(`SAFETY NET +$${fmt(reward)} · ${Math.round(accuracy * 100)}% accuracy`, 'gold', toastHost());
 }
 
@@ -5872,6 +5879,17 @@ function bkClose() {
   BK.gen++;
   $('brokeModal').hidden = true;
 }
+
+// De spatiebalk stopt de markering. Alleen terwijl hij loopt, dus een tweede tik doet
+// niets en sluit het venster ook niet per ongeluk. preventDefault houdt de pagina stil en
+// voorkomt meteen dat de knop er daarna zelf nog eens op afgaat.
+document.addEventListener('keydown', e => {
+  if (!BK.running) return;
+  if (e.key !== ' ' && e.code !== 'Space') return;
+  e.preventDefault();
+  if (e.repeat) return;
+  bkStop();
+});
 
 document.querySelectorAll('.js-broke').forEach(b => b.addEventListener('click', bkOpen));
 $('bkStopBtn').addEventListener('click', bkStop);
