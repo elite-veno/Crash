@@ -642,6 +642,11 @@
     gap: 4px;
     margin-top: 6px;
   }
+  /* Op een telefoon geeft een cijferveld een paneel zonder return- of klaar-toets, dus
+     zonder deze knop is de enige uitweg de inzetknop zelf. Hij staat er alleen als er
+     ook echt getypt wordt, zodat hij verder niet in de weg zit. */
+  .chip-done { display: none; grid-column: 1 / -1; border-color: var(--neon); color: var(--neon); }
+  body.typing .chip-done { display: block; }
   .chip {
     background: rgba(0,0,0,0.5);
     border: 1px solid var(--border);
@@ -2233,12 +2238,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>PRICE PER CARD</span><span class="hint">$</span></div>
-          <input type="number" id="scratchBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="scratchBet" value="10" min="1" step="1">
           <div class="chips" data-for="scratch">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="payout-line"><span id="scStatusLabel">TO GO</span><span class="v" id="scStatus">—</span></div>
@@ -2355,12 +2361,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="slotsBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="slotsBet" value="10" min="1" step="1">
           <div class="chips" data-for="slots">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <button class="btn-primary btn-bet" id="slSpinBtn">SPIN</button>
@@ -2415,12 +2422,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="wheelBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="wheelBet" value="10" min="1" step="1">
           <div class="chips" data-for="wheel">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <button class="btn-primary btn-bet" id="whSpinBtn">SPIN THE WHEEL</button>
@@ -2464,12 +2472,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="busBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="busBet" value="10" min="1" step="1">
           <div class="chips" data-for="bus">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="payout-line"><span>CALL</span><span class="v" id="buStep">—</span></div>
@@ -2593,12 +2602,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="crashBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="crashBet" value="10" min="1" step="1">
           <div class="chips" data-for="crash">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
 
@@ -2609,7 +2619,7 @@
 
         <div class="field-group" id="autoField" style="opacity: 0.4; pointer-events: none;">
           <div class="field-label"><span>CASH OUT AT</span><span class="hint">×</span></div>
-          <input type="number" id="autoMultiplier" value="2.00" min="1.01" step="0.1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="autoMultiplier" value="2.00" min="1.01" step="0.1">
         </div>
 
         <button class="btn-primary btn-bet" id="actionBtn">PLACE BET</button>
@@ -2730,12 +2740,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="towerBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="towerBet" value="10" min="1" step="1">
           <div class="chips" data-for="tower">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-group">
@@ -2791,17 +2802,18 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="minesBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="minesBet" value="10" min="1" step="1">
           <div class="chips" data-for="mines">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-group">
           <div class="field-label"><span>NUMBER OF MINES</span><span class="hint">1 – 24</span></div>
-          <input type="number" id="minesCount" value="3" min="1" max="24" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="minesCount" value="3" min="1" max="24" step="1">
           <div class="seg" id="mnQuickSeg">
             <button data-m="1">1</button>
             <button data-m="3" class="on">3</button>
@@ -2853,12 +2865,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="plinkoBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="plinkoBet" value="10" min="1" step="1">
           <div class="chips" data-for="plinko">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-group">
@@ -2919,12 +2932,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE</span><span class="hint">$</span></div>
-          <input type="number" id="blackjackBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="blackjackBet" value="10" min="1" step="1">
           <div class="chips" data-for="blackjack">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <button class="btn-primary btn-bet" id="bjDealBtn">DEAL</button>
@@ -2986,12 +3000,13 @@
       <div class="panel">
         <div class="field-group">
           <div class="field-label"><span>STAKE PER HORSE</span><span class="hint">$</span></div>
-          <input type="number" id="horseBet" value="10" min="1" step="1">
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="horseBet" value="10" min="1" step="1">
           <div class="chips" data-for="horse">
             <button class="chip" data-action="half">½</button>
             <button class="chip" data-action="double">2×</button>
             <button class="chip" data-action="min">MIN</button>
             <button class="chip" data-action="max">MAX</button>
+            <button class="chip chip-done" data-action="done">DONE ✓</button>
           </div>
         </div>
         <div class="field-label"><span>HORSES &amp; ODDS</span><span class="hint">win chance</span></div>
@@ -3636,6 +3651,8 @@ function bindBet(game) {
   inp.addEventListener('input', () => { lastBets[game] = parseFloat(inp.value) || 0; saveState(); });
   document.querySelectorAll(`.chips[data-for="${game}"] .chip`).forEach(btn => {
     btn.addEventListener('click', () => {
+      // KLAAR doet niets met het bedrag: hij is er alleen om het toetsenbord te sluiten.
+      if (btn.dataset.action === 'done') { inp.blur(); return; }
       let v = parseFloat(inp.value) || 0;
       switch (btn.dataset.action) {
         case 'half':   v = Math.max(1, round2(v / 2)); break;
@@ -5546,6 +5563,39 @@ document.addEventListener('visibilitychange', () => {
 // =================== EINDE GEDEELDE BLACKJACKTAFEL ===================
 
 $('bjDealBtn').addEventListener('click', () => MBJ.on ? mbjPlaceBet() : bjDeal());
+// ---------- het toetsenbord weer kwijtraken ----------
+// Een cijferveld geeft op een telefoon een paneel zonder return- of klaar-toets. Zonder
+// het onderstaande is de enige uitweg de inzetknop, en dan heb je ingezet terwijl je
+// alleen een bedrag wilde intypen.
+function numericInputs() { return document.querySelectorAll('input[type="number"]'); }
+
+numericInputs().forEach(inp => {
+  // Enter of "klaar" op het toetsenbord sluit het veld. Er wordt nadrukkelijk niets ingezet.
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === 'Go' || e.key === 'Done') { e.preventDefault(); inp.blur(); }
+  });
+  // Zolang er getypt wordt staat de KLAAR-knop er; daarna verdwijnt hij weer.
+  inp.addEventListener('focus', () => document.body.classList.add('typing'));
+  inp.addEventListener('blur', () => {
+    // Even wachten: springt de aandacht naar een ander cijferveld, dan blijft de knop staan.
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || a.tagName !== 'INPUT' || a.type !== 'number') document.body.classList.remove('typing');
+    }, 0);
+  });
+});
+
+// Ergens anders tikken sluit het ook. Niet op de browser vertrouwen: op een telefoon laat
+// die de aandacht soms gewoon staan als je op iets niet-klikbaars tikt.
+document.addEventListener('pointerdown', e => {
+  const a = document.activeElement;
+  if (!a || a.tagName !== 'INPUT' || a.type !== 'number') return;
+  if (e.target === a) return;
+  // De chips horen bij het veld; die mogen de aandacht houden zodat je kunt blijven stellen.
+  if (e.target.closest && e.target.closest('.chips')) return;
+  a.blur();
+}, true);
+
 $('frAdd').addEventListener('click', friendAdd);
 $('frName').addEventListener('keydown', e => { if (e.key === 'Enter') friendAdd(); });
 $('bjHitBtn').addEventListener('click', () => MBJ.on ? mbjAct('hit') : bjHit());
