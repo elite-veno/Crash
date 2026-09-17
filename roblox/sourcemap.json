@@ -104,7 +104,16 @@
        "children": [
         {
          "name": "Views",
-         "className": "Folder"
+         "className": "Folder",
+         "children": [
+          {
+           "name": "Home",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Home.luau"
+           ]
+          }
+         ]
         }
        ]
       }

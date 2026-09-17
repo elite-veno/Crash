@@ -9,6 +9,7 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
+local Home = require(script.Views.Home)
 
 local speler = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -170,6 +171,8 @@ function navigate(id: string)
 end
 
 -- ---------- de schermen vullen ----------
+local zetSaldoHome: ((number) -> ())? = nil
+
 for _, item in SCHERMEN do
 	local v = view(item.id)
 	local vak = Instance.new("Frame")
@@ -177,13 +180,17 @@ for _, item in SCHERMEN do
 	vak.Position = UDim2.new(0, 16, 0, 60)
 	vak.BackgroundTransparency = 1
 	vak.Parent = v
-	UI.list(vak, Theme.size.gap)
 
-	local paneel = UI.panel(vak, item.id .. "Panel")
-	UI.panelTitle(paneel, item.label)
-	UI.label(paneel, "Dit scherm wordt in stap 5 gevuld.", {
-		size = Theme.text.small, color = Theme.color.muted,
-	})
+	if item.id == "home" then
+		zetSaldoHome = Home.build(vak, navigate)
+	else
+		UI.list(vak, Theme.size.gap)
+		local paneel = UI.panel(vak, item.id .. "Panel")
+		UI.panelTitle(paneel, item.label)
+		UI.label(paneel, "Dit scherm komt in een volgende stap.", {
+			size = Theme.text.small, color = Theme.color.muted,
+		})
+	end
 end
 
 navigate("home")
@@ -194,6 +201,8 @@ local function toon(p: any)
 	local b = tonumber(p.balance)
 	if b then
 		saldoLabel.Text = "$" .. Money.fmt(b)
+		local zet = zetSaldoHome
+		if zet then zet(b) end
 	end
 end
 

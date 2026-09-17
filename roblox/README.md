@@ -36,7 +36,7 @@ LUAU=./luaubin/luau ANALYZE=./luaubin/luau-analyze bash tools/run_tests.sh
 | 5 | de elf spellen, serverzijdig | negen af, crash en blackjack volgen |
 | 6 | seizoenen, VIP, prestaties | volgt |
 | 7 | vrienden, lobby's, gedeelde tafels | volgt |
-| 8 | review met agents | volgt |
+| 8 | review met agents | draait |
 
 Het volledige plan staat in `PLAN.md`.
 
