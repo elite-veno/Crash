@@ -32,6 +32,13 @@
        ]
       },
       {
+       "name": "Sha256",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Sha256/init.luau"
+       ]
+      },
+      {
        "name": "Theme",
        "className": "ModuleScript",
        "filePaths": [
@@ -61,12 +68,26 @@
      ],
      "children": [
       {
+       "name": "Crash",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Crash/init.luau"
+       ]
+      },
+      {
        "name": "Games",
        "className": "ModuleScript",
        "filePaths": [
         "src/server/Games/init.luau"
        ],
        "children": [
+        {
+         "name": "Blackjack",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/server/Games/Blackjack.luau"
+         ]
+        },
         {
          "name": "Multi",
          "className": "ModuleScript",
@@ -107,10 +128,31 @@
          "className": "Folder",
          "children": [
           {
+           "name": "Blackjack",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Blackjack.luau"
+           ]
+          },
+          {
+           "name": "Bus",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Bus.luau"
+           ]
+          },
+          {
            "name": "Common",
            "className": "ModuleScript",
            "filePaths": [
             "src/client/Views/Common.luau"
+           ]
+          },
+          {
+           "name": "Crash",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Crash.luau"
            ]
           },
           {

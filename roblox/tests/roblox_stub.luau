@@ -81,12 +81,22 @@ function Stub.wereld(opties)
 	end
 	w.trek = trek
 
+	-- De klok staat stil tot een test hem vooruit zet. Zo is een cashout op de seconde
+	-- na te rekenen zonder echt te wachten.
+	w.klok = 1000
+	function w.wacht(seconden: number)
+		w.klok += seconden
+	end
+
 	local Players = { PlayerAdded = signaal(), PlayerRemoving = signaal() }
 	local spelers = {}
 	function Players:GetPlayers()
 		local uit = {}
 		for _, s in spelers do table.insert(uit, s) end
 		return uit
+	end
+	function Players:GetPlayerByUserId(id)
+		return spelers[id]
 	end
 	w.Players = Players
 
@@ -103,9 +113,15 @@ function Stub.wereld(opties)
 
 	local diensten = {
 		Players = Players,
-		RunService = { IsStudio = function() return w.studio end },
+		RunService = { IsStudio = function() return w.studio end, IsServer = function() return true end },
 		DataStoreService = { GetDataStore = function(_, _naam) return w.store end },
 	}
+
+	local werkruimte = {}
+	function werkruimte:GetServerTimeNow()
+		return w.klok
+	end
+	w.workspace = werkruimte
 
 	local game = {}
 	game.JobId = w.jobId
@@ -131,24 +147,58 @@ function Stub.wereld(opties)
 
 	local Odds = require("../src/shared/Odds")
 	local Money = require("../src/shared/Money")
+	local Sha256 = require("../src/shared/Sha256")
 	ReplicatedStorage.Shared.Odds = {}
 	ReplicatedStorage.Shared.Money = {}
+	ReplicatedStorage.Shared.Sha256 = {}
+	ReplicatedStorage.Shared.Net = {}
 	geladen[ReplicatedStorage.Shared.Odds] = Odds
 	geladen[ReplicatedStorage.Shared.Money] = Money
+	geladen[ReplicatedStorage.Shared.Sha256] = Sha256
 	w.Odds = Odds
 	w.Money = Money
+	w.Sha256 = Sha256
 
+	-- Een nagemaakte netwerklaag: geen echte RemoteEvents, wel een lijst van alles wat de
+	-- server naar de clients heeft geduwd. Daar is op na te rekenen wat er wel en niet in
+	-- stond op welk moment.
+	w.geduwd = {}
+	local NetStub = {}
+	function NetStub.build() end
+	function NetStub.ev(naam)
+		return {
+			FireAllClients = function(_self, lading)
+				table.insert(w.geduwd, { kanaal = naam, lading = lading })
+			end,
+			FireClient = function(_self, speler, lading)
+				table.insert(w.geduwd, { kanaal = naam, speler = speler, lading = lading })
+			end,
+		}
+	end
+	function NetStub.fn(naam)
+		return { OnServerInvoke = nil }
+	end
+	geladen[ReplicatedStorage.Shared.Net] = NetStub
+	w.Net = NetStub
+
+	local BlackjackScript = { Parent = GamesScript }
+	local CrashScript = { Parent = Server }
 	Server.Profiles = {}
 	Server.Games = GamesScript
+	Server.Crash = CrashScript
 	GamesScript.Multi = MultiScript
+	GamesScript.Blackjack = BlackjackScript
 	merk[Server.Profiles] = "Profiles"
 	merk[GamesScript] = "Games"
 	merk[MultiScript] = "Multi"
+	merk[BlackjackScript] = "Blackjack"
+	merk[CrashScript] = "Crash"
 
 	local eigenRequire
 	local function omgevingVoor(scriptRef)
 		local env = setmetatable({}, { __index = getfenv(0) })
 		env.game = game
+		env.workspace = werkruimte
 		env.script = scriptRef
 		env.require = eigenRequire
 		env.warn = function(...)
@@ -179,7 +229,10 @@ function Stub.wereld(opties)
 		return env
 	end
 
-	local scripts = { Profiles = Server.Profiles, Games = GamesScript, Multi = MultiScript }
+	local scripts = {
+		Profiles = Server.Profiles, Games = GamesScript, Multi = MultiScript,
+		Blackjack = BlackjackScript, Crash = CrashScript,
+	}
 	function eigenRequire(doel)
 		if geladen[doel] then return geladen[doel] end
 		local naam = merk[doel]
@@ -198,6 +251,8 @@ function Stub.wereld(opties)
 	w.Profiles = eigenRequire(Server.Profiles)
 	w.Games = eigenRequire(GamesScript)
 	w.Multi = eigenRequire(MultiScript)
+	w.Blackjack = eigenRequire(BlackjackScript)
+	w.Crash = eigenRequire(CrashScript)
 	return w
 end
 

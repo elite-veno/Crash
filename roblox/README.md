@@ -14,8 +14,14 @@ View > **Command Bar**, en plak de inhoud van `tools/studio_install.luau`. Studi
 de laatste code zelf van GitHub en zet hem op zijn plek. Nog een keer plakken werkt alles
 bij: de oude mappen gaan eerst weg. Er hoeft niets gedownload te worden.
 
-Werkt dat niet, dan staat HTTP waarschijnlijk uit: File > Game Settings > Security >
-**Allow HTTP Requests**. Daarna opnieuw plakken.
+Dat script staat er met opzet zo uit. De command bar is een invoerveld van **een regel**:
+bij plakken worden de regels aan elkaar geplakt. Alle uitleg staat daarom in
+blokcommentaar (`--[[ ... ]]`) en er staat nergens een los `--` commentaar, want dat zou
+na het samenvoegen de rest van het script opeten. Hij is in beide vormen getest.
+
+Werkt het nog steeds niet, dan staat HTTP uit: File > Game Settings > Security >
+**Allow HTTP Requests**. Daarna opnieuw plakken. Het script zegt het ook zelf als dat het
+probleem is.
 
 ### Zonder Rojo en zonder HTTP
 
@@ -78,8 +84,8 @@ uitkomen, weggaan met een ronde open, en twee servers die dezelfde speler willen
 | 2 | thema en UI-bouwstenen | af |
 | 3 | netwerklaag en geldregels | af |
 | 4 | profiel op DataStore, spellen in een beurt | af, met slot en herhaling |
-| 5 | de elf spellen, serverzijdig | negen af, crash en blackjack volgen |
-| 3b | de schermen | acht spellen hebben hun scherm; de rest volgt |
+| 5 | de elf spellen, serverzijdig | alle elf af |
+| 3b | de schermen | alle elf spellen; profiel, VIP, vrienden volgen |
 | 6 | seizoenen, VIP, prestaties | volgt |
 | 7 | vrienden, lobby's, gedeelde tafels | volgt |
 | 8 | review met agents | ronde 1 verwerkt (19 bevindingen) |

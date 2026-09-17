@@ -157,6 +157,8 @@ def main() -> int:
                     'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                     'xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" '
                     'version="4">')
+    b.regels.append("\t<External>null</External>")
+    b.regels.append("\t<External>nil</External>")
     b.knoop(project["name"], "Folder", None, 1)
     for naam, pad, _ouder in doelen:
         b.map(pad, naam, 2)

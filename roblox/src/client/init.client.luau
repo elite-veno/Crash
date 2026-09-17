@@ -23,6 +23,9 @@ local SPELLEN: { [string]: { build: (Instance) -> () } } = {
 	wheel = require(script.Views.Wheel),
 	slots = require(script.Views.Slots),
 	horse = require(script.Views.Horse),
+	blackjack = require(script.Views.Blackjack),
+	crash = require(script.Views.Crash),
+	bus = require(script.Views.Bus),
 }
 
 local speler = Players.LocalPlayer
@@ -54,6 +57,7 @@ local SCHERMEN = {
 	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
 	{ id = "slots",   label = "777",           groep = "PLAY" },
 	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
+	{ id = "bus",     label = "RIDE THE BUS",  groep = "PLAY" },
 	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
 	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
 	{ id = "friends", label = "FRIENDS",       groep = "ACCOUNT" },

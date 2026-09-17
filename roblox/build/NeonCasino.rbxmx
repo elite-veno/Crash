@@ -1,4 +1,6 @@
 <roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<External>null</External>
+	<External>nil</External>
 	<Item class="Folder" referent="RBX1">
 		<Properties>
 			<string name="Name">NeonCasino</string>
@@ -91,6 +93,7 @@ Net.FUNCTIONS = {
 	"Leaderboard",  -- () -&gt; de ranglijst
 	"Friends",      -- (actie, naam) -&gt; de vriendenlijst
 	"Lobby",        -- (actie, gegevens) -&gt; de lobby
+	"RoundState",   -- (spel) -&gt; de stand van een gedeelde ronde, voor wie net binnenkomt
 }
 
 Net.EVENTS = {
@@ -127,8 +130,27 @@ local function ensure(): Folder
 end
 
 -- Maakt de kanalen aan. Alleen de server roept dit aan, bij het opstarten.
+-- Twee kanalen met dezelfde naam kunnen niet: dan pakt de een de ander af en blijft er
+-- eentje stilletjes ongebruikt. Deze controle draait ook in de test.
+function Net.conflicts(): { string }
+	local gezien: { [string]: string } = {}
+	local dubbel: { string } = {}
+	for _, naam in Net.FUNCTIONS do
+		if gezien[naam] then table.insert(dubbel, naam) end
+		gezien[naam] = "function"
+	end
+	for _, naam in Net.EVENTS do
+		if gezien[naam] then table.insert(dubbel, naam) end
+		gezien[naam] = "event"
+	end
+	return dubbel
+end
+
 function Net.build(): ()
 	assert(RunService:IsServer(), "alleen de server maakt de kanalen")
+	local dubbel = Net.conflicts()
+	assert(#dubbel == 0, "kanaalnaam dubbel gebruikt: " .. table.concat(dubbel, ", "))
+
 	local f = ensure()
 	for _, naam in Net.FUNCTIONS do
 		if not f:FindFirstChild(naam) then
@@ -690,6 +712,127 @@ return Odds
 			</Item>
 			<Item class="ModuleScript" referent="RBX6">
 				<Properties>
+					<string name="Name">Sha256</string>
+					<ProtectedString name="Source">--!strict
+-- SHA-256, met de hand in Luau. Roblox heeft geen ingebouwde hashfunctie en de webversie
+-- rekent hem in Postgres uit (`encode(sha256(...), 'hex')`), dus hier moet hij zelf.
+--
+-- Waar hij voor is: eerlijk spel bewijzen. Voordat een crashronde begint publiceert de
+-- server sha256("commit:" .. zaad). Na afloop geeft hij het zaad vrij. Iedereen kan dan
+-- narekenen dat het zaad bij de belofte hoort en dat het crashpunt eruit volgt -- de
+-- server kon het dus niet achteraf aanpassen.
+local Sha256 = {}
+
+local K = {
+	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+	0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+	0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+	0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+	0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+	0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+	0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+	0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+}
+
+local START = {
+	0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+	0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+}
+
+local band, bxor, bnot = bit32.band, bit32.bxor, bit32.bnot
+local rrot, rshift, lshift = bit32.rrotate, bit32.rshift, bit32.lshift
+
+-- De boodschap aanvullen: een 1-bit, dan nullen, dan de lengte in bits als 64-bits getal.
+local function vullen(bericht: string): string
+	local lengte = #bericht
+	local bits = lengte * 8
+	local staart = "\128"
+	local nullen = (56 - (lengte + 1) % 64) % 64
+	staart ..= string.rep("\0", nullen)
+	-- De bovenste 32 bits zijn nul zolang het bericht kleiner is dan 512 MB; dat is het
+	-- hier altijd (een zaad is een paar tientallen tekens).
+	staart ..= string.pack("&gt;I4&gt;I4", math.floor(bits / 4294967296), bits % 4294967296)
+	return bericht .. staart
+end
+
+function Sha256.hash(bericht: string): string
+	local data = vullen(bericht)
+	local h = table.clone(START)
+	local w = table.create(64, 0)
+
+	for blok = 1, #data, 64 do
+		for i = 1, 16 do
+			w[i] = (string.unpack("&gt;I4", data, blok + (i - 1) * 4))
+		end
+		for i = 17, 64 do
+			local a, b = w[i - 15], w[i - 2]
+			local s0 = bxor(rrot(a, 7), rrot(a, 18), rshift(a, 3))
+			local s1 = bxor(rrot(b, 17), rrot(b, 19), rshift(b, 10))
+			w[i] = (w[i - 16] + s0 + w[i - 7] + s1) % 4294967296
+		end
+
+		local a, b, c, d = h[1], h[2], h[3], h[4]
+		local e, f, g, hh = h[5], h[6], h[7], h[8]
+
+		for i = 1, 64 do
+			local S1 = bxor(rrot(e, 6), rrot(e, 11), rrot(e, 25))
+			local ch = bxor(band(e, f), band(bnot(e), g))
+			local t1 = (hh + S1 + ch + K[i] + w[i]) % 4294967296
+			local S0 = bxor(rrot(a, 2), rrot(a, 13), rrot(a, 22))
+			local maj = bxor(band(a, b), band(a, c), band(b, c))
+			local t2 = (S0 + maj) % 4294967296
+
+			hh = g
+			g = f
+			f = e
+			e = (d + t1) % 4294967296
+			d = c
+			c = b
+			b = a
+			a = (t1 + t2) % 4294967296
+		end
+
+		local deel = {a, b, c, d, e, f, g, hh}
+		for i = 1, 8 do
+			h[i] = (h[i] + deel[i]) % 4294967296
+		end
+	end
+
+	local stukken = table.create(8, "")
+	for i = 1, 8 do
+		stukken[i] = string.format("%08x", h[i])
+	end
+	return table.concat(stukken)
+end
+
+-- Wat de webversie publiceert voordat een ronde begint.
+function Sha256.commit(zaad: string): string
+	return Sha256.hash("commit:" .. zaad)
+end
+
+-- De eerste dertien hexcijfers als getal tussen 0 en 1 -- dezelfde greep als de webversie
+-- gebruikt om een zaad in een crashpunt om te zetten.
+function Sha256.unit(hex: string): number
+	local stuk = string.sub(hex, 1, 13)
+	return (tonumber(stuk, 16) :: number) / 2 ^ 52
+end
+
+-- Geen geheim, maar wel onvoorspelbaar genoeg voor een zaad: tijd, een teller en de
+-- toevalsgenerator door elkaar.
+local teller = 0
+function Sha256.seed(): string
+	teller += 1
+	return string.format("%d-%d-%d-%d", os.time(), teller,
+		math.random(0, 2 ^ 31 - 1), math.random(0, 2 ^ 31 - 1))
+end
+
+local _ = lshift   -- bit32.lshift blijft hier staan voor toekomstige varianten
+return Sha256
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX7">
+				<Properties>
 					<string name="Name">Theme</string>
 					<ProtectedString name="Source">--!strict
 -- De kleuren, letters en maten uit de CSS van de webversie, één op één.
@@ -764,7 +907,7 @@ return Theme
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX7">
+			<Item class="ModuleScript" referent="RBX8">
 				<Properties>
 					<string name="Name">UI</string>
 					<ProtectedString name="Source">--!strict
@@ -1008,7 +1151,7 @@ return UI
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Script" referent="RBX8">
+		<Item class="Script" referent="RBX9">
 			<Properties>
 				<string name="Name">Server</string>
 				<ProtectedString name="Source">--!strict
@@ -1022,6 +1165,8 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Profiles = require(script.Profiles)
 local Games = require(script.Games)
 local Multi = require(script.Games.Multi)
+local Blackjack = require(script.Games.Blackjack)
+local Crash = require(script.Crash)
 
 Net.build()
 
@@ -1047,11 +1192,20 @@ for _, speler in Players:GetPlayers() do
 	stuurProfiel(speler)
 end
 
+-- De gedeelde tafel loopt door, met of zonder spelers erbij.
+Crash.start()
+
 -- ---------- de aanvragen ----------
 -- Eén ingang per soort, met de naam van het spel erbij. Elke tak controleert zelf wat er
 -- binnenkomt; niets wordt op zijn woord geloofd.
 Net.fn("GetProfile").OnServerInvoke = function(speler)
 	return Profiles.view(speler)
+end
+
+-- De stand van de gedeelde crashronde, voor een speler die er net binnenkomt.
+Net.fn("RoundState").OnServerInvoke = function(_speler, spel)
+	if spel == "crash" then return Crash.state() end
+	return { ok = false, err = "geen gedeelde tafel" }
 end
 
 Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
@@ -1065,6 +1219,8 @@ Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
 	elseif spel == "tower" then uit = Multi.towerStart(speler, inzet, a)
 	elseif spel == "mines" then uit = Multi.minesStart(speler, inzet, a)
 	elseif spel == "bus" then uit = Multi.busStart(speler, inzet)
+	elseif spel == "blackjack" then uit = Blackjack.deal(speler, inzet)
+	elseif spel == "crash" then uit = Crash.bet(speler, inzet)
 	else uit = { ok = false, err = "onbekend spel" } end
 	stuurProfiel(speler)
 	return uit
@@ -1076,6 +1232,7 @@ Net.fn("Act").OnServerInvoke = function(speler, spel, zet)
 	elseif spel == "mines" then uit = Multi.minesPick(speler, zet)
 	elseif spel == "bus" then uit = Multi.busCall(speler, zet)
 	elseif spel == "scratch" then uit = Games.scratchReveal(speler, zet)
+	elseif spel == "blackjack" then uit = Blackjack.act(speler, zet)
 	else uit = { ok = false, err = "onbekende zet" } end
 	stuurProfiel(speler)
 	return uit
@@ -1086,6 +1243,7 @@ Net.fn("CashOut").OnServerInvoke = function(speler, spel)
 	if spel == "tower" then uit = Multi.towerCashOut(speler)
 	elseif spel == "mines" then uit = Multi.minesCashOut(speler)
 	elseif spel == "bus" then uit = Multi.busCashOut(speler)
+	elseif spel == "crash" then uit = Crash.cashOut(speler)
 	else uit = { ok = false, err = "dat spel kent geen uitstappen" } end
 	stuurProfiel(speler)
 	return uit
@@ -1094,7 +1252,244 @@ end
 return nil
 </ProtectedString>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX9">
+			<Item class="ModuleScript" referent="RBX10">
+				<Properties>
+					<string name="Name">Crash</string>
+					<ProtectedString name="Source">--!strict
+-- De crashronde: één ronde voor iedereen op de server tegelijk, precies zoals in de
+-- webversie. De server houdt de klok bij, bepaalt waar de ronde crasht, en rekent elke
+-- cashout af op zijn eigen tijd -- nooit op wat de client beweert.
+--
+-- Eerlijk spel is hier na te rekenen. Voordat de ronde begint publiceert de server
+-- sha256("commit:" .. zaad). Als hij voorbij is geeft hij het zaad vrij. Wie wil kan de
+-- hash narekenen en zien dat het crashpunt uit dat zaad volgt: de server kan het dus niet
+-- achteraf hebben bijgesteld toen hij zag waar de inzetten lagen.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Net = require(ReplicatedStorage.Shared.Net)
+local Sha256 = require(ReplicatedStorage.Shared.Sha256)
+local Profiles = require(script.Parent.Profiles)
+
+local Crash = {}
+
+-- Dezelfde getallen als de webversie: acht seconden inzetten, drie seconden nagenieten,
+-- en een multiplier die met e^(0,103995 t) oploopt.
+local INZETVENSTER = 8
+local NAPAUZE = 3
+local GROEI = 0.103995
+
+export type Inzet = {
+	naam: string,
+	bet: number,
+	cashed: number?,
+	payout: number?,
+}
+
+type Ronde = {
+	id: number,
+	zaad: string,
+	commit: string,
+	crashAt: number,
+	fase: string,        -- "waiting" | "flying" | "crashed"
+	opent: number,       -- servertijd waarop het inzetvenster sluit / de vlucht begint
+	eindigt: number,     -- servertijd waarop hij crasht
+	inzetten: { [number]: Inzet },
+}
+
+local ronde: Ronde? = nil
+local nummer = 0
+
+-- Waar het zaad vandaan komt. Van buiten aan te reiken, net als Odds.setRandom: een
+-- server kan er een betere bron in zetten, en een test iets voorspelbaars. Dit is een
+-- servermodule, dus de client kan er niet bij.
+local zaadBron: () -&gt; string = Sha256.seed
+function Crash.setSeeder(f: () -&gt; string): ()
+	zaadBron = f
+end
+
+local function nu(): number
+	return workspace:GetServerTimeNow()
+end
+
+-- De multiplier op tijdstip t na de start. Naar beneden op de cent, net als de webversie.
+function Crash.multAt(t: number): number
+	if t &lt;= 0 then return 1 end
+	return math.max(1, math.floor(math.exp(GROEI * t) * 100) / 100)
+end
+
+-- Hoe lang een vlucht duurt die op c crasht.
+function Crash.durationFor(c: number): number
+	return math.log(c) / GROEI
+end
+
+-- Wat iedereen mag zien. Het zaad en het crashpunt zitten er pas in als de ronde voorbij
+-- is; daarvoor zou het verklappen waar hij eindigt.
+local function beeld(): any
+	local r = ronde
+	if not r then return { phase = "idle" } end
+	local lijst: { Inzet } = {}
+	for _, i in r.inzetten do
+		table.insert(lijst, i)
+	end
+	return {
+		game = "crash",
+		id = r.id,
+		phase = r.fase,
+		commit = r.commit,
+		startsAt = r.opent,
+		endsAt = if r.fase == "crashed" then r.eindigt else nil,
+		crashAt = if r.fase == "crashed" then r.crashAt else nil,
+		seed = if r.fase == "crashed" then r.zaad else nil,
+		now = nu(),
+		bets = lijst,
+	}
+end
+
+function Crash.state(): any
+	return beeld()
+end
+
+local function duw()
+	Net.ev("Round"):FireAllClients(beeld())
+end
+
+-- Alles wat nog open staat als de ronde crasht is verloren; dat hoeft niet apart geboekt
+-- te worden, want de inzet was al afgeschreven. Wel de statistiek bijwerken.
+local function sluit(r: Ronde)
+	for id, i in r.inzetten do
+		if not i.cashed then
+			local sp = Players:GetPlayerByUserId(id)
+			if sp then
+				Profiles.record(sp, "crash", i.bet, 0, 0)
+			end
+		end
+	end
+end
+
+local function nieuweRonde(): Ronde
+	nummer += 1
+	local zaad = zaadBron()
+	local commit = Sha256.commit(zaad)
+	-- Het crashpunt komt uit het zaad, niet uit een losse trekking: daardoor ligt het vast
+	-- op het moment dat de belofte gepubliceerd wordt.
+	local c = Odds.crashPoint(Sha256.unit(Sha256.hash(zaad)))
+	local opent = nu() + INZETVENSTER
+	return {
+		id = nummer,
+		zaad = zaad,
+		commit = commit,
+		crashAt = c,
+		fase = "waiting",
+		opent = opent,
+		eindigt = opent + Crash.durationFor(c),
+		inzetten = {},
+	}
+end
+
+-- De drie stappen van een ronde, elk apart aan te roepen. De lus hieronder rijgt ze aan
+-- elkaar met de klok ertussen; de test roept ze zelf aan en zet de klok vooruit.
+function Crash.begin(): ()
+	ronde = nieuweRonde()
+	duw()
+end
+
+function Crash.takeOff(): ()
+	local r = ronde
+	if not r or r.fase ~= "waiting" then return end
+	r.fase = "flying"
+	duw()
+end
+
+function Crash.blowUp(): ()
+	local r = ronde
+	if not r or r.fase ~= "flying" then return end
+	r.fase = "crashed"
+	sluit(r)
+	duw()
+end
+
+-- De lus die de rondes aan elkaar rijgt. Eén per server.
+local function lus()
+	while true do
+		Crash.begin()
+		local r = ronde :: Ronde
+		task.wait(math.max(0, r.opent - nu()))
+		Crash.takeOff()
+		task.wait(math.max(0, r.eindigt - nu()))
+		Crash.blowUp()
+		task.wait(NAPAUZE)
+	end
+end
+
+function Crash.start(): ()
+	task.spawn(lus)
+end
+
+-- ---------- wat een speler mag doen ----------
+function Crash.bet(speler: Player, inzet: any): any
+	local r = ronde
+	if not r then return { ok = false, err = "geen ronde" } end
+	if r.fase ~= "waiting" then return { ok = false, err = "het inzetvenster is gesloten" } end
+	if nu() &gt;= r.opent then return { ok = false, err = "het inzetvenster is gesloten" } end
+	if r.inzetten[speler.UserId] then return { ok = false, err = "je hebt al ingezet" } end
+
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	local bet = Money.cleanBet(inzet, p.balance)
+	if not bet then return { ok = false, err = "ongeldige inzet" } end
+	if not Profiles.take(speler, bet) then return { ok = false, err = "onvoldoende saldo" } end
+
+	r.inzetten[speler.UserId] = { naam = speler.DisplayName, bet = bet }
+	duw()
+	return { ok = true, round = r.id, amount = bet, balance = p.balance }
+end
+
+function Crash.cashOut(speler: Player): any
+	local r = ronde
+	if not r then return { ok = false, err = "geen ronde" } end
+	local i = r.inzetten[speler.UserId]
+	if not i then return { ok = false, err = "geen inzet in deze ronde" } end
+	if i.cashed then return { ok = false, err = "al uitgestapt" } end
+	if r.fase ~= "flying" then
+		return { ok = false, err = if r.fase == "waiting" then "de vlucht is nog niet begonnen" else "te laat" }
+	end
+
+	-- De server leest zijn eigen klok. Wat de client denkt dat de multiplier is, doet er
+	-- niet toe: hij stuurt hem ook niet mee.
+	local t = nu()
+	if t &gt;= r.eindigt then return { ok = false, err = "te laat" } end
+	local m = math.min(Crash.multAt(t - r.opent), r.crashAt)
+	local uit = Money.floor2(i.bet * m)
+
+	i.cashed = m
+	i.payout = uit
+	Profiles.give(speler, uit)
+	Profiles.record(speler, "crash", i.bet, uit, m)
+	duw()
+	return { ok = true, mult = m, payout = uit, balance = (Profiles.get(speler) :: any).balance }
+end
+
+-- Weggaan terwijl het inzetvenster nog open staat: de inzet terug. Is de vlucht al
+-- begonnen, dan is hij ingezet en blijft hij staan -- net als in de webversie.
+Profiles.onLeave(function(speler: Player)
+	local r = ronde
+	if not r then return end
+	local i = r.inzetten[speler.UserId]
+	if not i or i.cashed then return end
+	if r.fase == "waiting" then
+		r.inzetten[speler.UserId] = nil
+		Profiles.give(speler, i.bet)
+	end
+end)
+
+return Crash
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX11">
 				<Properties>
 					<string name="Name">Games</string>
 					<ProtectedString name="Source">--!strict
@@ -1342,7 +1737,197 @@ Profiles.onLeave(Games.refund)
 return Games
 </ProtectedString>
 				</Properties>
-				<Item class="ModuleScript" referent="RBX10">
+				<Item class="ModuleScript" referent="RBX12">
+					<Properties>
+						<string name="Name">Blackjack</string>
+						<ProtectedString name="Source">--!strict
+-- Blackjack, afgerekend op de server. Zes stapels, dealer pakt bij tot 17 en blijft staan
+-- op zacht 17 -- dezelfde regels als de webversie, en dus dezelfde 99%.
+--
+-- Het belangrijkste verschil met de browser: de dichte kaart van de dealer gaat hier NIET
+-- mee naar de client. Die krijgt hij pas als de dealer speelt. In de webversie stond die
+-- kaart in het geheugen van de pagina en was hij in principe te lezen.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Odds = require(ReplicatedStorage.Shared.Odds)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Profiles = require(script.Parent.Parent.Profiles)
+
+local Blackjack = {}
+
+-- Onder dit aantal kaarten gaat er een verse schoen in; zo houdt niemand de telling bij
+-- over de bodem van de stapel heen.
+local HERSCHUD = 60
+
+type Ronde = {
+	bet: number,
+	speler: { Odds.Card },
+	dealer: { Odds.Card },
+	doubled: boolean,
+}
+
+local open: { [number]: Ronde } = {}
+-- De schoen blijft tussen handen door staan, net als in de webversie: hij wordt pas
+-- vervangen als er te weinig kaarten over zijn.
+local schoenen: { [number]: { Odds.Card } } = {}
+
+function Blackjack.get(speler: Player): Ronde?
+	return open[speler.UserId]
+end
+
+-- Weggaan terwijl er nog een hand loopt: de inzet terug, de dubbele inzet ook.
+function Blackjack.refund(speler: Player): number
+	local r = open[speler.UserId]
+	if not r then return 0 end
+	open[speler.UserId] = nil
+	local terug = r.bet * (if r.doubled then 2 else 1)
+	Profiles.give(speler, terug)
+	return terug
+end
+
+local function trek(speler: Player): Odds.Card
+	local huidig = schoenen[speler.UserId]
+	local schoen: { Odds.Card }
+	if huidig and #huidig &gt;= HERSCHUD then
+		schoen = huidig
+	else
+		schoen = Odds.bjNewShoe(6)
+		schoenen[speler.UserId] = schoen
+	end
+	return table.remove(schoen) :: Odds.Card
+end
+
+local function saldo(speler: Player): number
+	local p = Profiles.get(speler)
+	return if p then p.balance else 0
+end
+
+-- Wat de speler mag zien zolang hij aan zet is: zijn eigen hand, en één kaart van de
+-- dealer. De tweede is bewust afwezig -- niet verborgen in een veld, maar er niet.
+local function beeld(r: Ronde): any
+	local waarde, zacht = Odds.bjValue(r.speler)
+	return {
+		player = r.speler,
+		playerValue = waarde,
+		playerSoft = zacht,
+		dealerUp = r.dealer[1],
+		dealerValue = (Odds.bjValue({ r.dealer[1] })),
+		doubled = r.doubled,
+		bet = r.bet * (if r.doubled then 2 else 1),
+	}
+end
+
+-- De hand afrekenen: de dealer speelt uit, en dan pas komt alles op tafel.
+local function afrekenen(speler: Player, r: Ronde, dealerSpeelt: boolean): any
+	if dealerSpeelt then
+		Odds.bjDealerPlay(r.dealer, function()
+			return trek(speler)
+		end)
+	end
+	local inzet = r.bet * (if r.doubled then 2 else 1)
+	local factor = Odds.bjSettle(r.speler, r.dealer)
+	local uit = Money.floor2(inzet * factor)
+	open[speler.UserId] = nil
+	if uit &gt; 0 then Profiles.give(speler, uit) end
+	Profiles.record(speler, "blackjack", inzet, uit, factor)
+
+	local spelerWaarde = (Odds.bjValue(r.speler))
+	local dealerWaarde = (Odds.bjValue(r.dealer))
+	local uitslag = if factor &gt; 1 then "win" elseif factor == 1 then "push" else "loss"
+	return {
+		ok = true, done = true,
+		player = r.speler, playerValue = spelerWaarde,
+		dealer = r.dealer, dealerValue = dealerWaarde,
+		natural = Odds.bjIsBlackjack(r.speler),
+		doubled = r.doubled,
+		bet = inzet,
+		result = uitslag,
+		mult = factor,
+		payout = uit,
+		balance = saldo(speler),
+	}
+end
+
+function Blackjack.deal(speler: Player, inzet: any): any
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	if open[speler.UserId] then return { ok = false, err = "je hebt nog een hand open" } end
+	local bet = Money.cleanBet(inzet, p.balance)
+	if not bet then return { ok = false, err = "ongeldige inzet" } end
+	if not Profiles.take(speler, bet) then return { ok = false, err = "onvoldoende saldo" } end
+
+	local r: Ronde = {
+		bet = bet,
+		speler = {},
+		dealer = {},
+		doubled = false,
+	}
+	-- Om de beurt, zoals aan een echte tafel.
+	table.insert(r.speler, trek(speler))
+	table.insert(r.dealer, trek(speler))
+	table.insert(r.speler, trek(speler))
+	table.insert(r.dealer, trek(speler))
+	open[speler.UserId] = r
+
+	-- Blackjack ligt meteen op tafel; dan hoeft er niets meer gekozen te worden.
+	if Odds.bjIsBlackjack(r.speler) or Odds.bjIsBlackjack(r.dealer) then
+		return afrekenen(speler, r, false)
+	end
+
+	local b = beeld(r)
+	b.ok = true
+	b.done = false
+	b.balance = saldo(speler)
+	return b
+end
+
+function Blackjack.act(speler: Player, zet: any): any
+	local r = open[speler.UserId]
+	if not r then return { ok = false, err = "geen hand" } end
+	local k = tostring(zet)
+
+	if k == "hit" then
+		table.insert(r.speler, trek(speler))
+		if (Odds.bjValue(r.speler)) &gt; 21 then
+			return afrekenen(speler, r, false)
+		end
+		local b = beeld(r)
+		b.ok = true
+		b.done = false
+		b.balance = saldo(speler)
+		return b
+	end
+
+	if k == "stand" then
+		return afrekenen(speler, r, true)
+	end
+
+	if k == "double" then
+		if #r.speler ~= 2 then return { ok = false, err = "dubbelen kan alleen op de eerste twee kaarten" } end
+		if r.doubled then return { ok = false, err = "je hebt al gedubbeld" } end
+		-- De tweede helft van de inzet wordt nu pas afgeschreven; lukt dat niet, dan
+		-- verandert er niets aan de hand.
+		if not Profiles.take(speler, r.bet) then return { ok = false, err = "onvoldoende saldo om te dubbelen" } end
+		r.doubled = true
+		table.insert(r.speler, trek(speler))
+		if (Odds.bjValue(r.speler)) &gt; 21 then
+			return afrekenen(speler, r, false)
+		end
+		return afrekenen(speler, r, true)
+	end
+
+	return { ok = false, err = "die zet niet" }
+end
+
+Profiles.onLeave(function(sp: Player)
+	Blackjack.refund(sp)
+	schoenen[sp.UserId] = nil
+end)
+
+return Blackjack
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX13">
 					<Properties>
 						<string name="Name">Multi</string>
 						<ProtectedString name="Source">--!strict
@@ -1604,7 +2189,7 @@ return Multi
 					</Properties>
 				</Item>
 			</Item>
-			<Item class="ModuleScript" referent="RBX11">
+			<Item class="ModuleScript" referent="RBX14">
 				<Properties>
 					<string name="Name">Profiles</string>
 					<ProtectedString name="Source">--!strict
@@ -2024,7 +2609,7 @@ return Profiles
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="LocalScript" referent="RBX12">
+		<Item class="LocalScript" referent="RBX15">
 			<Properties>
 				<string name="Name">Client</string>
 				<ProtectedString name="Source">--!strict
@@ -2052,6 +2637,9 @@ local SPELLEN: { [string]: { build: (Instance) -&gt; () } } = {
 	wheel = require(script.Views.Wheel),
 	slots = require(script.Views.Slots),
 	horse = require(script.Views.Horse),
+	blackjack = require(script.Views.Blackjack),
+	crash = require(script.Views.Crash),
+	bus = require(script.Views.Bus),
 }
 
 local speler = Players.LocalPlayer
@@ -2083,6 +2671,7 @@ local SCHERMEN = {
 	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
 	{ id = "slots",   label = "777",           groep = "PLAY" },
 	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
+	{ id = "bus",     label = "RIDE THE BUS",  groep = "PLAY" },
 	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
 	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
 	{ id = "friends", label = "FRIENDS",       groep = "ACCOUNT" },
@@ -2278,11 +2867,422 @@ end)
 return nil
 </ProtectedString>
 			</Properties>
-			<Item class="Folder" referent="RBX13">
+			<Item class="Folder" referent="RBX16">
 				<Properties>
 					<string name="Name">Views</string>
 				</Properties>
-				<Item class="ModuleScript" referent="RBX14">
+				<Item class="ModuleScript" referent="RBX17">
+					<Properties>
+						<string name="Name">Blackjack</string>
+						<ProtectedString name="Source">--!strict
+-- Blackjack: zes stapels, dealer pakt bij tot 17. De dichte kaart van de dealer staat hier
+-- niet in het geheugen van de client -- die komt pas over als de dealer speelt.
+--
+-- De dubbele inzet wordt er overal bij gezet ("DOUBLED"), want zonder dat leek het alsof
+-- je bij een gedubbelde hand te weinig kreeg. Het bedrag klopte altijd; wat ontbrak was
+-- dat het scherm liet zien waar het over ging.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Blackjack = {}
+
+type Kaart = { r: string, s: string }
+
+local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Frame
+	local f = Instance.new("Frame")
+	f.Size = UDim2.fromOffset(70, 98)
+	f.LayoutOrder = volgorde
+	f.BackgroundColor3 = if kaart then Theme.color.card else Color3.fromHex("1b222c")
+	f.BorderSizePixel = 0
+	UI.corner(f, Theme.size.radiusBig)
+	UI.stroke(f, Theme.color.border)
+	f.Parent = ouder
+
+	local tekst = if kaart then kaart.r .. "\n" .. kaart.s else "\u{2756}"
+	local rood = kaart ~= nil and (kaart.s == "\u{2665}" or kaart.s == "\u{2666}")
+	local kleur = if not kaart then Theme.color.muted
+		elseif rood then Color3.fromHex("c0392b")
+		else Color3.fromHex("14181f")
+	local t = UI.label(f, tekst, {
+		size = 22, color = kleur, font = Theme.font.uiBold, align = Enum.TextXAlignment.Center,
+	})
+	t.Size = UDim2.fromScale(1, 1)
+	t.TextYAlignment = Enum.TextYAlignment.Center
+	return f
+end
+
+function Blackjack.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local tafel = UI.panel(bord, "Table")
+	UI.list(tafel, 8)
+	UI.panelTitle(tafel, "blackjack \u{00B7} dealer stands on all 17s")
+
+	local dealerKop = UI.label(tafel, "DEALER", {
+		size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiBold,
+	})
+	local dealerRij = Instance.new("Frame")
+	dealerRij.Size = UDim2.new(1, 0, 0, 104)
+	dealerRij.BackgroundTransparency = 1
+	dealerRij.Parent = tafel
+	local dl = UI.list(dealerRij, 8, Enum.FillDirection.Horizontal)
+	dl.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	local spelerKop = UI.label(tafel, "YOU", {
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+	})
+	local spelerRij = Instance.new("Frame")
+	spelerRij.Size = UDim2.new(1, 0, 0, 104)
+	spelerRij.BackgroundTransparency = 1
+	spelerRij.Parent = tafel
+	local sl = UI.list(spelerRij, 8, Enum.FillDirection.Horizontal)
+	sl.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	local balk = Common.banner(tafel)
+	balk.set("PLACE YOUR BET", nil)
+
+	local actief = false
+	local gedubbeld = false
+	local betBox: Common.BetBox
+	local dealKnop: TextButton
+	local hitKnop: TextButton
+	local standKnop: TextButton
+	local doubleKnop: TextButton
+
+	local function wis(rij: Frame)
+		for _, k in rij:GetChildren() do
+			if k:IsA("Frame") then k:Destroy() end
+		end
+	end
+
+	local function toonHand(rij: Frame, kaarten: { Kaart }, dicht: boolean)
+		wis(rij)
+		for i, k in kaarten do
+			kaartVlak(rij, k, i)
+		end
+		if dicht then
+			kaartVlak(rij, nil, #kaarten + 1)
+		end
+	end
+
+	-- De inzetregel: hier komt (DOUBLED) bij te staan zodra er gedubbeld is.
+	local function zetKoppen(spelerWaarde: number?, dealerWaarde: number?, inzet: number?)
+		local dub = if gedubbeld then "  \u{00B7}  DOUBLED" else ""
+		spelerKop.Text = "YOU" .. (if spelerWaarde then "  \u{00B7}  " .. spelerWaarde else "")
+			.. (if inzet then "  \u{00B7}  STAKE $" .. Money.fmt(inzet) else "") .. dub
+		dealerKop.Text = "DEALER" .. (if dealerWaarde then "  \u{00B7}  " .. dealerWaarde else "")
+	end
+
+	local function zetKnoppen()
+		dealKnop.Visible = not actief
+		hitKnop.Visible = actief
+		standKnop.Visible = actief
+		doubleKnop.Visible = actief
+		betBox.lock(actief)
+	end
+
+	local function toonEinde(res: any)
+		actief = false
+		gedubbeld = res.doubled == true
+		toonHand(spelerRij, res.player, false)
+		toonHand(dealerRij, res.dealer, false)
+		zetKoppen(res.playerValue, res.dealerValue, res.bet)
+		zetKnoppen()
+
+		local dub = if res.doubled then "  (DOUBLED)" else ""
+		if res.result == "win" then
+			local wat = if res.natural then "BLACKJACK" else "YOU WIN"
+			balk.set(wat .. "  \u{00B7}  +$" .. Money.fmt(res.payout) .. dub, if res.natural then "gold" else "green")
+			Common.toast("+$" .. Money.fmt(res.payout) .. dub, if res.natural then "gold" else "green")
+		elseif res.result == "push" then
+			balk.set("PUSH  \u{00B7}  $" .. Money.fmt(res.payout) .. " BACK" .. dub, nil)
+		else
+			balk.set("DEALER WINS  \u{00B7}  -$" .. Money.fmt(res.bet) .. dub, "red")
+		end
+	end
+
+	local function toonSpel(res: any)
+		actief = true
+		gedubbeld = res.doubled == true
+		toonHand(spelerRij, res.player, false)
+		toonHand(dealerRij, { res.dealerUp }, true)
+		zetKoppen(res.playerValue, res.dealerValue, res.bet)
+		-- Dubbelen mag alleen op de eerste twee kaarten, net als aan een echte tafel.
+		doubleKnop.Active = #res.player == 2 and not gedubbeld
+		doubleKnop.BackgroundTransparency = if doubleKnop.Active then 0.1 else 0.6
+		zetKnoppen()
+		balk.set("HIT, STAND OR DOUBLE", nil)
+	end
+
+	local function verwerk(res: any)
+		if not res then return end
+		if res.done then
+			toonEinde(res)
+		else
+			toonSpel(res)
+		end
+	end
+
+	-- ---------- de bediening ----------
+	local regels = UI.panel(bediening, "Rules")
+	UI.list(regels, 4)
+	UI.panelTitle(regels, "rules")
+	Common.statRow(regels, "DECKS", "6")
+	Common.statRow(regels, "BLACKJACK PAYS", "3:2")
+	Common.statRow(regels, "DEALER", "STANDS ON 17")
+	Common.statRow(regels, "DOUBLE", "FIRST TWO CARDS")
+	Common.statRow(regels, "RTP", "99%")
+
+	betBox = Common.betBox(bediening, 10)
+	dealKnop = UI.primary(bediening, "DEAL")
+	hitKnop = UI.primary(bediening, "HIT")
+	standKnop = UI.secondary(bediening, "STAND")
+	standKnop.Size = UDim2.new(1, 0, 0, 40)
+	doubleKnop = UI.secondary(bediening, "DOUBLE")
+	doubleKnop.Size = UDim2.new(1, 0, 0, 40)
+
+	dealKnop.Activated:Connect(function()
+		if actief then return end
+		gedubbeld = false
+		verwerk(Common.call("Bet", "blackjack", betBox.get()))
+	end)
+	hitKnop.Activated:Connect(function()
+		if not actief then return end
+		verwerk(Common.call("Act", "blackjack", "hit"))
+	end)
+	standKnop.Activated:Connect(function()
+		if not actief then return end
+		verwerk(Common.call("Act", "blackjack", "stand"))
+	end)
+	doubleKnop.Activated:Connect(function()
+		if not actief or not doubleKnop.Active then return end
+		verwerk(Common.call("Act", "blackjack", "double"))
+	end)
+
+	zetKnoppen()
+	zetKoppen(nil, nil, nil)
+end
+
+return Blackjack
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX18">
+					<Properties>
+						<string name="Name">Bus</string>
+						<ProtectedString name="Source">--!strict
+-- Ride the Bus: vier keer raden door één stapel -- kleur, hoger of lager, binnen of buiten,
+-- en de soort. De kans wordt geteld op wat er nog in de stapel ligt, dus uitstappen levert
+-- na elke call precies hetzelfde percentage op, hoe goed of slecht je ook geraden hebt.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Bus = {}
+
+local STAPNAMEN = {"COLOUR", "HIGHER OR LOWER", "INSIDE OR OUTSIDE", "SUIT"}
+
+-- Een speelkaart: wit vlak, rode of zwarte tekst, zoals in de webversie.
+local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Frame
+	local f = Instance.new("Frame")
+	f.Size = UDim2.fromOffset(74, 104)
+	f.BackgroundColor3 = if kaart then Theme.color.card else Theme.color.panelLight
+	f.BorderSizePixel = 0
+	UI.corner(f, Theme.size.radiusBig)
+	UI.stroke(f, Theme.color.border)
+	f.Parent = ouder
+
+	if kaart then
+		local rood = kaart.s == "\u{2665}" or kaart.s == "\u{2666}"
+		local kleur = if rood then Color3.fromHex("c0392b") else Color3.fromHex("14181f")
+		local t = UI.label(f, kaart.r .. "\n" .. kaart.s, {
+			size = 22, color = kleur, font = Theme.font.uiBold,
+			align = Enum.TextXAlignment.Center,
+		})
+		t.Size = UDim2.fromScale(1, 1)
+		t.TextYAlignment = Enum.TextYAlignment.Center
+	else
+		local t = UI.label(f, "?", {
+			size = 30, color = Theme.color.muted, font = Theme.font.uiBold,
+			align = Enum.TextXAlignment.Center,
+		})
+		t.Size = UDim2.fromScale(1, 1)
+		t.TextYAlignment = Enum.TextYAlignment.Center
+	end
+	return f
+end
+
+function Bus.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local tafel = UI.panel(bord, "Table")
+	UI.list(tafel, 10)
+	UI.panelTitle(tafel, "ride the bus")
+
+	local stapLabel = UI.label(tafel, "STEP 1 \u{00B7} " .. STAPNAMEN[1], {
+		size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiBold,
+	})
+
+	local kaarten = Instance.new("Frame")
+	kaarten.Size = UDim2.new(1, 0, 0, 110)
+	kaarten.BackgroundTransparency = 1
+	kaarten.Parent = tafel
+	local kaartLayout = UI.list(kaarten, 10, Enum.FillDirection.Horizontal)
+	kaartLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	local keuzes = Instance.new("Frame")
+	keuzes.Size = UDim2.new(1, 0, 0, 40)
+	keuzes.BackgroundTransparency = 1
+	keuzes.Parent = tafel
+	UI.list(keuzes, 8, Enum.FillDirection.Horizontal)
+
+	local balk = Common.banner(tafel)
+	balk.set("FOUR CALLS, ONE DECK", nil)
+
+	local actief = false
+	local stap = 0
+	local betBox: Common.BetBox
+	local startKnop: TextButton
+	local uitKnop: TextButton
+
+	local function wisKaarten()
+		for _, k in kaarten:GetChildren() do
+			if k:IsA("Frame") then k:Destroy() end
+		end
+	end
+
+	local function wisKeuzes()
+		for _, k in keuzes:GetChildren() do
+			if k:IsA("TextButton") then k:Destroy() end
+		end
+	end
+
+	local roep: (string) -&gt; ()
+
+	-- De knoppen voor deze stap, met de kans erbij. Een kans van nul is geen knop maar een
+	-- grijs vlak: de server weigert die call toch, en dat hoor je te zien voordat je klikt.
+	local function toonOpties(opties: { { key: string, label: string, chance: number } })
+		wisKeuzes()
+		for i, o in opties do
+			local b = Instance.new("TextButton")
+			b.Name = o.key
+			b.Text = o.label .. "   " .. string.format("%d%%", math.floor(o.chance * 100 + 0.5))
+			b.Font = Theme.font.uiBold
+			b.TextSize = Theme.text.small
+			b.LayoutOrder = i
+			b.Size = UDim2.new(1 / #opties, -8, 1, 0)
+			b.BorderSizePixel = 0
+			b.AutoButtonColor = false
+			b.RichText = false
+			local kan = o.chance &gt; 0
+			b.Active = kan
+			b.BackgroundColor3 = if kan then Theme.color.neon else Theme.color.bg
+			b.BackgroundTransparency = if kan then 0.1 else 0.6
+			b.TextColor3 = if kan then Theme.color.bg else Theme.color.muted
+			UI.corner(b, Theme.size.radius)
+			b.Parent = keuzes
+			b.Activated:Connect(function()
+				if kan then roep(o.key) end
+			end)
+		end
+	end
+
+	local function zetActief()
+		startKnop.Visible = not actief
+		uitKnop.Visible = actief
+		uitKnop.Active = stap &gt; 0
+		keuzes.Visible = actief
+		betBox.lock(actief)
+	end
+
+	function roep(keuze: string)
+		if not actief then return end
+		local res = Common.call("Act", "bus", keuze)
+		if not res then return end
+
+		kaartVlak(kaarten, res.card).LayoutOrder = stap + 1
+		if not res.hit then
+			actief = false
+			stap = 0
+			wisKeuzes()
+			zetActief()
+			balk.set("WRONG CALL", "red")
+			return
+		end
+
+		if res.done then
+			actief = false
+			stap = 0
+			wisKeuzes()
+			zetActief()
+			balk.set("ALL FOUR  \u{00B7}  +$" .. Money.fmt(res.payout), "gold")
+			Common.toast("+$" .. Money.fmt(res.payout), "gold")
+			return
+		end
+
+		stap = res.step
+		stapLabel.Text = "STEP " .. (stap + 1) .. " \u{00B7} " .. STAPNAMEN[stap + 1]
+		balk.set(Money.fmt(res.mult) .. "\u{00D7} SO FAR", "green")
+		uitKnop.Text = "CASH OUT  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}"
+		toonOpties(res.options)
+		zetActief()
+	end
+
+	-- ---------- de bediening ----------
+	local uitleg = UI.panel(bediening, "Steps")
+	UI.list(uitleg, 4)
+	UI.panelTitle(uitleg, "the four calls")
+	for i, naam in STAPNAMEN do
+		Common.statRow(uitleg, i .. ". " .. naam, "")
+	end
+
+	betBox = Common.betBox(bediening, 10)
+	startKnop = UI.primary(bediening, "START THE RIDE")
+	uitKnop = UI.primary(bediening, "CASH OUT")
+	uitKnop.Visible = false
+
+	startKnop.Activated:Connect(function()
+		if actief then return end
+		local res = Common.call("Bet", "bus", betBox.get())
+		if not res then return end
+		actief = true
+		stap = 0
+		wisKaarten()
+		stapLabel.Text = "STEP 1 \u{00B7} " .. STAPNAMEN[1]
+		uitKnop.Text = "CASH OUT"
+		toonOpties(res.options)
+		zetActief()
+		balk.set("RED OR BLACK?", nil)
+	end)
+
+	uitKnop.Activated:Connect(function()
+		if not actief or stap &lt; 1 then return end
+		local res = Common.call("CashOut", "bus")
+		if not res then return end
+		actief = false
+		stap = 0
+		wisKeuzes()
+		zetActief()
+		balk.set("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+		Common.toast("+$" .. Money.fmt(res.payout), "green")
+	end)
+
+	wisKaarten()
+	zetActief()
+end
+
+return Bus
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX19">
 					<Properties>
 						<string name="Name">Common</string>
 						<ProtectedString name="Source">--!strict
@@ -2551,7 +3551,302 @@ return Common
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX15">
+				<Item class="ModuleScript" referent="RBX20">
+					<Properties>
+						<string name="Name">Crash</string>
+						<ProtectedString name="Source">--!strict
+-- Crash: één ronde voor iedereen tegelijk. De client tekent de curve en telt de multiplier
+-- mee op de servertijd, maar wat een cashout oplevert bepaalt de server -- de knop stuurt
+-- alleen "ik stap uit", nooit een bedrag of een multiplier.
+--
+-- Onder de grafiek staat de belofte van de ronde. Na afloop komt het zaad erbij, zodat
+-- iedereen kan narekenen dat het crashpunt al vastlag voordat er iemand inzette.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Net = require(ReplicatedStorage.Shared.Net)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Common = require(script.Parent.Common)
+
+local Crash = {}
+
+local GROEI = 0.103995
+local SPOOR = 90   -- zoveel stipjes vormen de curve
+
+local function multBij(t: number): number
+	if t &lt;= 0 then return 1 end
+	return math.max(1, math.floor(math.exp(GROEI * t) * 100) / 100)
+end
+
+function Crash.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local bord, bediening = Common.columns(blad, 300)
+
+	local vak = UI.panel(bord, "Flight")
+	UI.list(vak, 8)
+	UI.panelTitle(vak, "crash")
+
+	-- De lucht waar de curve in getekend wordt.
+	local lucht = Instance.new("Frame")
+	lucht.Name = "Sky"
+	lucht.Size = UDim2.new(1, 0, 0, 300)
+	lucht.BackgroundColor3 = Color3.fromHex("101922")
+	lucht.BorderSizePixel = 0
+	UI.corner(lucht, Theme.size.radius)
+	lucht.ClipsDescendants = true
+	lucht.Parent = vak
+
+	local verloop = Instance.new("UIGradient")
+	verloop.Color = ColorSequence.new(Color3.fromHex("16283a"), Color3.fromHex("0c131a"))
+	verloop.Rotation = 90
+	verloop.Parent = lucht
+
+	local stippen: { Frame } = {}
+	for i = 1, SPOOR do
+		local d = Instance.new("Frame")
+		d.AnchorPoint = Vector2.new(0.5, 0.5)
+		d.Size = UDim2.fromOffset(4, 4)
+		d.BackgroundColor3 = Theme.color.neon
+		d.BorderSizePixel = 0
+		d.Visible = false
+		d.ZIndex = 2
+		UI.corner(d, 2)
+		d.Parent = lucht
+		stippen[i] = d
+	end
+
+	local raket = Instance.new("TextLabel")
+	raket.AnchorPoint = Vector2.new(0.5, 0.5)
+	raket.Size = UDim2.fromOffset(28, 28)
+	raket.BackgroundTransparency = 1
+	raket.Text = "\u{25B2}"
+	raket.Font = Theme.font.uiBold
+	raket.TextSize = 20
+	raket.TextColor3 = Theme.color.neon
+	raket.ZIndex = 3
+	raket.Visible = false
+	raket.Parent = lucht
+
+	local groot = UI.label(lucht, "\u{2014}", {
+		size = Theme.text.giant, color = Theme.color.text, font = Theme.font.num,
+		align = Enum.TextXAlignment.Center,
+	})
+	groot.AnchorPoint = Vector2.new(0.5, 0.5)
+	groot.Position = UDim2.fromScale(0.5, 0.42)
+	groot.Size = UDim2.new(1, 0, 0, 70)
+	groot.ZIndex = 4
+
+	local status = UI.label(lucht, "WAITING", {
+		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiBold,
+		align = Enum.TextXAlignment.Center,
+	})
+	status.AnchorPoint = Vector2.new(0.5, 0)
+	status.Position = UDim2.new(0.5, 0, 0.42, 38)
+	status.Size = UDim2.new(1, 0, 0, 20)
+	status.ZIndex = 4
+
+	-- De belofte en het zaad: het bewijs dat de ronde niet is bijgesteld.
+	local eerlijk = UI.panel(bord, "Fairness")
+	UI.list(eerlijk, 4)
+	UI.panelTitle(eerlijk, "provably fair")
+	local commitLabel = Common.statRow(eerlijk, "COMMIT", "\u{2014}")
+	local seedLabel = Common.statRow(eerlijk, "SEED", "\u{2014}")
+	local puntLabel = Common.statRow(eerlijk, "CRASHED AT", "\u{2014}")
+	local uitlegLabel = UI.label(eerlijk, "sha256(\"commit:\" + seed) hoort bij de belofte hierboven.", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	uitlegLabel.TextWrapped = true
+	uitlegLabel.Size = UDim2.new(1, 0, 0, 26)
+
+	-- ---------- de bediening ----------
+	local betBox = Common.betBox(bediening, 10)
+	local knop = UI.primary(bediening, "PLACE BET")
+
+	local tafel = UI.panel(bediening, "Players")
+	UI.list(tafel, 4)
+	UI.panelTitle(tafel, "this round")
+	local spelersVak = Instance.new("Frame")
+	spelersVak.Size = UDim2.new(1, 0, 0, 0)
+	spelersVak.AutomaticSize = Enum.AutomaticSize.Y
+	spelersVak.BackgroundTransparency = 1
+	spelersVak.Parent = tafel
+	UI.list(spelersVak, 2)
+
+	-- ---------- de stand ----------
+	-- Wie er in deze ronde zit leest het scherm uit wat de server stuurt, niet uit een
+	-- eigen vlaggetje: dan klopt het ook als je net binnenkwam of even weg was.
+	local stand: any = nil
+	local mijnNaam = game:GetService("Players").LocalPlayer.DisplayName
+
+	local function toonSpelers()
+		for _, k in spelersVak:GetChildren() do
+			if k:IsA("Frame") then k:Destroy() end
+		end
+		if not stand or not stand.bets then return end
+		local lijst = stand.bets
+		table.sort(lijst, function(a, b)
+			return a.bet &gt; b.bet
+		end)
+		for i, b in lijst do
+			if i &gt; 10 then break end
+			local waarde = if b.cashed
+				then Money.fmt(b.cashed) .. "\u{00D7}  +$" .. Money.fmt(b.payout or 0)
+				else "$" .. Money.fmt(b.bet)
+			local rij = Common.statRow(spelersVak, b.naam, waarde)
+			rij.TextColor3 = if b.cashed then Theme.color.neon else Theme.color.text
+		end
+	end
+
+	local function mijnInzet(): any
+		if not stand or not stand.bets then return nil end
+		for _, b in stand.bets do
+			if b.naam == mijnNaam then return b end
+		end
+		return nil
+	end
+
+	local function zetKnop()
+		local fase = if stand then stand.phase else "idle"
+		local mijn = mijnInzet()
+		if fase == "waiting" then
+			knop.Text = if mijn then "BET PLACED" else "PLACE BET"
+			knop.Active = mijn == nil
+			betBox.lock(mijn ~= nil)
+		elseif fase == "flying" then
+			if mijn and not mijn.cashed then
+				knop.Text = "CASH OUT"
+				knop.Active = true
+			else
+				knop.Text = if mijn then "CASHED OUT" else "IN FLIGHT"
+				knop.Active = false
+			end
+			betBox.lock(true)
+		else
+			knop.Text = "ROUND OVER"
+			knop.Active = false
+			betBox.lock(true)
+		end
+		knop.BackgroundTransparency = if knop.Active then 0 else 0.55
+	end
+
+	-- De curve tekenen tot punt u van de vlucht.
+	local function tekenCurve(tNu: number, hoogste: number)
+		raket.Visible = true
+		for i = 1, SPOOR do
+			local deel = i / SPOOR
+			local t = tNu * deel
+			local m = multBij(t)
+			local x = deel * 0.9 + 0.05
+			-- De y-as schaalt mee met de hoogste stand, zodat de curve in beeld blijft.
+			local y = 0.92 - (m - 1) / math.max(0.2, hoogste - 1) * 0.8
+			local d = stippen[i]
+			d.Visible = true
+			d.Position = UDim2.fromScale(x, math.clamp(y, 0.05, 0.95))
+		end
+		local laatste = stippen[SPOOR]
+		raket.Position = laatste.Position
+	end
+
+	local function wisCurve()
+		for _, d in stippen do
+			d.Visible = false
+		end
+		raket.Visible = false
+	end
+
+	local function zetKleur(kleur: Color3)
+		groot.TextColor3 = kleur
+		raket.TextColor3 = kleur
+		for _, d in stippen do
+			d.BackgroundColor3 = kleur
+		end
+	end
+
+	local function toonFairness()
+		if not stand then return end
+		commitLabel.Text = if stand.commit then string.sub(stand.commit, 1, 16) .. "\u{2026}" else "\u{2014}"
+		seedLabel.Text = if stand.seed then string.sub(stand.seed, 1, 18) .. "\u{2026}" else "hidden until the crash"
+		puntLabel.Text = if stand.crashAt then Money.fmt(stand.crashAt) .. "\u{00D7}" else "\u{2014}"
+	end
+
+	local function nieuweStand(s: any)
+		if typeof(s) ~= "table" then return end
+		if stand and s.id and stand.id and s.id ~= stand.id then
+			wisCurve()
+		end
+		stand = s
+		toonSpelers()
+		toonFairness()
+		zetKnop()
+	end
+
+	-- Elke frame de klok aflezen en de curve bijwerken. De servertijd is op beide kanten
+	-- hetzelfde, dus dit loopt gelijk met wat de server rekent.
+	RunService.RenderStepped:Connect(function()
+		if not stand then return end
+		local nu = workspace:GetServerTimeNow()
+		local fase = stand.phase
+
+		if fase == "waiting" then
+			local over = math.max(0, (stand.startsAt or nu) - nu)
+			groot.Text = string.format("%.1f", over)
+			zetKleur(Theme.color.text)
+			status.Text = "NEXT ROUND IN"
+			wisCurve()
+		elseif fase == "flying" then
+			local t = nu - (stand.startsAt or nu)
+			local m = multBij(t)
+			groot.Text = Money.fmt(m) .. "\u{00D7}"
+			zetKleur(Theme.color.neon)
+			status.Text = "IN FLIGHT"
+			tekenCurve(t, m)
+		else
+			local c = stand.crashAt or 1
+			groot.Text = Money.fmt(c) .. "\u{00D7}"
+			zetKleur(Theme.color.red)
+			status.Text = "CRASHED"
+			tekenCurve((stand.endsAt or nu) - (stand.startsAt or nu), c)
+		end
+	end)
+
+	knop.Activated:Connect(function()
+		if not stand or not knop.Active then return end
+		if stand.phase == "waiting" then
+			if Common.call("Bet", "crash", betBox.get()) then
+				Common.toast("BET PLACED", "green")
+			end
+		elseif stand.phase == "flying" then
+			local res = Common.call("CashOut", "crash")
+			if res then
+				Common.toast("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+			end
+		end
+		zetKnop()
+	end)
+
+	-- De server duwt elke faseverandering; bij binnenkomst één keer zelf vragen.
+	Net.ev("Round").OnClientEvent:Connect(function(s: any)
+		if typeof(s) == "table" and s.game == "crash" then
+			nieuweStand(s)
+		end
+	end)
+
+	task.spawn(function()
+		local ok, res = pcall(function()
+			return Net.fn("RoundState"):InvokeServer("crash")
+		end)
+		if ok then nieuweStand(res) end
+	end)
+
+	zetKnop()
+end
+
+return Crash
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX21">
 					<Properties>
 						<string name="Name">Home</string>
 						<ProtectedString name="Source">--!strict
@@ -2735,7 +4030,7 @@ return Home
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX16">
+				<Item class="ModuleScript" referent="RBX22">
 					<Properties>
 						<string name="Name">Horse</string>
 						<ProtectedString name="Source">--!strict
@@ -2991,7 +4286,7 @@ return Horse
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX17">
+				<Item class="ModuleScript" referent="RBX23">
 					<Properties>
 						<string name="Name">Mines</string>
 						<ProtectedString name="Source">--!strict
@@ -3195,7 +4490,7 @@ return Mines
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX18">
+				<Item class="ModuleScript" referent="RBX24">
 					<Properties>
 						<string name="Name">Plinko</string>
 						<ProtectedString name="Source">--!strict
@@ -3429,7 +4724,7 @@ return Plinko
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX19">
+				<Item class="ModuleScript" referent="RBX25">
 					<Properties>
 						<string name="Name">Roulette</string>
 						<ProtectedString name="Source">--!strict
@@ -3708,7 +5003,7 @@ return Roulette
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX20">
+				<Item class="ModuleScript" referent="RBX26">
 					<Properties>
 						<string name="Name">Scratch</string>
 						<ProtectedString name="Source">--!strict
@@ -3848,7 +5143,7 @@ return Scratch
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX21">
+				<Item class="ModuleScript" referent="RBX27">
 					<Properties>
 						<string name="Name">Slots</string>
 						<ProtectedString name="Source">--!strict
@@ -3968,7 +5263,7 @@ return Slots
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX22">
+				<Item class="ModuleScript" referent="RBX28">
 					<Properties>
 						<string name="Name">Tower</string>
 						<ProtectedString name="Source">--!strict
@@ -4199,7 +5494,7 @@ return Tower
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX23">
+				<Item class="ModuleScript" referent="RBX29">
 					<Properties>
 						<string name="Name">Wheel</string>
 						<ProtectedString name="Source">--!strict

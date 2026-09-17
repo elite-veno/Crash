@@ -9,6 +9,8 @@ BRONNEN = {
     "Profiles": "src/server/Profiles/init.luau",
     "Games": "src/server/Games/init.luau",
     "Multi": "src/server/Games/Multi.luau",
+    "Blackjack": "src/server/Games/Blackjack.luau",
+    "Crash": "src/server/Crash/init.luau",
 }
 UIT = WORTEL / "tests" / "server_sources.luau"
 
