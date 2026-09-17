@@ -14,7 +14,7 @@ local SNEL = {1, 3, 5, 10, 24}
 
 function Mines.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "MINES")
 
 	local veld = UI.panel(bord, "Field")
 	UI.list(veld, 8)
@@ -121,7 +121,7 @@ function Mines.build(ouder: Instance): ()
 		b.AutoButtonColor = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.size.radius)
+		UI.corner(b, Theme.radius.button)
 		UI.stroke(b, Theme.color.border)
 		b.Parent = raster
 		b.Activated:Connect(function()

@@ -15,9 +15,26 @@ local Common = {}
 -- De schil weet het saldo en heeft het meldingenvak; de schermen vragen het hier op.
 local saldo = Money.START
 local melder: ((string, UI.ToastKind?) -> ())? = nil
+local ga: ((string) -> ())? = nil
+-- Elk speelscherm heeft links een saldopaneel, net als in de webversie. Ze staan hier
+-- allemaal in, zodat één bericht van de server ze in één keer bijwerkt.
+local saldoLabels: { TextLabel } = {}
 
 function Common.setBalance(n: number): ()
 	saldo = n
+	local tekst = Money.fmt(n)
+	for _, l in saldoLabels do
+		if l.Parent then l.Text = tekst end
+	end
+end
+
+function Common.setNavigate(f: (string) -> ()): ()
+	ga = f
+end
+
+function Common.navigate(route: string): ()
+	local f = ga
+	if f then f(route) end
 end
 
 function Common.balance(): number
@@ -69,44 +86,79 @@ function Common.sheet(ouder: Instance): ScrollingFrame
 	return blad
 end
 
--- Twee kolommen: links het speelveld, rechts de bediening. Zoals `.game-layout` in de CSS.
--- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query daar.
+-- Een speelscherm zoals `.game-view` in de CSS: `grid-template-columns: 320px 1fr`, dus de
+-- bediening LINKS in een aside van 320 breed en het speelveld rechts. Boven in de aside
+-- staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het saldopaneel -- precies
+-- de volgorde uit de markup.
 --
--- Het omschakelen gebeurt door de richting van de UIListLayout te draaien, niet door de
--- vakken zelf te verplaatsen. Dat scheelt een valkuil: wie posities uitrekent uit
--- AbsoluteSize en die posities vervolgens zet, verandert AbsoluteSize weer, en dan blijft
--- het heen en weer meten. Roblox legt hier zelf neer wat waar hoort.
-function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
-	local breedte = rechtsBreed or 300
+-- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query. Het omschakelen
+-- gebeurt door de richting van de UIListLayout te draaien en niet door de vakken zelf te
+-- verplaatsen: wie posities uitrekent uit AbsoluteSize en die vervolgens zet, verandert
+-- AbsoluteSize weer, en dan blijft het heen en weer meten.
+function Common.columns(ouder: Instance, titel: string?): (Frame, Frame)
+	local breedte = Theme.size.asideWidth
 	local rij = Instance.new("Frame")
-	rij.Name = "Columns"
+	rij.Name = "GameView"
 	rij.Size = UDim2.new(1, 0, 0, 0)
 	rij.AutomaticSize = Enum.AutomaticSize.Y
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
-	local indeling = UI.list(rij, 12, Enum.FillDirection.Horizontal)
+	local indeling = UI.list(rij, Theme.size.viewGap, Enum.FillDirection.Horizontal)
 	indeling.VerticalAlignment = Enum.VerticalAlignment.Top
 
-	local links = Instance.new("Frame")
-	links.Name = "Board"
-	links.LayoutOrder = 1
-	links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
-	links.AutomaticSize = Enum.AutomaticSize.Y
-	links.BackgroundTransparency = 1
-	links.Parent = rij
-	UI.list(links, Theme.size.gap)
+	-- links: de aside
+	local aside = Instance.new("Frame")
+	aside.Name = "Aside"
+	aside.LayoutOrder = 1
+	aside.Size = UDim2.new(0, breedte, 0, 0)
+	aside.AutomaticSize = Enum.AutomaticSize.Y
+	aside.BackgroundTransparency = 1
+	aside.Parent = rij
+	UI.list(aside, Theme.size.asideGap)
 
-	local rechts = Instance.new("Frame")
-	rechts.Name = "Controls"
-	rechts.LayoutOrder = 2
-	rechts.Size = UDim2.new(0, breedte, 0, 0)
-	rechts.AutomaticSize = Enum.AutomaticSize.Y
-	rechts.BackgroundTransparency = 1
-	rechts.Parent = rij
-	UI.list(rechts, Theme.size.gap)
+	-- rechts: het speelveld
+	local bord = Instance.new("Frame")
+	bord.Name = "Board"
+	bord.LayoutOrder = 2
+	bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
+	bord.AutomaticSize = Enum.AutomaticSize.Y
+	bord.BackgroundTransparency = 1
+	bord.Parent = rij
+	UI.list(bord, Theme.size.asideGap)
 
-	-- Alleen omschakelen als de stand echt verandert; anders doet elke meting werk voor
-	-- niets.
+	-- .crash-header: de terugknop en de naam van het spel, naast elkaar.
+	if titel then
+		local kop = Instance.new("Frame")
+		kop.Name = "Header"
+		kop.LayoutOrder = 1
+		kop.Size = UDim2.new(1, 0, 0, 34)
+		kop.BackgroundTransparency = 1
+		kop.Parent = aside
+		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
+		kopIndeling.VerticalAlignment = Enum.VerticalAlignment.Center
+
+		local terug = UI.backButton(kop)
+		terug.LayoutOrder = 1
+		terug.Activated:Connect(function()
+			Common.navigate("home")
+		end)
+
+		local naam = UI.label(kop, string.upper(titel), {
+			size = Theme.text.title, color = Theme.color.neon, font = Theme.font.uiMed,
+		})
+		naam.LayoutOrder = 2
+		naam.Size = UDim2.new(0, 0, 1, 0)
+		naam.AutomaticSize = Enum.AutomaticSize.X
+	end
+
+	-- Het saldopaneel, zoals `.panel.balance` in de markup.
+	local saldoVak = UI.panel(aside, "Balance")
+	saldoVak.LayoutOrder = 2
+	UI.list(saldoVak, 4)
+	UI.label(saldoVak, "BALANCE", { size = Theme.text.small, color = Theme.color.muted })
+	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance)
+	table.insert(saldoLabels, bedrag)
+
 	local smalNu: boolean? = nil
 	local function meet()
 		local smal = rij.AbsoluteSize.X > 0 and rij.AbsoluteSize.X < 760
@@ -114,18 +166,18 @@ function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
 		smalNu = smal
 		if smal then
 			indeling.FillDirection = Enum.FillDirection.Vertical
-			links.Size = UDim2.new(1, 0, 0, 0)
-			rechts.Size = UDim2.new(1, 0, 0, 0)
+			aside.Size = UDim2.new(1, 0, 0, 0)
+			bord.Size = UDim2.new(1, 0, 0, 0)
 		else
 			indeling.FillDirection = Enum.FillDirection.Horizontal
-			links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
-			rechts.Size = UDim2.new(0, breedte, 0, 0)
+			aside.Size = UDim2.new(0, breedte, 0, 0)
+			bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
 		end
 	end
 	rij:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
 	task.defer(meet)
 
-	return links, rechts
+	return bord, aside
 end
 
 -- Een rij knoppen naast elkaar, gelijk verdeeld.
@@ -135,7 +187,7 @@ function Common.row(ouder: Instance, hoogte: number?): Frame
 	f.Size = UDim2.new(1, 0, 0, hoogte or 30)
 	f.BackgroundTransparency = 1
 	f.Parent = ouder
-	local l = UI.list(f, 6, Enum.FillDirection.Horizontal)
+	local l = UI.list(f, 4, Enum.FillDirection.Horizontal)
 	l.VerticalAlignment = Enum.VerticalAlignment.Center
 	return f
 end
@@ -154,10 +206,18 @@ export type BetBox = {
 function Common.betBox(ouder: Instance, start: number?): BetBox
 	local paneel = UI.panel(ouder, "BetPanel")
 	UI.list(paneel, 6)
-	UI.panelTitle(paneel, "bet amount")
+	-- .field-label: "STAKE" links, het dollarteken als hint rechts.
+	local kop = Instance.new("Frame")
+	kop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	kop.BackgroundTransparency = 1
+	kop.Parent = paneel
+	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
+	UI.label(kop, "$", {
+		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+	})
 
 	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
-	local ficherij = Common.row(paneel, 26)
+	local ficherij = Common.row(paneel, 24)
 
 	local function huidig(): number
 		return tonumber(vak.Text) or 0
@@ -174,8 +234,9 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 		{ naam = "MAX", maak = function() return saldo end },
 	}
 	for _, fiche in knoppen do
+		-- .chips is een raster van vier gelijke kolommen met 4 pixels ertussen.
 		local b = UI.chip(ficherij, fiche.naam)
-		b.Size = UDim2.new(0.25, -5, 0, 26)
+		b.Size = UDim2.new(0.25, -3, 0, 24)
 		b.Activated:Connect(function()
 			zet(fiche.maak())
 		end)
@@ -222,7 +283,8 @@ function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabe
 	rij.Size = UDim2.new(1, 0, 0, 20)
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
-	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })
+	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted, name = "Key" })
 	return UI.label(rij, waarde, {
 		size = Theme.text.small, color = Theme.color.text, font = Theme.font.num,
 		align = Enum.TextXAlignment.Right, name = "Value",
@@ -240,12 +302,12 @@ function Common.banner(ouder: Instance): Banner
 	f.BackgroundColor3 = Theme.color.panel
 	f.BackgroundTransparency = 0.3
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radius)
+	UI.corner(f, Theme.radius.button)
 	local rand = UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
 	local t = UI.label(f, "", {
-		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiBold,
+		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiMed,
 		align = Enum.TextXAlignment.Center,
 	})
 	t.Size = UDim2.fromScale(1, 1)

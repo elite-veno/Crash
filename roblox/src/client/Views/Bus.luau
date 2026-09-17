@@ -18,7 +18,7 @@ local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Fra
 	f.Size = UDim2.fromOffset(74, 104)
 	f.BackgroundColor3 = if kaart then Theme.color.card else Theme.color.panelLight
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radiusBig)
+	UI.corner(f, Theme.radius.card)
 	UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
@@ -26,14 +26,14 @@ local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Fra
 		local rood = kaart.s == "\u{2665}" or kaart.s == "\u{2666}"
 		local kleur = if rood then Color3.fromHex("c0392b") else Color3.fromHex("14181f")
 		local t = UI.label(f, kaart.r .. "\n" .. kaart.s, {
-			size = 22, color = kleur, font = Theme.font.uiBold,
+			size = 22, color = kleur, font = Theme.font.uiMed,
 			align = Enum.TextXAlignment.Center,
 		})
 		t.Size = UDim2.fromScale(1, 1)
 		t.TextYAlignment = Enum.TextYAlignment.Center
 	else
 		local t = UI.label(f, "?", {
-			size = 30, color = Theme.color.muted, font = Theme.font.uiBold,
+			size = 30, color = Theme.color.muted, font = Theme.font.uiMed,
 			align = Enum.TextXAlignment.Center,
 		})
 		t.Size = UDim2.fromScale(1, 1)
@@ -44,14 +44,14 @@ end
 
 function Bus.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "RIDE THE BUS")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 10)
 	UI.panelTitle(tafel, "ride the bus")
 
 	local stapLabel = UI.label(tafel, "STEP 1 \u{00B7} " .. STAPNAMEN[1], {
-		size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 
 	local kaarten = Instance.new("Frame")
@@ -98,7 +98,7 @@ function Bus.build(ouder: Instance): ()
 			local b = Instance.new("TextButton")
 			b.Name = o.key
 			b.Text = o.label .. "   " .. string.format("%d%%", math.floor(o.chance * 100 + 0.5))
-			b.Font = Theme.font.uiBold
+			b.Font = Theme.font.uiMed
 			b.TextSize = Theme.text.small
 			b.LayoutOrder = i
 			b.Size = UDim2.new(1 / #opties, -8, 1, 0)
@@ -110,7 +110,7 @@ function Bus.build(ouder: Instance): ()
 			b.BackgroundColor3 = if kan then Theme.color.neon else Theme.color.bg
 			b.BackgroundTransparency = if kan then 0.1 else 0.6
 			b.TextColor3 = if kan then Theme.color.bg else Theme.color.muted
-			UI.corner(b, Theme.size.radius)
+			UI.corner(b, Theme.radius.button)
 			b.Parent = keuzes
 			b.Activated:Connect(function()
 				if kan then roep(o.key) end

@@ -21,7 +21,7 @@ end
 
 function Wheel.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "WHEEL")
 
 	local vak = UI.panel(bord, "Wheel")
 	UI.list(vak, 8)
@@ -52,7 +52,7 @@ function Wheel.build(ouder: Instance): ()
 		v.TextSize = Theme.text.tiny
 		v.TextColor3 = if m >= 2 then Theme.color.bg else Theme.color.muted
 		v.RichText = false
-		UI.corner(v, Theme.size.radiusSmall)
+		UI.corner(v, Theme.radius.chip)
 		v.Parent = ring
 		vakjes[i] = v
 	end

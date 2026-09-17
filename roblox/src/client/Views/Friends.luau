@@ -13,13 +13,13 @@ local Friends = {}
 
 function Friends.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local links, rechts = Common.columns(blad, 300)
+	local links, rechts = Common.columns(blad, "FRIENDS")
 
 	-- ---------- de lijst ----------
 	local lijstVak = UI.panel(links, "Friends")
 	UI.list(lijstVak, 4)
 	local lijstTitel = UI.label(lijstVak, "\u{25BA} FRIENDS", {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 
 	local lijst = Instance.new("Frame")

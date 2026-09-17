@@ -21,7 +21,7 @@ local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Fram
 	f.LayoutOrder = volgorde
 	f.BackgroundColor3 = if kaart then Theme.color.card else Color3.fromHex("1b222c")
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radiusBig)
+	UI.corner(f, Theme.radius.card)
 	UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
@@ -31,7 +31,7 @@ local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Fram
 		elseif rood then Color3.fromHex("c0392b")
 		else Color3.fromHex("14181f")
 	local t = UI.label(f, tekst, {
-		size = 22, color = kleur, font = Theme.font.uiBold, align = Enum.TextXAlignment.Center,
+		size = 22, color = kleur, font = Theme.font.uiMed, align = Enum.TextXAlignment.Center,
 	})
 	t.Size = UDim2.fromScale(1, 1)
 	t.TextYAlignment = Enum.TextYAlignment.Center
@@ -40,14 +40,14 @@ end
 
 function Blackjack.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "BLACKJACK")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 8)
 	UI.panelTitle(tafel, "blackjack \u{00B7} dealer stands on all 17s")
 
 	local dealerKop = UI.label(tafel, "DEALER", {
-		size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiMed,
 	})
 	local dealerRij = Instance.new("Frame")
 	dealerRij.Size = UDim2.new(1, 0, 0, 104)
@@ -57,7 +57,7 @@ function Blackjack.build(ouder: Instance): ()
 	dl.VerticalAlignment = Enum.VerticalAlignment.Center
 
 	local spelerKop = UI.label(tafel, "YOU", {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 	local spelerRij = Instance.new("Frame")
 	spelerRij.Size = UDim2.new(1, 0, 0, 104)

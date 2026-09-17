@@ -14,7 +14,7 @@ local MOEILIJK = {"easy", "medium", "hard", "expert", "master"}
 
 function Tower.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "DRAGON TOWER")
 
 	local toren = UI.panel(bord, "Tower")
 	UI.list(toren, 6)
@@ -80,7 +80,7 @@ function Tower.build(ouder: Instance): ()
 				b.LayoutOrder = k
 				b.Size = UDim2.new((1 - 0.2) / d.tiles, -4, 1, 0)
 				b.RichText = false
-				UI.corner(b, Theme.size.radiusSmall)
+				UI.corner(b, Theme.radius.chip)
 				UI.stroke(b, Theme.color.border)
 				b.Parent = rij
 				kolom[k] = b

@@ -1198,9 +1198,11 @@ return Sha256
 				<Properties>
 					<string name="Name">Theme</string>
 					<ProtectedString name="Source">--!strict
--- De kleuren, letters en maten uit de CSS van de webversie, één op één.
--- Alles wat in de CSS een variabele was staat hier, zodat de Roblox-versie er hetzelfde
--- uitziet en één plek de toon zet.
+-- De kleuren, letters en maten uit de CSS van de webversie, één op één overgenomen. Waar
+-- de webversie een getal noemt staat dat getal hier ook; waar hij rgba() gebruikt staat de
+-- kleur plus de doorzichtigheid die daarbij hoort, want zo werkt Roblox.
+--
+-- Eén plek zet de toon: als hier iets verandert, verandert het overal.
 
 local function hex(s: string): Color3
 	return Color3.fromHex(s)
@@ -1208,6 +1210,7 @@ end
 
 local Theme = {}
 
+-- ---------- :root ----------
 Theme.color = {
 	bg         = hex("0e1116"),
 	panel      = hex("151a21"),
@@ -1226,45 +1229,82 @@ Theme.color = {
 	feltDark   = hex("4f8f2a"),
 	sky        = hex("5fb8ff"),
 	card       = hex("f7f9fc"),
+	black      = hex("000000"),
+	white      = hex("ffffff"),
 }
 
--- De neon-gloed is in de CSS rgba(62,207,142,0.28); in Roblox is dat kleur + transparantie.
+-- --neon-glow is rgba(62,207,142,0.28): in Roblox is dat de kleur plus doorzichtigheid.
 Theme.glow = { color = hex("3ecf8e"), transparency = 0.72 }
 
+-- De doorzichtigheden die in de CSS als rgba() staan.
+Theme.alpha = {
+	inputBg    = 0.4,    -- rgba(0,0,0,0.6)
+	buttonBg   = 0.5,    -- rgba(0,0,0,0.5)
+	hoverBg    = 0.96,   -- rgba(255,255,255,0.04)
+	activeNav  = 0.90,   -- rgba(62,207,142,0.10)
+	tagNeon    = 0.88,   -- rgba(62,207,142,0.12)
+	tagGold    = 0.90,   -- rgba(224,181,85,0.10)
+	locked     = 0.65,   -- opacity 0.35
+	disabled   = 0.40,   -- opacity 0.6
+}
+
 Theme.font = {
-	ui  = Enum.Font.GothamMedium,
-	uiBold = Enum.Font.GothamBold,
-	num = Enum.Font.Code,      -- staat het dichtst bij JetBrains Mono
+	ui     = Enum.Font.Gotham,        -- Inter, gewoon
+	uiMed  = Enum.Font.GothamMedium,  -- Inter 600
+	uiBold = Enum.Font.GothamBold,    -- Inter 700
+	num    = Enum.Font.Code,          -- JetBrains Mono
 }
 
--- De maten die in de CSS het vaakst voorkomen.
+-- ---------- maten ----------
+-- De border-radius waarden uit de CSS, per onderdeel.
+Theme.radius = {
+	chip   = 2,
+	button = 3,
+	input  = 3,
+	panel  = 4,
+	card   = 6,
+	pill   = 8,
+}
+
 Theme.size = {
-	radiusSmall = 2,
-	radius      = 3,
-	radiusPanel = 4,
-	radiusBig   = 8,
+	railWidth   = 64,    -- nav.sidebar
+	railOpen    = 240,   -- nav.sidebar.open
+	asideWidth  = 320,   -- .game-view grid-template-columns: 320px 1fr
+	viewPad     = 16,    -- .game-view padding
+	viewGap     = 16,    -- .game-view gap
+	asideGap    = 14,    -- aside.game-aside gap
+	panelPad    = 18,    -- .panel padding
+	homePadY    = 40,    -- #homeView padding
+	homePadX    = 50,
 	gap         = 8,
+	cardMin     = 280,   -- .games-grid minmax(280px, 1fr)
+	cardGap     = 20,
+	cardPreview = 160,   -- .game-card-preview height
+	navIcon     = 24,    -- .nav-icon
+	navPadY     = 14,    -- .nav-item padding
+	navPadX     = 20,
+	navGap      = 16,
 	pad         = 12,
-	panelPad    = 14,
-	railWidth   = 64,      -- de smalle zijbalk
-	navWidth    = 240,     -- de uitgeklapte zijbalk
 }
 
+-- De lettergroottes uit de CSS, met de naam van waar ze vandaan komen.
 Theme.text = {
-	tiny   = 10,
-	small  = 11,
-	body   = 12,
-	label  = 13,
-	title  = 18,
-	big    = 22,
-	huge   = 40,
-	giant  = 64,
+	badge    = 8,    -- .nav-badge
+	tiny     = 11,   -- .game-card-desc, .odds-note, .chip, .btn-secondary
+	small    = 11,   -- .panel-title, .balance-label, .nav-section-label
+	body     = 12,   -- .nav-label, .home-subtitle
+	label    = 13,
+	button   = 15,   -- .btn-primary
+	input    = 16,   -- input[type=number]
+	card     = 18,   -- .game-card-title
+	title    = 22,   -- .crash-header-title, .section-heading h2
+	big      = 22,
+	balance  = 30,   -- .balance-amount
+	balanceL = 36,   -- .home-balance-card .balance-value
+	huge     = 36,
+	hero     = 64,   -- .home-title
+	giant    = 64,
 }
-
--- Een halfdoorzichtige variant, zoals rgba(0,0,0,0.5) in de CSS.
-function Theme.alpha(c: Color3, a: number): (Color3, number)
-	return c, 1 - a
-end
 
 return Theme
 </ProtectedString>
@@ -1274,8 +1314,12 @@ return Theme
 				<Properties>
 					<string name="Name">UI</string>
 					<ProtectedString name="Source">--!strict
--- De bouwstenen uit de CSS, als Roblox-objecten. Eén plek waar een paneel, een knop en een
+-- De bouwstenen uit de CSS, als Roblox-objecten. Elke maat hier komt uit `crash.html`; waar
+-- de webversie padding van 18 zegt, staat er 18. Eén plek waar een paneel, een knop en een
 -- fiche vandaan komen, zodat elk scherm er hetzelfde uitziet.
+--
+-- Wat Roblox niet heeft en de CSS wel: letter-spacing, box-shadow en transitions. De eerste
+-- twee zijn weggelaten, de derde wordt door TweenService gedaan waar hij opvalt.
 local Theme = require(script.Parent.Theme)
 
 local UI = {}
@@ -1283,7 +1327,7 @@ local UI = {}
 -- ---------- kleine hulpjes ----------
 function UI.corner(parent: GuiObject, radius: number?): UICorner
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius or Theme.size.radius)
+	c.CornerRadius = UDim.new(0, radius or Theme.radius.button)
 	c.Parent = parent
 	return c
 end
@@ -1308,6 +1352,16 @@ function UI.padding(parent: GuiObject, all: number?): UIPadding
 	return p
 end
 
+function UI.padding4(parent: GuiObject, boven: number, rechts: number, onder: number, links: number): UIPadding
+	local p = Instance.new("UIPadding")
+	p.PaddingTop = UDim.new(0, boven)
+	p.PaddingRight = UDim.new(0, rechts)
+	p.PaddingBottom = UDim.new(0, onder)
+	p.PaddingLeft = UDim.new(0, links)
+	p.Parent = parent
+	return p
+end
+
 function UI.list(parent: GuiObject, gap: number?, dir: Enum.FillDirection?): UIListLayout
 	local l = Instance.new("UIListLayout")
 	l.FillDirection = dir or Enum.FillDirection.Vertical
@@ -1317,8 +1371,18 @@ function UI.list(parent: GuiObject, gap: number?, dir: Enum.FillDirection?): UIL
 	return l
 end
 
+-- Het verloop van 180 graden dat door de hele CSS loopt: panel naar panel-light.
+function UI.gradient(parent: GuiObject, van: Color3, tot: Color3, rotatie: number?): UIGradient
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(van, tot)
+	g.Rotation = rotatie or 90
+	g.Parent = parent
+	return g
+end
+
 -- ---------- paneel ----------
--- In de CSS: een verloop van --panel naar --panel-light, een rand en afgeronde hoeken.
+-- .panel: verloop van --panel naar --panel-light, 1px rand, radius 4, padding 18, en
+-- bovenlangs een haarlijn in de neongloed (.panel::before).
 function UI.panel(parent: Instance, name: string?): Frame
 	local f = Instance.new("Frame")
 	f.Name = name or "Panel"
@@ -1326,16 +1390,30 @@ function UI.panel(parent: Instance, name: string?): Frame
 	f.BorderSizePixel = 0
 	f.Size = UDim2.fromScale(1, 0)
 	f.AutomaticSize = Enum.AutomaticSize.Y
-
-	local g = Instance.new("UIGradient")
-	g.Color = ColorSequence.new(Theme.color.panel, Theme.color.panelLight)
-	g.Rotation = 90
-	g.Parent = f
-
-	UI.corner(f, Theme.size.radiusPanel)
+	UI.gradient(f, Theme.color.panel, Theme.color.panelLight)
+	UI.corner(f, Theme.radius.panel)
 	UI.stroke(f)
 	UI.padding(f, Theme.size.panelPad)
 	f.Parent = parent
+
+	-- De haarlijn bovenaan: doorzichtig aan de randen, neon in het midden.
+	local lijn = Instance.new("Frame")
+	lijn.Name = "TopLine"
+	lijn.AnchorPoint = Vector2.new(0.5, 0)
+	lijn.Position = UDim2.new(0.5, 0, 0, -Theme.size.panelPad)
+	lijn.Size = UDim2.new(1, Theme.size.panelPad * 2, 0, 1)
+	lijn.BackgroundColor3 = Theme.glow.color
+	lijn.BorderSizePixel = 0
+	lijn.ZIndex = 2
+	lijn.Parent = f
+	local g = Instance.new("UIGradient")
+	g.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.5, 0.4),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	g.Parent = lijn
+
 	return f
 end
 
@@ -1366,116 +1444,254 @@ function UI.label(parent: Instance, text: string, opts: LabelOpts?): TextLabel
 	return t
 end
 
--- Een kopje zoals `.panel-title` in de CSS: klein, hoofdletters, met een pijltje ervoor.
+-- .panel-title: neon, 11px, en 8 pixels lucht eronder.
 function UI.panelTitle(parent: Instance, text: string): TextLabel
-	return UI.label(parent, "\u{25BA} " .. string.upper(text), {
+	local t = UI.label(parent, string.upper(text), {
 		size = Theme.text.small,
 		color = Theme.color.neon,
-		font = Theme.font.uiBold,
+		font = Theme.font.uiMed,
 		name = "PanelTitle",
 	})
+	t.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	return t
+end
+
+-- .section-heading: een kop van 22, een telling, en een lijn die naar rechts uitdooft.
+function UI.sectionHeading(parent: Instance, kop: string, telling: string?): (TextLabel, TextLabel)
+	local rij = Instance.new("Frame")
+	rij.Name = "SectionHeading"
+	rij.Size = UDim2.new(1, 0, 0, 30)
+	rij.BackgroundTransparency = 1
+	rij.Parent = parent
+
+	local h = UI.label(rij, kop, {
+		size = Theme.text.title, color = Theme.color.text, font = Theme.font.uiMed,
+	})
+	h.Size = UDim2.new(0, 0, 1, 0)
+	h.AutomaticSize = Enum.AutomaticSize.X
+
+	local c = UI.label(rij, telling or "", { size = Theme.text.small, color = Theme.color.muted })
+	c.Position = UDim2.new(0, 0, 0, 0)
+	c.Size = UDim2.new(0, 0, 1, 0)
+	c.AutomaticSize = Enum.AutomaticSize.X
+
+	local l = Instance.new("UIListLayout")
+	l.FillDirection = Enum.FillDirection.Horizontal
+	l.VerticalAlignment = Enum.VerticalAlignment.Center
+	l.Padding = UDim.new(0, 20)
+	l.SortOrder = Enum.SortOrder.LayoutOrder
+	l.Parent = rij
+	h.LayoutOrder = 1
+	c.LayoutOrder = 2
+
+	local streep = Instance.new("Frame")
+	streep.Name = "Divider"
+	streep.LayoutOrder = 3
+	streep.Size = UDim2.new(1, -260, 0, 1)
+	streep.BackgroundColor3 = Theme.color.border
+	streep.BorderSizePixel = 0
+	streep.Parent = rij
+	local g = Instance.new("UIGradient")
+	g.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	g.Parent = streep
+
+	return h, c
 end
 
 -- ---------- knoppen ----------
 export type Button = TextButton
 
-local function pressable(b: TextButton, normal: Color3, hoverColor: Color3)
+-- Een knop die op zijn plek blijft als je erover gaat, maar wel reageert.
+local function hover(b: TextButton, aan: () -&gt; (), uit: () -&gt; ())
 	b.MouseEnter:Connect(function()
-		if b.Active then b.BackgroundColor3 = hoverColor end
+		if b.Active then aan() end
 	end)
-	b.MouseLeave:Connect(function()
-		b.BackgroundColor3 = normal
-	end)
+	b.MouseLeave:Connect(uit)
 end
 
--- De grote groene knop: `.btn-primary`.
+-- .btn-primary: volle breedte, padding 16, 15px, radius 3.
 function UI.primary(parent: Instance, text: string): Button
 	local b = Instance.new("TextButton")
 	b.Name = "Primary"
 	b.Text = text
-	b.Font = Theme.font.uiBold
-	b.TextSize = Theme.text.label
+	b.Font = Theme.font.uiMed
+	b.TextSize = Theme.text.button
 	b.TextColor3 = Theme.color.bg
 	b.BackgroundColor3 = Theme.color.neon
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(1, 0, 0, 44)
-	UI.corner(b, Theme.size.radius)
-	pressable(b, Theme.color.neon, Theme.color.neonDim)
+	b.Size = UDim2.new(1, 0, 0, 48)
+	UI.corner(b, Theme.radius.button)
+	hover(b, function()
+		b.BackgroundColor3 = Theme.color.neonDim
+	end, function()
+		b.BackgroundColor3 = Theme.color.neon
+	end)
 	b.Parent = parent
 	return b
 end
 
--- De donkere knop met rand: `.btn-secondary`.
+-- .btn-primary.btn-danger: het verloop naar donkerrood, voor uitstappen.
+function UI.danger(parent: Instance, text: string): Button
+	local b = UI.primary(parent, text)
+	b.Name = "Danger"
+	b.BackgroundColor3 = Theme.color.red
+	b.TextColor3 = Theme.color.white
+	b.Font = Theme.font.uiBold
+	UI.gradient(b, Theme.color.red, Color3.fromHex("8a0e1e"), 135)
+	return b
+end
+
+-- .btn-secondary: zwart met een rand, 11px, padding 12 boven en onder.
 function UI.secondary(parent: Instance, text: string): Button
 	local b = Instance.new("TextButton")
 	b.Name = "Secondary"
 	b.Text = text
 	b.Font = Theme.font.ui
-	b.TextSize = Theme.text.small
+	b.TextSize = Theme.text.tiny
 	b.TextColor3 = Theme.color.text
-	b.BackgroundColor3 = Theme.color.bg
-	b.BackgroundTransparency = 0.5
+	b.BackgroundColor3 = Theme.color.black
+	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(1, 0, 0, 32)
-	UI.corner(b, Theme.size.radius)
-	UI.stroke(b)
+	b.Size = UDim2.new(1, 0, 0, 36)
+	UI.corner(b, Theme.radius.button)
+	local rand = UI.stroke(b)
+	hover(b, function()
+		rand.Color = Theme.color.neon
+		b.TextColor3 = Theme.color.neon
+	end, function()
+		rand.Color = Theme.color.border
+		b.TextColor3 = Theme.color.text
+	end)
 	b.Parent = parent
 	return b
 end
 
--- Een fiche: `.chip`, de ½ / 2× / MIN / MAX knopjes onder een inzetveld.
+-- .chip: hetzelfde, maar kleiner en met radius 2.
 function UI.chip(parent: Instance, text: string): Button
 	local b = Instance.new("TextButton")
 	b.Name = "Chip"
 	b.Text = text
 	b.Font = Theme.font.ui
-	b.TextSize = Theme.text.small
+	b.TextSize = Theme.text.tiny
 	b.TextColor3 = Theme.color.text
-	b.BackgroundColor3 = Theme.color.bg
-	b.BackgroundTransparency = 0.5
+	b.BackgroundColor3 = Theme.color.black
+	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(0, 0, 0, 26)
-	UI.corner(b, Theme.size.radiusSmall)
-	UI.stroke(b)
+	b.Size = UDim2.new(0, 0, 0, 24)
+	UI.corner(b, Theme.radius.chip)
+	local rand = UI.stroke(b)
+	hover(b, function()
+		rand.Color = Theme.color.neon
+		b.TextColor3 = Theme.color.neon
+	end, function()
+		rand.Color = Theme.color.border
+		b.TextColor3 = Theme.color.text
+	end)
 	b.Parent = parent
 	return b
 end
 
+-- .back-btn: "← LOBBY", neon tekst, en bij hover keert hij om.
+function UI.backButton(parent: Instance, text: string?): Button
+	local b = Instance.new("TextButton")
+	b.Name = "Back"
+	b.Text = text or "\u{2190} LOBBY"
+	b.Font = Theme.font.ui
+	b.TextSize = Theme.text.tiny
+	b.TextColor3 = Theme.color.neon
+	b.BackgroundColor3 = Theme.color.black
+	b.BackgroundTransparency = Theme.alpha.buttonBg
+	b.BorderSizePixel = 0
+	b.AutoButtonColor = false
+	b.Size = UDim2.fromOffset(86, 30)
+	UI.corner(b, Theme.radius.button)
+	local rand = UI.stroke(b)
+	hover(b, function()
+		b.BackgroundColor3 = Theme.color.neon
+		b.BackgroundTransparency = 0
+		b.TextColor3 = Theme.color.bg
+		rand.Color = Theme.color.neon
+	end, function()
+		b.BackgroundColor3 = Theme.color.black
+		b.BackgroundTransparency = Theme.alpha.buttonBg
+		b.TextColor3 = Theme.color.neon
+		rand.Color = Theme.color.border
+	end)
+	b.Parent = parent
+	return b
+end
+
+-- Een pilletje: .game-card-tag en .nav-badge.
+function UI.tag(parent: Instance, text: string, kleur: Color3?): TextLabel
+	local k = kleur or Theme.color.neon
+	local f = Instance.new("TextLabel")
+	f.Name = "Tag"
+	f.Text = text
+	f.Font = Theme.font.ui
+	f.TextSize = Theme.text.tiny
+	f.TextColor3 = k
+	f.BackgroundColor3 = k
+	f.BackgroundTransparency = Theme.alpha.tagNeon
+	f.BorderSizePixel = 0
+	f.AutomaticSize = Enum.AutomaticSize.X
+	f.Size = UDim2.fromOffset(0, 20)
+	f.RichText = false
+	UI.corner(f, Theme.radius.pill)
+	local s = UI.stroke(f, k)
+	s.Transparency = 0.6
+	UI.padding4(f, 0, 8, 0, 8)
+	f.Parent = parent
+	return f
+end
+
 -- ---------- invoerveld ----------
--- `input[type=number]`: donker, rand, cijferlettertype. Op een telefoon hoort er een
--- toetsenbord bij dat je weer weg kunt doen; in Roblox sluit de TextBox zelf bij Enter.
+-- input[type=number]: zwart, rand, cijferlettertype 16, radius 3. Bij focus wordt de rand
+-- neon en komt er een gloedring omheen -- dat is de box-shadow uit de CSS.
 function UI.numberBox(parent: Instance, start: string): TextBox
 	local t = Instance.new("TextBox")
 	t.Name = "NumberBox"
 	t.Text = start
 	t.PlaceholderText = "0"
 	t.Font = Theme.font.num
-	t.TextSize = 16
+	t.TextSize = Theme.text.input
 	t.TextColor3 = Theme.color.text
-	t.BackgroundColor3 = Theme.color.bg
-	t.BackgroundTransparency = 0.4
+	t.BackgroundColor3 = Theme.color.black
+	t.BackgroundTransparency = Theme.alpha.inputBg
 	t.BorderSizePixel = 0
 	t.ClearTextOnFocus = false
 	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.Size = UDim2.new(1, 0, 0, 38)
-	UI.corner(t, Theme.size.radius)
+	t.Size = UDim2.new(1, 0, 0, 40)
+	UI.corner(t, Theme.radius.input)
 	local s = UI.stroke(t)
+	UI.padding4(t, 10, 12, 10, 12)
+
+	local ring = Instance.new("UIStroke")
+	ring.Color = Theme.glow.color
+	ring.Thickness = 2
+	ring.Transparency = 1
+	ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ring.Parent = t
+
 	t.Focused:Connect(function()
 		s.Color = Theme.color.neon
+		ring.Transparency = Theme.glow.transparency
 	end)
 	t.FocusLost:Connect(function()
 		s.Color = Theme.color.border
+		ring.Transparency = 1
 	end)
-	UI.padding(t, 10)
 	t.Parent = parent
 	return t
 end
 
 -- ---------- melding ----------
--- `.toast`: verschijnt rechtsboven het speelveld en verdwijnt vanzelf.
+-- .toast: verschijnt rechtsboven het speelveld en verdwijnt vanzelf.
 export type ToastKind = "green" | "red" | "gold"
 
 function UI.toast(host: Instance, text: string, kind: ToastKind?): ()
@@ -1489,13 +1705,13 @@ function UI.toast(host: Instance, text: string, kind: ToastKind?): ()
 	f.BorderSizePixel = 0
 	f.Size = UDim2.new(0, 0, 0, 34)
 	f.AutomaticSize = Enum.AutomaticSize.X
-	UI.corner(f, Theme.size.radius)
+	UI.corner(f, Theme.radius.button)
 	UI.stroke(f, color)
 
-	local t = UI.label(f, text, { size = Theme.text.small, color = color, font = Theme.font.uiBold })
+	local t = UI.label(f, text, { size = Theme.text.tiny, color = color, font = Theme.font.uiMed })
 	t.Size = UDim2.new(0, 0, 1, 0)
 	t.AutomaticSize = Enum.AutomaticSize.X
-	UI.padding(f, 10)
+	UI.padding4(f, 0, 12, 0, 12)
 	f.Parent = host
 
 	task.delay(2.6, function()
@@ -1507,6 +1723,39 @@ end
 -- Dezelfde weergave als fmt() in de webversie: altijd twee decimalen.
 function UI.money(n: number): string
 	return string.format("%.2f", n)
+end
+
+-- .balance-amount: het dollarteken staat er gedimd voor, apart van het getal.
+function UI.moneyLabel(parent: Instance, bedrag: string, groot: number?): TextLabel
+	local maat = groot or Theme.text.balance
+	local rij = Instance.new("Frame")
+	rij.Name = "Money"
+	rij.Size = UDim2.new(1, 0, 0, maat + 8)
+	rij.BackgroundTransparency = 1
+	rij.Parent = parent
+
+	local teken = UI.label(rij, "$", {
+		size = maat, color = Theme.color.neon, font = Theme.font.num,
+	})
+	teken.Size = UDim2.fromOffset(maat * 0.65, maat + 8)
+	teken.TextTransparency = 0.4
+
+	local getal = UI.label(rij, bedrag, {
+		size = maat, color = Theme.color.neon, font = Theme.font.num, name = "Amount",
+	})
+	getal.Position = UDim2.new(0, maat * 0.65 + 2, 0, 0)
+	getal.Size = UDim2.new(1, -(maat * 0.65 + 2), 1, 0)
+	return getal
+end
+
+-- Een knop uitzetten zoals :disabled in de CSS: nog zichtbaar, maar niet aan te klikken.
+function UI.setEnabled(b: TextButton, aan: boolean): ()
+	b.Active = aan
+	b.AutoButtonColor = false
+	b.TextTransparency = if aan then 0 else Theme.alpha.disabled
+	if b.BackgroundTransparency &lt; 0.9 then
+		b.BackgroundTransparency = if aan then (if b.Name == "Primary" or b.Name == "Danger" then 0 else Theme.alpha.buttonBg) else 0.7
+	end
 end
 
 return UI
@@ -3518,16 +3767,19 @@ return Social
 			<Properties>
 				<string name="Name">Client</string>
 				<ProtectedString name="Source">--!strict
--- De schil: de zijbalk links, het scherm rechts, en de routing ertussen. Hetzelfde
--- indelingsprincipe als de webversie: een smalle balk met pictogrammen die uitklapt, en
--- per spel een scherm dat je erin schuift.
+-- De schil: de zijbalk links, het scherm rechts, en de routing ertussen. Zelfde indeling als
+-- de webversie: een balk van 64 pixels die naar 240 uitklapt, met een pictogram per scherm
+-- en het label ernaast zodra hij open staat.
+--
+-- Wat er bewust NIET is: een vaste bovenbalk met je saldo. In de webversie staat het saldo
+-- in het linkerpaneel van elk spel, en op de lobby in de grote kaart. Dat is hier ook zo.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
-local Money = require(ReplicatedStorage.Shared.Money)
 local Season = require(ReplicatedStorage.Shared.Season)
 local Home = require(script.Views.Home)
 local ProfileView = require(script.Views.Profile)
@@ -3539,16 +3791,16 @@ local Common = require(script.Views.Common)
 -- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
 -- elkaar en praten alleen met de server.
 local SPELLEN: { [string]: { build: (Instance) -&gt; () } } = {
+	crash = require(script.Views.Crash),
 	roulette = require(script.Views.Roulette),
 	tower = require(script.Views.Tower),
 	mines = require(script.Views.Mines),
 	plinko = require(script.Views.Plinko),
+	blackjack = require(script.Views.Blackjack),
 	scratch = require(script.Views.Scratch),
 	wheel = require(script.Views.Wheel),
 	slots = require(script.Views.Slots),
 	horse = require(script.Views.Horse),
-	blackjack = require(script.Views.Blackjack),
-	crash = require(script.Views.Crash),
 	bus = require(script.Views.Bus),
 }
 
@@ -3560,7 +3812,7 @@ gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = speler:WaitForChild("PlayerGui")
 
--- De achtergrond, zoals de body in de CSS: donker met twee zachte gloeden.
+-- body: de donkere achtergrond.
 local root = Instance.new("Frame")
 root.Name = "Root"
 root.Size = UDim2.fromScale(1, 1)
@@ -3569,30 +3821,33 @@ root.BorderSizePixel = 0
 root.Parent = gui
 
 -- ---------- de schermen ----------
-local SCHERMEN = {
-	{ id = "home",    label = "HOME",          icon = "\u{2302}",  groep = "PLAY" },
-	{ id = "crash",   label = "CRASH",         icon = "\u{2708}",  groep = "PLAY" },
-	{ id = "roulette",label = "ROULETTE",      icon = "\u{25CE}",  groep = "PLAY" },
-	{ id = "tower",   label = "DRAGON TOWER",  icon = "\u{1F5FC}", groep = "PLAY" },
-	{ id = "mines",   label = "MINES",         icon = "\u{25C6}",  groep = "PLAY" },
-	{ id = "plinko",  label = "PLINKO",        icon = "\u{25BC}",  groep = "PLAY" },
-	{ id = "blackjack",label = "BLACKJACK",    icon = "\u{2660}",  groep = "PLAY" },
-	{ id = "scratch", label = "SCRATCH CARDS", icon = "\u{25A6}",  groep = "PLAY" },
-	{ id = "wheel",   label = "WHEEL",         icon = "\u{2733}",  groep = "PLAY" },
-	{ id = "slots",   label = "777",           icon = "7\u{FE0F}\u{20E3}", groep = "VIP" },
-	{ id = "horse",   label = "HORSE RACE",    icon = "\u{265E}",  groep = "PLAY" },
-	{ id = "bus",     label = "RIDE THE BUS",  icon = "\u{1F68C}", groep = "VIP" },
-	{ id = "profile", label = "PROFILE",       icon = "\u{25CF}",  groep = "ACCOUNT" },
-	{ id = "vip",     label = "VIP ZONE",      icon = "\u{1F511}", groep = "ACCOUNT" },
-	{ id = "friends", label = "FRIENDS",       icon = "\u{263A}",  groep = "ACCOUNT" },
-	{ id = "achievements", label = "ACHIEVEMENTS", icon = "\u{1F3C6}", groep = "ACCOUNT" },
+type Scherm = { id: string, label: string, icon: string, groep: string, badge: string? }
+
+local SCHERMEN: { Scherm } = {
+	{ id = "home",         label = "HOME",          icon = "\u{2302}", groep = "PLAY" },
+	{ id = "crash",        label = "CRASH",         icon = "\u{2197}", groep = "PLAY", badge = "LIVE" },
+	{ id = "roulette",     label = "ROULETTE",      icon = "\u{25CE}", groep = "PLAY", badge = "LIVE" },
+	{ id = "tower",        label = "DRAGON TOWER",  icon = "\u{25B3}", groep = "PLAY", badge = "LIVE" },
+	{ id = "mines",        label = "MINES",         icon = "\u{25A6}", groep = "PLAY", badge = "LIVE" },
+	{ id = "plinko",       label = "PLINKO",        icon = "\u{25BD}", groep = "PLAY", badge = "LIVE" },
+	{ id = "blackjack",    label = "BLACKJACK",     icon = "\u{2660}", groep = "PLAY", badge = "LIVE" },
+	{ id = "scratch",      label = "SCRATCH CARDS", icon = "\u{25A4}", groep = "PLAY", badge = "LIVE" },
+	{ id = "wheel",        label = "WHEEL",         icon = "\u{2733}", groep = "PLAY", badge = "LIVE" },
+	{ id = "horse",        label = "HORSE RACE",    icon = "\u{265E}", groep = "PLAY", badge = "LIVE" },
+	{ id = "slots",        label = "777",           icon = "\u{2756}", groep = "VIP",  badge = "VIP" },
+	{ id = "bus",          label = "RIDE THE BUS",  icon = "\u{25B7}", groep = "VIP",  badge = "VIP" },
+	{ id = "profile",      label = "PROFILE",       icon = "\u{25CB}", groep = "ACCOUNT" },
+	{ id = "vip",          label = "VIP ZONE",      icon = "\u{2726}", groep = "ACCOUNT" },
+	{ id = "friends",      label = "FRIENDS",       icon = "\u{263A}", groep = "ACCOUNT" },
+	{ id = "achievements", label = "ACHIEVEMENTS",  icon = "\u{2691}", groep = "ACCOUNT" },
 }
 
 -- De twee VIP-spellen zijn alleen bereikbaar zolang de pas geldt; anders kom je uit bij de
--- zone zelf, die uitlegt hoe je er binnenkomt. Precies zoals VIP_ROUTES in de webversie.
+-- zone zelf. Precies zoals VIP_ROUTES in de webversie.
 local VIP_ROUTES = { slots = true, bus = true }
 local vipOpen = false
 
+-- ---------- het vlak rechts van de balk ----------
 local inhoud = Instance.new("Frame")
 inhoud.Name = "Content"
 inhoud.Position = UDim2.new(0, Theme.size.railWidth, 0, 0)
@@ -3618,111 +3873,320 @@ end
 
 -- ---------- de zijbalk ----------
 local rail = Instance.new("Frame")
-rail.Name = "Rail"
+rail.Name = "Sidebar"
 rail.Size = UDim2.new(0, Theme.size.railWidth, 1, 0)
 rail.BackgroundColor3 = Theme.color.panel
 rail.BorderSizePixel = 0
-rail.ZIndex = 5
+rail.ClipsDescendants = true
+rail.ZIndex = 10
 rail.Parent = root
+UI.gradient(rail, Theme.color.panel, Theme.color.panelLight)
+
+-- De rand rechts, met de neongloed erin (nav.sidebar::after).
+local railRand = Instance.new("Frame")
+railRand.Name = "Edge"
+railRand.AnchorPoint = Vector2.new(1, 0)
+railRand.Position = UDim2.fromScale(1, 0)
+railRand.Size = UDim2.new(0, 1, 1, 0)
+railRand.BackgroundColor3 = Theme.glow.color
+railRand.BorderSizePixel = 0
+railRand.ZIndex = 12
+railRand.Parent = rail
+local randVerloop = Instance.new("UIGradient")
+randVerloop.Rotation = 90
+randVerloop.Transparency = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.3, 0.6),
+	NumberSequenceKeypoint.new(0.7, 0.6),
+	NumberSequenceKeypoint.new(1, 1),
+})
+randVerloop.Parent = railRand
+
+-- .sidebar-toggle: het hamburgertje en de merknaam.
+local schakelaar = Instance.new("TextButton")
+schakelaar.Name = "Toggle"
+schakelaar.Text = ""
+schakelaar.Size = UDim2.new(1, 0, 0, 64)
+schakelaar.BackgroundTransparency = 1
+schakelaar.BorderSizePixel = 0
+schakelaar.AutoButtonColor = false
+schakelaar.ZIndex = 11
+schakelaar.Parent = rail
+
+local streepjes = Instance.new("Frame")
+streepjes.Size = UDim2.fromOffset(24, 18)
+streepjes.Position = UDim2.new(0, Theme.size.navPadX, 0.5, -9)
+streepjes.BackgroundTransparency = 1
+streepjes.ZIndex = 11
+streepjes.Parent = schakelaar
+local streepLijst = UI.list(streepjes, 6)
+streepLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+for i = 1, 3 do
+	local l = Instance.new("Frame")
+	l.Size = UDim2.new(1, 0, 0, 2)
+	l.BackgroundColor3 = Theme.color.neon
+	l.BorderSizePixel = 0
+	l.LayoutOrder = i
+	l.ZIndex = 11
+	l.Parent = streepjes
+end
+
+local merk = UI.label(schakelaar, "NEON CASINO", {
+	size = Theme.text.body + 2, color = Theme.color.neon, font = Theme.font.uiMed,
+})
+merk.Position = UDim2.new(0, 58, 0, 0)
+merk.Size = UDim2.new(1, -66, 1, 0)
+merk.TextTransparency = 1
+merk.ZIndex = 11
+
+local railOnder = Instance.new("Frame")
+railOnder.Size = UDim2.new(1, 0, 0, 1)
+railOnder.Position = UDim2.new(0, 0, 0, 64)
+railOnder.BackgroundColor3 = Theme.color.border
+railOnder.BorderSizePixel = 0
+railOnder.ZIndex = 11
+railOnder.Parent = rail
 
 local railLijst = Instance.new("ScrollingFrame")
-railLijst.Size = UDim2.new(1, 0, 1, -56)
-railLijst.Position = UDim2.new(0, 0, 0, 56)
+railLijst.Size = UDim2.new(1, 0, 1, -65)
+railLijst.Position = UDim2.new(0, 0, 0, 65)
 railLijst.BackgroundTransparency = 1
 railLijst.BorderSizePixel = 0
 railLijst.ScrollBarThickness = 0
 railLijst.CanvasSize = UDim2.new()
 railLijst.AutomaticCanvasSize = Enum.AutomaticSize.Y
+railLijst.ZIndex = 11
 railLijst.Parent = rail
-UI.list(railLijst, 2)
+UI.list(railLijst, 0)
 
 local navKnoppen: { [string]: TextButton } = {}
+local hoverOp: string? = nil
+local verfBalk: () -&gt; ()
+local navLabels: { TextLabel } = {}
+local navBadges: { TextLabel } = {}
+local groepLabels: { TextLabel } = {}
 local navigate: (string) -&gt; ()
 
-local function navItem(item: { id: string, label: string, icon: string, groep: string }, volgorde: number)
+local function groepLabel(tekst: string, volgorde: number)
+	local t = UI.label(railLijst, tekst, {
+		size = Theme.text.small, color = Theme.color.muted, name = "Section",
+	})
+	t.Size = UDim2.new(1, -Theme.size.navPadX, 0, 36)
+	t.Position = UDim2.new(0, Theme.size.navPadX + 2, 0, 0)
+	t.LayoutOrder = volgorde
+	t.TextTransparency = 1
+	t.TextYAlignment = Enum.TextYAlignment.Bottom
+	t.ZIndex = 11
+	table.insert(groepLabels, t)
+end
+
+local function navItem(item: Scherm, volgorde: number)
 	local b = Instance.new("TextButton")
 	b.Name = item.id
-	b.Text = item.icon
-	b.Font = Theme.font.uiBold
-	b.TextSize = 16
-	b.TextColor3 = Theme.color.muted
+	b.Text = ""
+	b.Size = UDim2.new(1, 0, 0, Theme.text.body + Theme.size.navPadY * 2)
 	b.BackgroundColor3 = Theme.color.neon
 	b.BackgroundTransparency = 1
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(1, 0, 0, 48)
 	b.LayoutOrder = volgorde
+	b.ZIndex = 11
 	b.Parent = railLijst
+
+	-- .nav-item.active: een streepje van 2px links in neon.
+	local streep = Instance.new("Frame")
+	streep.Name = "Marker"
+	streep.Size = UDim2.new(0, 2, 1, 0)
+	streep.BackgroundColor3 = Theme.color.neon
+	streep.BorderSizePixel = 0
+	streep.BackgroundTransparency = 1
+	streep.ZIndex = 12
+	streep.Parent = b
+
+	local icoon = UI.label(b, item.icon, {
+		size = 17, color = Theme.color.text, align = Enum.TextXAlignment.Center, name = "Icon",
+	})
+	icoon.Position = UDim2.new(0, Theme.size.navPadX, 0, 0)
+	icoon.Size = UDim2.new(0, Theme.size.navIcon, 1, 0)
+	icoon.ZIndex = 11
+
+	local label = UI.label(b, item.label, {
+		size = Theme.text.body, color = Theme.color.text, name = "NavLabel",
+	})
+	label.Position = UDim2.new(0, Theme.size.navPadX + Theme.size.navIcon + Theme.size.navGap, 0, 0)
+	label.Size = UDim2.new(1, -150, 1, 0)
+	label.TextTransparency = 1
+	label.ZIndex = 11
+	table.insert(navLabels, label)
+
+	if item.badge then
+		local kleur = if item.badge == "VIP" then Theme.color.gold else Theme.color.neon
+		local badge = UI.tag(b, item.badge, kleur)
+		badge.AnchorPoint = Vector2.new(1, 0.5)
+		badge.Position = UDim2.new(1, -16, 0.5, 0)
+		badge.TextSize = Theme.text.badge + 1
+		badge.Size = UDim2.fromOffset(0, 16)
+		badge.TextTransparency = 1
+		badge.BackgroundTransparency = 1
+		badge.ZIndex = 11
+		local s = badge:FindFirstChildOfClass("UIStroke")
+		if s then s.Transparency = 1 end
+		table.insert(navBadges, badge)
+	end
+
 	b.Activated:Connect(function()
 		navigate(item.id)
+	end)
+	b.MouseEnter:Connect(function()
+		hoverOp = item.id
+		verfBalk()
+	end)
+	b.MouseLeave:Connect(function()
+		if hoverOp == item.id then hoverOp = nil end
+		verfBalk()
 	end)
 	navKnoppen[item.id] = b
 end
 
-for i, item in SCHERMEN do
-	navItem(item, i)
+do
+	local volgorde = 0
+	local vorigeGroep: string? = nil
+	for _, item in SCHERMEN do
+		if item.groep ~= vorigeGroep then
+			volgorde += 1
+			groepLabel(item.groep, volgorde)
+			vorigeGroep = item.groep
+		end
+		volgorde += 1
+		navItem(item, volgorde)
+	end
 end
 
--- ---------- routing ----------
-local titelBalk = Instance.new("Frame")
-titelBalk.Name = "Header"
-titelBalk.Size = UDim2.new(1, 0, 0, 52)
-titelBalk.BackgroundColor3 = Theme.color.panel
-titelBalk.BackgroundTransparency = 0.15
-titelBalk.BorderSizePixel = 0
-titelBalk.ZIndex = 4
-titelBalk.Parent = inhoud
-
-local titel = UI.label(titelBalk, "HOME", {
-	size = Theme.text.title, color = Theme.color.neon, font = Theme.font.uiBold, name = "Title",
+-- .sidebar-footer
+local voet = UI.label(rail, "PLAY MONEY \u{00B7} NO REAL STAKES", {
+	size = Theme.text.small, color = Theme.color.muted,
 })
-titel.Position = UDim2.new(0, 16, 0, 0)
-titel.Size = UDim2.new(1, -220, 1, 0)
-titel.ZIndex = 4
+voet.AnchorPoint = Vector2.new(0, 1)
+voet.Position = UDim2.new(0, Theme.size.navPadX, 1, -16)
+voet.Size = UDim2.new(1, -Theme.size.navPadX, 0, 18)
+voet.TextTransparency = 1
+voet.ZIndex = 11
 
-local saldoLabel = UI.label(titelBalk, "$1000.00", {
-	size = Theme.text.big, color = Theme.color.neon, font = Theme.font.num,
-	align = Enum.TextXAlignment.Right, name = "Balance",
-})
-saldoLabel.Position = UDim2.new(1, -200, 0, 0)
-saldoLabel.Size = UDim2.new(0, 184, 1, 0)
-saldoLabel.ZIndex = 4
+-- Open- en dichtklappen, met dezelfde beweging als de CSS-transition.
+local open = false
+local INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
+local function zetBalk(nu: boolean)
+	open = nu
+	local breed = if nu then Theme.size.railOpen else Theme.size.railWidth
+	TweenService:Create(rail, INFO, { Size = UDim2.new(0, breed, 1, 0) }):Play()
+	-- In de webversie is dit een flexrij: de balk wordt breder en het scherm ernaast
+	-- smaller. Hij gaat er dus niet overheen liggen.
+	TweenService:Create(inhoud, INFO, {
+		Position = UDim2.new(0, breed, 0, 0),
+		Size = UDim2.new(1, -breed, 1, 0),
+	}):Play()
+	local doorzichtig = if nu then 0 else 1
+	for _, l in navLabels do
+		TweenService:Create(l, INFO, { TextTransparency = doorzichtig }):Play()
+	end
+	-- Na het uitklappen opnieuw kleuren, zodat een gesloten VIP-spel gedimd blijft.
+	task.delay(0.32, function()
+		if open == nu then verfBalk() end
+	end)
+	for _, l in groepLabels do
+		TweenService:Create(l, INFO, { TextTransparency = doorzichtig }):Play()
+	end
+	for _, badge in navBadges do
+		TweenService:Create(badge, INFO, {
+			TextTransparency = doorzichtig,
+			BackgroundTransparency = if nu then Theme.alpha.tagNeon else 1,
+		}):Play()
+		local s = badge:FindFirstChildOfClass("UIStroke")
+		if s then s.Transparency = if nu then 0.6 else 1 end
+	end
+	TweenService:Create(merk, INFO, { TextTransparency = doorzichtig }):Play()
+	TweenService:Create(voet, INFO, { TextTransparency = doorzichtig }):Play()
+end
+
+schakelaar.Activated:Connect(function()
+	zetBalk(not open)
+end)
+
+-- ---------- meldingen ----------
 local toasts = Instance.new("Frame")
 toasts.Name = "Toasts"
 toasts.AnchorPoint = Vector2.new(1, 0)
-toasts.Position = UDim2.new(1, -16, 0, 64)
-toasts.Size = UDim2.new(0, 320, 0, 0)
+toasts.Position = UDim2.new(1, -20, 0, 20)
+toasts.Size = UDim2.new(0, 360, 0, 0)
 toasts.AutomaticSize = Enum.AutomaticSize.Y
 toasts.BackgroundTransparency = 1
-toasts.ZIndex = 20
+toasts.ZIndex = 50
 toasts.Parent = inhoud
 local toastLijst = UI.list(toasts, 6)
 toastLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
+-- ---------- routing ----------
+-- De balk verven: welk item actief is, welke gedimd, en waar de muis hangt. Eén functie,
+-- want hover en actief door elkaar heen zetten is precies hoe een highlight verdwijnt.
+function verfBalk()
+	for naam, b in navKnoppen do
+		local aan = naam == huidige or (VIP_ROUTES[naam] and huidige == "vip" and not vipOpen)
+		local zweeft = hoverOp == naam and not aan
+		local streep = b:FindFirstChild("Marker") :: Frame?
+		local icoon = b:FindFirstChild("Icon") :: TextLabel?
+		local label = b:FindFirstChild("NavLabel") :: TextLabel?
+
+		if aan then
+			-- .nav-item.active: rgba(62,207,142,0.10)
+			b.BackgroundColor3 = Theme.color.neon
+			b.BackgroundTransparency = Theme.alpha.activeNav
+		elseif zweeft then
+			-- .nav-item:hover: rgba(255,255,255,0.04)
+			b.BackgroundColor3 = Theme.color.white
+			b.BackgroundTransparency = Theme.alpha.hoverBg
+		else
+			b.BackgroundTransparency = 1
+		end
+
+		if streep then streep.BackgroundTransparency = if aan then 0 else 1 end
+
+		-- .nav-item.locked: een VIP-spel staat gedimd zolang de zone dicht is.
+		local opSlot = VIP_ROUTES[naam] == true and not vipOpen
+		local kleur = if aan then Theme.color.neon else Theme.color.text
+		local dim = if opSlot then Theme.alpha.locked else 0
+		if icoon then
+			icoon.TextColor3 = kleur
+			icoon.TextTransparency = dim
+		end
+		if label then
+			label.TextColor3 = kleur
+			-- Het label is onzichtbaar zolang de balk dicht is; alleen open telt de
+			-- dimming van een gesloten spel mee.
+			if open then label.TextTransparency = dim end
+		end
+	end
+end
+
 function navigate(id: string)
-	-- Zonder pas kom je bij de zone uit in plaats van bij het spel.
 	if VIP_ROUTES[id] and not vipOpen then
 		id = "vip"
 	end
 	for naam, v in views do
 		v.Visible = naam == id
 	end
-	for naam, b in navKnoppen do
-		local aan = naam == id or (VIP_ROUTES[naam] and id == "vip" and not vipOpen)
-		b.TextColor3 = if aan then Theme.color.neon else Theme.color.muted
-		b.BackgroundTransparency = if aan then 0.88 else 1
-		-- Een gesloten VIP-spel staat gedimd in de balk.
-		b.TextTransparency = if VIP_ROUTES[naam] and not vipOpen then 0.55 else 0
-	end
-	for _, item in SCHERMEN do
-		if item.id == id then
-			titel.Text = item.label
-			break
-		end
-	end
 	huidige = id
+	verfBalk()
+	-- Op een smal scherm klapt de balk weer dicht, net als in de webversie.
+	if root.AbsoluteSize.X &lt;= 900 and open then
+		zetBalk(false)
+	end
 end
+
+Common.setNavigate(navigate)
+Common.setToaster(function(tekst: string, soort: UI.ToastKind?)
+	UI.toast(toasts, tekst, soort)
+end)
 
 -- ---------- de schermen vullen ----------
 local zetSaldoHome: ((number) -&gt; ())? = nil
@@ -3732,9 +4196,11 @@ local zetVip: ((any) -&gt; ())? = nil
 
 for _, item in SCHERMEN do
 	local v = view(item.id)
+	-- #homeView heeft een ruime marge; een speelscherm heeft padding 16, zoals .game-view.
+	local marge = if item.id == "home" then Theme.size.homePadY else Theme.size.viewPad
 	local vak = Instance.new("Frame")
-	vak.Size = UDim2.new(1, -32, 1, -68)
-	vak.Position = UDim2.new(0, 16, 0, 60)
+	vak.Size = UDim2.new(1, -marge * 2, 1, -marge * 2)
+	vak.Position = UDim2.fromOffset(marge, marge)
 	vak.BackgroundTransparency = 1
 	vak.Parent = v
 
@@ -3751,13 +4217,6 @@ for _, item in SCHERMEN do
 		FriendsView.build(vak)
 	elseif spel then
 		spel.build(vak)
-	else
-		UI.list(vak, Theme.size.gap)
-		local paneel = UI.panel(vak, item.id .. "Panel")
-		UI.panelTitle(paneel, item.label)
-		UI.label(paneel, "Dit scherm komt in een volgende stap.", {
-			size = Theme.text.small, color = Theme.color.muted,
-		})
 	end
 end
 
@@ -3768,7 +4227,6 @@ local function toon(p: any)
 	if typeof(p) ~= "table" then return end
 	local b = tonumber(p.balance)
 	if b then
-		saldoLabel.Text = "$" .. Money.fmt(b)
 		Common.setBalance(b)
 		local zet = zetSaldoHome
 		if zet then zet(b) end
@@ -3780,27 +4238,19 @@ local function toon(p: any)
 	local vip = zetVip
 	if vip then vip(p) end
 
-	-- De poort van de balk gaat mee met de pas in het profiel.
 	local was = vipOpen
 	vipOpen = Season.vipActive(tonumber(p.vipSeason))
 	if was ~= vipOpen then navigate(huidige) end
 end
 
--- De schermen laten hun meldingen door de schil lopen; die weet waar het meldingenvak zit.
-Common.setToaster(function(tekst: string, soort: UI.ToastKind?)
-	UI.toast(toasts, tekst, soort)
-end)
-
 task.spawn(function()
-	local ev = Net.ev("Profile")
-	ev.OnClientEvent:Connect(toon)
+	Net.ev("Profile").OnClientEvent:Connect(toon)
 
 	local toast = Net.ev("Toast")
 	toast.OnClientEvent:Connect(function(tekst: any, soort: any)
 		UI.toast(toasts, tostring(tekst), soort)
 	end)
 
-	-- Eén keer ophalen bij het opstarten.
 	local ok, res = pcall(function()
 		return Net.fn("GetProfile"):InvokeServer()
 	end)
@@ -3872,7 +4322,7 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 		b.AutoButtonColor = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.size.radiusBig)
+		UI.corner(b, Theme.radius.card)
 		UI.stroke(b, Theme.color.border)
 		b.Parent = vakjesRij
 		vakjes[i] = b
@@ -3919,7 +4369,7 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 	local rek = UI.panel(blad, "All")
 	UI.list(rek, 6)
 	local rekTitel = UI.label(rek, "\u{25BA} ACHIEVEMENTS \u{00B7} 0 / " .. #Ach.LIST, {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 
 	local raster = Instance.new("Frame")
@@ -3945,7 +4395,7 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 		knop.BorderSizePixel = 0
 		knop.AutoButtonColor = false
 		knop.LayoutOrder = i
-		UI.corner(knop, Theme.size.radius)
+		UI.corner(knop, Theme.radius.button)
 		local rand = UI.stroke(knop, Theme.color.border)
 		knop.Parent = raster
 
@@ -3956,7 +4406,7 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 		icoon.Size = UDim2.fromOffset(34, 34)
 
 		local titel = UI.label(knop, a.title, {
-			size = Theme.text.small, color = Theme.color.text, font = Theme.font.uiBold,
+			size = Theme.text.small, color = Theme.color.text, font = Theme.font.uiMed,
 		})
 		titel.Position = UDim2.new(0, 46, 0, 8)
 		titel.Size = UDim2.new(1, -52, 0, 16)
@@ -4084,7 +4534,7 @@ local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Fram
 	f.LayoutOrder = volgorde
 	f.BackgroundColor3 = if kaart then Theme.color.card else Color3.fromHex("1b222c")
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radiusBig)
+	UI.corner(f, Theme.radius.card)
 	UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
@@ -4094,7 +4544,7 @@ local function kaartVlak(ouder: Instance, kaart: Kaart?, volgorde: number): Fram
 		elseif rood then Color3.fromHex("c0392b")
 		else Color3.fromHex("14181f")
 	local t = UI.label(f, tekst, {
-		size = 22, color = kleur, font = Theme.font.uiBold, align = Enum.TextXAlignment.Center,
+		size = 22, color = kleur, font = Theme.font.uiMed, align = Enum.TextXAlignment.Center,
 	})
 	t.Size = UDim2.fromScale(1, 1)
 	t.TextYAlignment = Enum.TextYAlignment.Center
@@ -4103,14 +4553,14 @@ end
 
 function Blackjack.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "BLACKJACK")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 8)
 	UI.panelTitle(tafel, "blackjack \u{00B7} dealer stands on all 17s")
 
 	local dealerKop = UI.label(tafel, "DEALER", {
-		size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiMed,
 	})
 	local dealerRij = Instance.new("Frame")
 	dealerRij.Size = UDim2.new(1, 0, 0, 104)
@@ -4120,7 +4570,7 @@ function Blackjack.build(ouder: Instance): ()
 	dl.VerticalAlignment = Enum.VerticalAlignment.Center
 
 	local spelerKop = UI.label(tafel, "YOU", {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 	local spelerRij = Instance.new("Frame")
 	spelerRij.Size = UDim2.new(1, 0, 0, 104)
@@ -4281,7 +4731,7 @@ local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Fra
 	f.Size = UDim2.fromOffset(74, 104)
 	f.BackgroundColor3 = if kaart then Theme.color.card else Theme.color.panelLight
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radiusBig)
+	UI.corner(f, Theme.radius.card)
 	UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
@@ -4289,14 +4739,14 @@ local function kaartVlak(ouder: Instance, kaart: { r: string, s: string }?): Fra
 		local rood = kaart.s == "\u{2665}" or kaart.s == "\u{2666}"
 		local kleur = if rood then Color3.fromHex("c0392b") else Color3.fromHex("14181f")
 		local t = UI.label(f, kaart.r .. "\n" .. kaart.s, {
-			size = 22, color = kleur, font = Theme.font.uiBold,
+			size = 22, color = kleur, font = Theme.font.uiMed,
 			align = Enum.TextXAlignment.Center,
 		})
 		t.Size = UDim2.fromScale(1, 1)
 		t.TextYAlignment = Enum.TextYAlignment.Center
 	else
 		local t = UI.label(f, "?", {
-			size = 30, color = Theme.color.muted, font = Theme.font.uiBold,
+			size = 30, color = Theme.color.muted, font = Theme.font.uiMed,
 			align = Enum.TextXAlignment.Center,
 		})
 		t.Size = UDim2.fromScale(1, 1)
@@ -4307,14 +4757,14 @@ end
 
 function Bus.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "RIDE THE BUS")
 
 	local tafel = UI.panel(bord, "Table")
 	UI.list(tafel, 10)
 	UI.panelTitle(tafel, "ride the bus")
 
 	local stapLabel = UI.label(tafel, "STEP 1 \u{00B7} " .. STAPNAMEN[1], {
-		size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 
 	local kaarten = Instance.new("Frame")
@@ -4361,7 +4811,7 @@ function Bus.build(ouder: Instance): ()
 			local b = Instance.new("TextButton")
 			b.Name = o.key
 			b.Text = o.label .. "   " .. string.format("%d%%", math.floor(o.chance * 100 + 0.5))
-			b.Font = Theme.font.uiBold
+			b.Font = Theme.font.uiMed
 			b.TextSize = Theme.text.small
 			b.LayoutOrder = i
 			b.Size = UDim2.new(1 / #opties, -8, 1, 0)
@@ -4373,7 +4823,7 @@ function Bus.build(ouder: Instance): ()
 			b.BackgroundColor3 = if kan then Theme.color.neon else Theme.color.bg
 			b.BackgroundTransparency = if kan then 0.1 else 0.6
 			b.TextColor3 = if kan then Theme.color.bg else Theme.color.muted
-			UI.corner(b, Theme.size.radius)
+			UI.corner(b, Theme.radius.button)
 			b.Parent = keuzes
 			b.Activated:Connect(function()
 				if kan then roep(o.key) end
@@ -4489,9 +4939,26 @@ local Common = {}
 -- De schil weet het saldo en heeft het meldingenvak; de schermen vragen het hier op.
 local saldo = Money.START
 local melder: ((string, UI.ToastKind?) -&gt; ())? = nil
+local ga: ((string) -&gt; ())? = nil
+-- Elk speelscherm heeft links een saldopaneel, net als in de webversie. Ze staan hier
+-- allemaal in, zodat één bericht van de server ze in één keer bijwerkt.
+local saldoLabels: { TextLabel } = {}
 
 function Common.setBalance(n: number): ()
 	saldo = n
+	local tekst = Money.fmt(n)
+	for _, l in saldoLabels do
+		if l.Parent then l.Text = tekst end
+	end
+end
+
+function Common.setNavigate(f: (string) -&gt; ()): ()
+	ga = f
+end
+
+function Common.navigate(route: string): ()
+	local f = ga
+	if f then f(route) end
 end
 
 function Common.balance(): number
@@ -4543,44 +5010,79 @@ function Common.sheet(ouder: Instance): ScrollingFrame
 	return blad
 end
 
--- Twee kolommen: links het speelveld, rechts de bediening. Zoals `.game-layout` in de CSS.
--- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query daar.
+-- Een speelscherm zoals `.game-view` in de CSS: `grid-template-columns: 320px 1fr`, dus de
+-- bediening LINKS in een aside van 320 breed en het speelveld rechts. Boven in de aside
+-- staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het saldopaneel -- precies
+-- de volgorde uit de markup.
 --
--- Het omschakelen gebeurt door de richting van de UIListLayout te draaien, niet door de
--- vakken zelf te verplaatsen. Dat scheelt een valkuil: wie posities uitrekent uit
--- AbsoluteSize en die posities vervolgens zet, verandert AbsoluteSize weer, en dan blijft
--- het heen en weer meten. Roblox legt hier zelf neer wat waar hoort.
-function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
-	local breedte = rechtsBreed or 300
+-- Onder de 760 pixels gaan ze onder elkaar staan, net als de media query. Het omschakelen
+-- gebeurt door de richting van de UIListLayout te draaien en niet door de vakken zelf te
+-- verplaatsen: wie posities uitrekent uit AbsoluteSize en die vervolgens zet, verandert
+-- AbsoluteSize weer, en dan blijft het heen en weer meten.
+function Common.columns(ouder: Instance, titel: string?): (Frame, Frame)
+	local breedte = Theme.size.asideWidth
 	local rij = Instance.new("Frame")
-	rij.Name = "Columns"
+	rij.Name = "GameView"
 	rij.Size = UDim2.new(1, 0, 0, 0)
 	rij.AutomaticSize = Enum.AutomaticSize.Y
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
-	local indeling = UI.list(rij, 12, Enum.FillDirection.Horizontal)
+	local indeling = UI.list(rij, Theme.size.viewGap, Enum.FillDirection.Horizontal)
 	indeling.VerticalAlignment = Enum.VerticalAlignment.Top
 
-	local links = Instance.new("Frame")
-	links.Name = "Board"
-	links.LayoutOrder = 1
-	links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
-	links.AutomaticSize = Enum.AutomaticSize.Y
-	links.BackgroundTransparency = 1
-	links.Parent = rij
-	UI.list(links, Theme.size.gap)
+	-- links: de aside
+	local aside = Instance.new("Frame")
+	aside.Name = "Aside"
+	aside.LayoutOrder = 1
+	aside.Size = UDim2.new(0, breedte, 0, 0)
+	aside.AutomaticSize = Enum.AutomaticSize.Y
+	aside.BackgroundTransparency = 1
+	aside.Parent = rij
+	UI.list(aside, Theme.size.asideGap)
 
-	local rechts = Instance.new("Frame")
-	rechts.Name = "Controls"
-	rechts.LayoutOrder = 2
-	rechts.Size = UDim2.new(0, breedte, 0, 0)
-	rechts.AutomaticSize = Enum.AutomaticSize.Y
-	rechts.BackgroundTransparency = 1
-	rechts.Parent = rij
-	UI.list(rechts, Theme.size.gap)
+	-- rechts: het speelveld
+	local bord = Instance.new("Frame")
+	bord.Name = "Board"
+	bord.LayoutOrder = 2
+	bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
+	bord.AutomaticSize = Enum.AutomaticSize.Y
+	bord.BackgroundTransparency = 1
+	bord.Parent = rij
+	UI.list(bord, Theme.size.asideGap)
 
-	-- Alleen omschakelen als de stand echt verandert; anders doet elke meting werk voor
-	-- niets.
+	-- .crash-header: de terugknop en de naam van het spel, naast elkaar.
+	if titel then
+		local kop = Instance.new("Frame")
+		kop.Name = "Header"
+		kop.LayoutOrder = 1
+		kop.Size = UDim2.new(1, 0, 0, 34)
+		kop.BackgroundTransparency = 1
+		kop.Parent = aside
+		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
+		kopIndeling.VerticalAlignment = Enum.VerticalAlignment.Center
+
+		local terug = UI.backButton(kop)
+		terug.LayoutOrder = 1
+		terug.Activated:Connect(function()
+			Common.navigate("home")
+		end)
+
+		local naam = UI.label(kop, string.upper(titel), {
+			size = Theme.text.title, color = Theme.color.neon, font = Theme.font.uiMed,
+		})
+		naam.LayoutOrder = 2
+		naam.Size = UDim2.new(0, 0, 1, 0)
+		naam.AutomaticSize = Enum.AutomaticSize.X
+	end
+
+	-- Het saldopaneel, zoals `.panel.balance` in de markup.
+	local saldoVak = UI.panel(aside, "Balance")
+	saldoVak.LayoutOrder = 2
+	UI.list(saldoVak, 4)
+	UI.label(saldoVak, "BALANCE", { size = Theme.text.small, color = Theme.color.muted })
+	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance)
+	table.insert(saldoLabels, bedrag)
+
 	local smalNu: boolean? = nil
 	local function meet()
 		local smal = rij.AbsoluteSize.X &gt; 0 and rij.AbsoluteSize.X &lt; 760
@@ -4588,18 +5090,18 @@ function Common.columns(ouder: Instance, rechtsBreed: number?): (Frame, Frame)
 		smalNu = smal
 		if smal then
 			indeling.FillDirection = Enum.FillDirection.Vertical
-			links.Size = UDim2.new(1, 0, 0, 0)
-			rechts.Size = UDim2.new(1, 0, 0, 0)
+			aside.Size = UDim2.new(1, 0, 0, 0)
+			bord.Size = UDim2.new(1, 0, 0, 0)
 		else
 			indeling.FillDirection = Enum.FillDirection.Horizontal
-			links.Size = UDim2.new(1, -(breedte + 12), 0, 0)
-			rechts.Size = UDim2.new(0, breedte, 0, 0)
+			aside.Size = UDim2.new(0, breedte, 0, 0)
+			bord.Size = UDim2.new(1, -(breedte + Theme.size.viewGap), 0, 0)
 		end
 	end
 	rij:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
 	task.defer(meet)
 
-	return links, rechts
+	return bord, aside
 end
 
 -- Een rij knoppen naast elkaar, gelijk verdeeld.
@@ -4609,7 +5111,7 @@ function Common.row(ouder: Instance, hoogte: number?): Frame
 	f.Size = UDim2.new(1, 0, 0, hoogte or 30)
 	f.BackgroundTransparency = 1
 	f.Parent = ouder
-	local l = UI.list(f, 6, Enum.FillDirection.Horizontal)
+	local l = UI.list(f, 4, Enum.FillDirection.Horizontal)
 	l.VerticalAlignment = Enum.VerticalAlignment.Center
 	return f
 end
@@ -4628,10 +5130,18 @@ export type BetBox = {
 function Common.betBox(ouder: Instance, start: number?): BetBox
 	local paneel = UI.panel(ouder, "BetPanel")
 	UI.list(paneel, 6)
-	UI.panelTitle(paneel, "bet amount")
+	-- .field-label: "STAKE" links, het dollarteken als hint rechts.
+	local kop = Instance.new("Frame")
+	kop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	kop.BackgroundTransparency = 1
+	kop.Parent = paneel
+	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
+	UI.label(kop, "$", {
+		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+	})
 
 	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
-	local ficherij = Common.row(paneel, 26)
+	local ficherij = Common.row(paneel, 24)
 
 	local function huidig(): number
 		return tonumber(vak.Text) or 0
@@ -4648,8 +5158,9 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 		{ naam = "MAX", maak = function() return saldo end },
 	}
 	for _, fiche in knoppen do
+		-- .chips is een raster van vier gelijke kolommen met 4 pixels ertussen.
 		local b = UI.chip(ficherij, fiche.naam)
-		b.Size = UDim2.new(0.25, -5, 0, 26)
+		b.Size = UDim2.new(0.25, -3, 0, 24)
 		b.Activated:Connect(function()
 			zet(fiche.maak())
 		end)
@@ -4696,7 +5207,8 @@ function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabe
 	rij.Size = UDim2.new(1, 0, 0, 20)
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
-	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })
+	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted, name = "Key" })
 	return UI.label(rij, waarde, {
 		size = Theme.text.small, color = Theme.color.text, font = Theme.font.num,
 		align = Enum.TextXAlignment.Right, name = "Value",
@@ -4714,12 +5226,12 @@ function Common.banner(ouder: Instance): Banner
 	f.BackgroundColor3 = Theme.color.panel
 	f.BackgroundTransparency = 0.3
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radius)
+	UI.corner(f, Theme.radius.button)
 	local rand = UI.stroke(f, Theme.color.border)
 	f.Parent = ouder
 
 	local t = UI.label(f, "", {
-		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiBold,
+		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiMed,
 		align = Enum.TextXAlignment.Center,
 	})
 	t.Size = UDim2.fromScale(1, 1)
@@ -4771,7 +5283,7 @@ end
 
 function Crash.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "CRASH")
 
 	local vak = UI.panel(bord, "Flight")
 	UI.list(vak, 8)
@@ -4783,7 +5295,7 @@ function Crash.build(ouder: Instance): ()
 	lucht.Size = UDim2.new(1, 0, 0, 300)
 	lucht.BackgroundColor3 = Color3.fromHex("101922")
 	lucht.BorderSizePixel = 0
-	UI.corner(lucht, Theme.size.radius)
+	UI.corner(lucht, Theme.radius.button)
 	lucht.ClipsDescendants = true
 	lucht.Parent = vak
 
@@ -4811,7 +5323,7 @@ function Crash.build(ouder: Instance): ()
 	raket.Size = UDim2.fromOffset(28, 28)
 	raket.BackgroundTransparency = 1
 	raket.Text = "\u{25B2}"
-	raket.Font = Theme.font.uiBold
+	raket.Font = Theme.font.uiMed
 	raket.TextSize = 20
 	raket.TextColor3 = Theme.color.neon
 	raket.ZIndex = 3
@@ -4828,7 +5340,7 @@ function Crash.build(ouder: Instance): ()
 	groot.ZIndex = 4
 
 	local status = UI.label(lucht, "WAITING", {
-		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiBold,
+		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiMed,
 		align = Enum.TextXAlignment.Center,
 	})
 	status.AnchorPoint = Vector2.new(0.5, 0)
@@ -5054,13 +5566,13 @@ local Friends = {}
 
 function Friends.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local links, rechts = Common.columns(blad, 300)
+	local links, rechts = Common.columns(blad, "FRIENDS")
 
 	-- ---------- de lijst ----------
 	local lijstVak = UI.panel(links, "Friends")
 	UI.list(lijstVak, 4)
 	local lijstTitel = UI.label(lijstVak, "\u{25BA} FRIENDS", {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 
 	local lijst = Instance.new("Frame")
@@ -5196,9 +5708,12 @@ return Friends
 					<Properties>
 						<string name="Name">Home</string>
 						<ProtectedString name="Source">--!strict
--- De lobby: de titel, je saldo, en de tegels van alle spellen, zoals de homepagina in de
--- webversie. De tegels zijn geen plaatjes maar getekende vlakken, zodat er niets geupload
--- hoeft te worden voordat het er goed uitziet.
+-- De lobby, zoals #homeView in de webversie: rechtsboven de twee chips naar profiel en VIP,
+-- daaronder de hero van 64 pixels, de saldokaart met neonrand, en dan het raster met
+-- speltegels.
+--
+-- De previews zijn geen plaatjes maar verlopen, precies de `.preview-*` klassen uit de CSS.
+-- Daardoor hoeft er niets geüpload te worden voordat het er goed uitziet.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
@@ -5213,77 +5728,102 @@ export type Kaart = {
 	rtp: string,
 	van: Color3,
 	tot: Color3,
+	rotatie: number?,
 }
 
--- De kleuren komen uit de `preview-*` klassen van de CSS, zodat elke tegel dezelfde sfeer
--- houdt als op de webpagina.
+-- De kleuren komen uit de `preview-*` klassen van de CSS.
 local KAARTEN: { Kaart } = {
-	{ id = "crash", label = "CRASH", rtp = "97%",
+	{ id = "crash", label = "CRASH", rtp = "97% RTP",
 	  desc = "Ride along and cash out before it crashes. Multipliers up to 1000x.",
-	  van = Color3.fromHex("5fb8ff"), tot = Color3.fromHex("2f7fd0") },
-	{ id = "roulette", label = "ROULETTE", rtp = "97.3%",
+	  van = Color3.fromHex("5fb8ff"), tot = Color3.fromHex("4a8a2a") },
+	{ id = "roulette", label = "ROULETTE", rtp = "97.3% RTP",
 	  desc = "European roulette with a single green zero.",
-	  van = Color3.fromHex("6b1f1f"), tot = Color3.fromHex("2a0d0d") },
-	{ id = "tower", label = "DRAGON TOWER", rtp = "97%",
+	  van = Color3.fromHex("2a1010"), tot = Color3.fromHex("0a0505") },
+	{ id = "tower", label = "DRAGON TOWER", rtp = "97% RTP",
 	  desc = "Climb nine floors, dodge the dragon eggs.",
-	  van = Color3.fromHex("3b1f6b"), tot = Color3.fromHex("170d2a") },
-	{ id = "mines", label = "MINES", rtp = "97%",
+	  van = Color3.fromHex("2a0a3a"), tot = Color3.fromHex("0a0510") },
+	{ id = "mines", label = "MINES", rtp = "97% RTP",
 	  desc = "Collect diamonds, dodge the mines.",
-	  van = Color3.fromHex("2a3550"), tot = Color3.fromHex("141a28") },
-	{ id = "plinko", label = "PLINKO", rtp = "97%",
+	  van = Color3.fromHex("1a1a2a"), tot = Color3.fromHex("0a0a14"), rotatie = 135 },
+	{ id = "plinko", label = "PLINKO", rtp = "97% RTP",
 	  desc = "Drop a ball and watch where it lands.",
-	  van = Color3.fromHex("2b1a45"), tot = Color3.fromHex("120b1e") },
-	{ id = "blackjack", label = "BLACKJACK", rtp = "99%",
+	  van = Color3.fromHex("1a0a2a"), tot = Color3.fromHex("0a0518") },
+	{ id = "blackjack", label = "BLACKJACK", rtp = "99% RTP",
 	  desc = "Six decks, dealer stands on all 17s.",
-	  van = Color3.fromHex("14472c"), tot = Color3.fromHex("082013") },
-	{ id = "scratch", label = "SCRATCH CARDS", rtp = "97%",
+	  van = Color3.fromHex("0a3a1a"), tot = Color3.fromHex("051a0a") },
+	{ id = "scratch", label = "SCRATCH CARDS", rtp = "97% RTP",
 	  desc = "Nine squares, three of a kind pays.",
 	  van = Color3.fromHex("1f4a4a"), tot = Color3.fromHex("0c1f1f") },
-	{ id = "wheel", label = "WHEEL", rtp = "97%",
+	{ id = "wheel", label = "WHEEL", rtp = "97% RTP",
 	  desc = "Twenty segments, one pays ten times.",
 	  van = Color3.fromHex("4a3a12"), tot = Color3.fromHex("1e1707") },
-	{ id = "horse", label = "HORSE RACE", rtp = "97%",
+	{ id = "horse", label = "HORSE RACE", rtp = "97% RTP",
 	  desc = "Six horses, back the one you fancy.",
 	  van = Color3.fromHex("2f5a1a"), tot = Color3.fromHex("13260b") },
 }
 
--- Een tegel: een gekleurd vlak met de naam, de omschrijving en het uitbetalingspercentage.
+-- .game-card: radius 6, preview van 160 met een rand eronder, body met padding 18, en
+-- onderin een pilletje plus een pijl die bij hover naar rechts schuift.
 local function tegel(ouder: Instance, k: Kaart, ga: (string) -&gt; ()): Frame
 	local f = Instance.new("Frame")
 	f.Name = k.id
-	f.Size = UDim2.new(0, 260, 0, 190)
 	f.BackgroundColor3 = Theme.color.panel
 	f.BorderSizePixel = 0
-	UI.corner(f, Theme.size.radiusBig)
-	UI.stroke(f)
+	f.ClipsDescendants = true
+	UI.gradient(f, Theme.color.panel, Theme.color.panelLight)
+	UI.corner(f, Theme.radius.card)
+	local rand = UI.stroke(f)
 	f.Parent = ouder
 
 	local beeld = Instance.new("Frame")
-	beeld.Size = UDim2.new(1, 0, 0, 96)
+	beeld.Name = "Preview"
+	beeld.Size = UDim2.new(1, 0, 0, Theme.size.cardPreview)
 	beeld.BackgroundColor3 = k.van
 	beeld.BorderSizePixel = 0
 	beeld.Parent = f
-	local g = Instance.new("UIGradient")
-	g.Color = ColorSequence.new(k.van, k.tot)
-	g.Rotation = 90
-	g.Parent = beeld
-	local hoek = Instance.new("UICorner")
-	hoek.CornerRadius = UDim.new(0, Theme.size.radiusBig)
-	hoek.Parent = beeld
+	UI.gradient(beeld, k.van, k.tot, k.rotatie or 90)
+
+	local onderRand = Instance.new("Frame")
+	onderRand.AnchorPoint = Vector2.new(0, 1)
+	onderRand.Position = UDim2.fromScale(0, 1)
+	onderRand.Size = UDim2.new(1, 0, 0, 1)
+	onderRand.BackgroundColor3 = Theme.color.border
+	onderRand.BorderSizePixel = 0
+	onderRand.Parent = beeld
 
 	local body = Instance.new("Frame")
-	body.Position = UDim2.new(0, 0, 0, 96)
-	body.Size = UDim2.new(1, 0, 1, -96)
+	body.Name = "Body"
+	body.Position = UDim2.new(0, 0, 0, Theme.size.cardPreview)
+	body.Size = UDim2.new(1, 0, 1, -Theme.size.cardPreview)
 	body.BackgroundTransparency = 1
 	body.Parent = f
-	UI.padding(body, 12)
-	UI.list(body, 4)
+	UI.padding(body, Theme.size.panelPad)
+	UI.list(body, 6)
 
-	UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.neon, font = Theme.font.uiBold })
+	local titel = UI.label(body, k.label, {
+		size = Theme.text.card, color = Theme.color.neon, font = Theme.font.uiMed,
+	})
+	titel.Size = UDim2.new(1, 0, 0, Theme.text.card + 6)
+
 	local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
 	d.TextWrapped = true
-	d.Size = UDim2.new(1, 0, 0, 30)
-	UI.label(body, "RTP " .. k.rtp, { size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num })
+	d.Size = UDim2.new(1, 0, 0, 34)
+	d.TextYAlignment = Enum.TextYAlignment.Top
+
+	-- .game-card-footer
+	local voet = Instance.new("Frame")
+	voet.Size = UDim2.new(1, 0, 0, 22)
+	voet.BackgroundTransparency = 1
+	voet.Parent = body
+
+	UI.tag(voet, k.rtp, Theme.color.neon)
+
+	local pijl = UI.label(voet, "\u{2192}", {
+		size = Theme.text.card, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+	})
+	pijl.AnchorPoint = Vector2.new(1, 0.5)
+	pijl.Position = UDim2.new(1, 0, 0.5, 0)
+	pijl.Size = UDim2.fromOffset(24, 22)
 
 	local knop = Instance.new("TextButton")
 	knop.Text = ""
@@ -5294,13 +5834,54 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -&gt; ()): Frame
 	knop.Activated:Connect(function()
 		ga(k.id)
 	end)
+	-- .game-card.available:hover: de rand wordt neon en de pijl schuift op.
 	knop.MouseEnter:Connect(function()
-		f.BackgroundColor3 = Theme.color.panelLight
+		rand.Color = Theme.color.neon
+		pijl.TextColor3 = Theme.color.neon
+		pijl.Position = UDim2.new(1, 4, 0.5, 0)
 	end)
 	knop.MouseLeave:Connect(function()
-		f.BackgroundColor3 = Theme.color.panel
+		rand.Color = Theme.color.border
+		pijl.TextColor3 = Theme.color.muted
+		pijl.Position = UDim2.new(1, 0, 0.5, 0)
 	end)
 	return f
+end
+
+-- Een chip in de topbar: .home-chip.
+local function topChip(ouder: Instance, tekst: string, ga: () -&gt; (), goud: boolean?): (TextButton, TextLabel)
+	local b = Instance.new("TextButton")
+	b.Name = "HomeChip"
+	b.Text = tekst
+	b.Font = Theme.font.ui
+	b.TextSize = Theme.text.tiny
+	b.TextColor3 = if goud then Theme.color.gold else Theme.color.text
+	b.BackgroundColor3 = Theme.color.black
+	b.BackgroundTransparency = Theme.alpha.buttonBg
+	b.BorderSizePixel = 0
+	b.AutoButtonColor = false
+	b.AutomaticSize = Enum.AutomaticSize.X
+	b.Size = UDim2.fromOffset(0, 32)
+	b.RichText = false
+	UI.corner(b, Theme.radius.button)
+	local rand = UI.stroke(b, if goud then Theme.color.gold else Theme.color.border)
+	UI.padding4(b, 0, 14, 0, 14)
+	b.Parent = ouder
+
+	local slotje = UI.label(b, "\u{1F512}", { size = Theme.text.tiny, align = Enum.TextXAlignment.Right })
+	slotje.AnchorPoint = Vector2.new(0, 0.5)
+	slotje.Position = UDim2.new(1, 2, 0.5, 0)
+	slotje.Size = UDim2.fromOffset(16, 16)
+	slotje.Visible = false
+
+	b.Activated:Connect(ga)
+	b.MouseEnter:Connect(function()
+		rand.Color = Theme.color.neon
+	end)
+	b.MouseLeave:Connect(function()
+		rand.Color = if goud then Theme.color.gold else Theme.color.border
+	end)
+	return b, slotje
 end
 
 -- Bouwt het scherm en geeft terug hoe je het saldo bijwerkt.
@@ -5314,52 +5895,84 @@ function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
 	blad.CanvasSize = UDim2.new()
 	blad.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	blad.Parent = ouder
-	UI.padding(blad, 4)
+	-- #homeView heeft padding 40/50; de marge van 40 zit al in de schil, dus hier alleen
+	-- de extra breedte naar links en rechts.
+	UI.padding4(blad, 0, Theme.size.homePadX - Theme.size.homePadY, 24, Theme.size.homePadX - Theme.size.homePadY)
 	UI.list(blad, 18)
 
-	local kop = Instance.new("Frame")
-	kop.Size = UDim2.new(1, 0, 0, 0)
-	kop.AutomaticSize = Enum.AutomaticSize.Y
-	kop.BackgroundTransparency = 1
-	kop.LayoutOrder = 1
-	kop.Parent = blad
-	UI.list(kop, 6)
+	-- ---------- .home-topbar ----------
+	local topbar = Instance.new("Frame")
+	topbar.Name = "Topbar"
+	topbar.Size = UDim2.new(1, 0, 0, 32)
+	topbar.BackgroundTransparency = 1
+	topbar.LayoutOrder = 1
+	topbar.Parent = blad
+	local topLijst = UI.list(topbar, 10, Enum.FillDirection.Horizontal)
+	topLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	topLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
-	UI.label(kop, "NEON CASINO", {
-		size = Theme.text.huge, color = Theme.color.neon, font = Theme.font.uiBold,
-	}).Size = UDim2.new(1, 0, 0, 48)
-	UI.label(kop, "\u{25BA} FAIR ODDS \u{00B7} PLAY MONEY ONLY", {
-		size = Theme.text.small, color = Theme.color.muted,
+	topChip(topbar, "PROFILE", function()
+		ga("profile")
+	end).LayoutOrder = 1
+	local vipChip, vipSlot = topChip(topbar, "VIP ZONE", function()
+		ga("vip")
+	end, true)
+	vipChip.LayoutOrder = 2
+	vipSlot.Visible = true
+
+	-- ---------- .home-hero ----------
+	local hero = Instance.new("Frame")
+	hero.Size = UDim2.new(1, 0, 0, 0)
+	hero.AutomaticSize = Enum.AutomaticSize.Y
+	hero.BackgroundTransparency = 1
+	hero.LayoutOrder = 2
+	hero.Parent = blad
+	UI.list(hero, 12)
+
+	local kop = UI.label(hero, "NEON CASINO", {
+		size = Theme.text.hero, color = Theme.color.neon, font = Theme.font.uiMed,
+	})
+	kop.Size = UDim2.new(1, 0, 0, Theme.text.hero + 6)
+
+	UI.label(hero, "\u{25BA} FAIR ODDS \u{00B7} PLAY MONEY ONLY", {
+		size = Theme.text.body, color = Theme.color.muted,
 	})
 
-	local saldoKaart = UI.panel(blad, "BalanceCard")
-	saldoKaart.LayoutOrder = 2
-	saldoKaart.Size = UDim2.new(0, 280, 0, 0)
+	-- ---------- .home-balance-card ----------
+	local saldoKaart = Instance.new("Frame")
+	saldoKaart.Name = "BalanceCard"
+	saldoKaart.Size = UDim2.fromOffset(320, 0)
+	saldoKaart.AutomaticSize = Enum.AutomaticSize.Y
+	saldoKaart.BackgroundColor3 = Theme.color.panel
+	saldoKaart.BorderSizePixel = 0
+	saldoKaart.LayoutOrder = 3
+	UI.gradient(saldoKaart, Theme.color.panel, Theme.color.panelLight, 135)
+	UI.corner(saldoKaart, Theme.radius.panel)
 	UI.stroke(saldoKaart, Theme.color.neon)
-	UI.label(saldoKaart, "YOUR BALANCE", { size = Theme.text.tiny, color = Theme.color.muted })
-	local bedrag = UI.label(saldoKaart, "$" .. Money.fmt(Money.START), {
-		size = Theme.text.huge, color = Theme.color.neon, font = Theme.font.num,
-	})
-	bedrag.Size = UDim2.new(1, 0, 0, 46)
+	UI.padding4(saldoKaart, 24, 32, 24, 32)
+	UI.list(saldoKaart, 6)
+	saldoKaart.Parent = blad
 
-	local kopje = Instance.new("Frame")
-	kopje.Size = UDim2.new(1, 0, 0, 24)
-	kopje.BackgroundTransparency = 1
-	kopje.LayoutOrder = 3
-	kopje.Parent = blad
-	UI.label(kopje, "AVAILABLE GAMES", {
-		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiBold,
-	})
+	UI.label(saldoKaart, "YOUR BALANCE", { size = Theme.text.small, color = Theme.color.muted })
+	local bedrag = UI.moneyLabel(saldoKaart, Money.fmt(Money.START), Theme.text.balanceL)
+
+	-- ---------- .section-heading + .games-grid ----------
+	local kopRij = Instance.new("Frame")
+	kopRij.Size = UDim2.new(1, 0, 0, 34)
+	kopRij.BackgroundTransparency = 1
+	kopRij.LayoutOrder = 4
+	kopRij.Parent = blad
+	UI.sectionHeading(kopRij, "AVAILABLE GAMES", #KAARTEN .. " LIVE")
 
 	local raster = Instance.new("Frame")
 	raster.Size = UDim2.new(1, 0, 0, 0)
 	raster.AutomaticSize = Enum.AutomaticSize.Y
 	raster.BackgroundTransparency = 1
-	raster.LayoutOrder = 4
+	raster.LayoutOrder = 5
 	raster.Parent = blad
 	local rasterLayout = Instance.new("UIGridLayout")
-	rasterLayout.CellSize = UDim2.new(0, 260, 0, 190)
-	rasterLayout.CellPadding = UDim2.new(0, 12, 0, 12)
+	rasterLayout.CellSize = UDim2.fromOffset(Theme.size.cardMin, 300)
+	rasterLayout.CellPadding = UDim2.fromOffset(Theme.size.cardGap, Theme.size.cardGap)
 	rasterLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rasterLayout.Parent = raster
 
@@ -5368,7 +5981,7 @@ function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
 	end
 
 	return function(nieuw: number)
-		bedrag.Text = "$" .. Money.fmt(nieuw)
+		bedrag.Text = Money.fmt(nieuw)
 	end
 end
 
@@ -5404,7 +6017,7 @@ type Loop = {
 
 function Horse.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "HORSE RACE")
 
 	local baan = UI.panel(bord, "Track")
 	UI.list(baan, 8)
@@ -5436,7 +6049,7 @@ function Horse.build(ouder: Instance): ()
 		rij.BackgroundTransparency = 0.5
 		rij.BorderSizePixel = 0
 		rij.LayoutOrder = i
-		UI.corner(rij, Theme.size.radiusSmall)
+		UI.corner(rij, Theme.radius.chip)
 		rij.Parent = veld
 
 		local kleur = Color3.fromHex(h.color)
@@ -5449,18 +6062,18 @@ function Horse.build(ouder: Instance): ()
 		loper.BackgroundColor3 = kleur
 		loper.BorderSizePixel = 0
 		loper.ZIndex = 3
-		UI.corner(loper, Theme.size.radiusSmall)
+		UI.corner(loper, Theme.radius.chip)
 		loper.Parent = rij
 		lopers[i] = loper
 
 		local nr = UI.label(loper, tostring(i), {
-			size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.uiBold,
+			size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.uiMed,
 			align = Enum.TextXAlignment.Center,
 		})
 		nr.Size = UDim2.fromScale(1, 1)
 		nr.ZIndex = 4
 
-		local naam = UI.label(rij, h.name, { size = Theme.text.tiny, color = kleur, font = Theme.font.uiBold })
+		local naam = UI.label(rij, h.name, { size = Theme.text.tiny, color = kleur, font = Theme.font.uiMed })
 		naam.Position = UDim2.new(0, 44, 0, 2)
 		naam.Size = UDim2.new(0, 110, 0, 14)
 		naamLabels[i] = naam
@@ -5651,7 +6264,7 @@ local SNEL = {1, 3, 5, 10, 24}
 
 function Mines.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "MINES")
 
 	local veld = UI.panel(bord, "Field")
 	UI.list(veld, 8)
@@ -5758,7 +6371,7 @@ function Mines.build(ouder: Instance): ()
 		b.AutoButtonColor = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.size.radius)
+		UI.corner(b, Theme.radius.button)
 		UI.stroke(b, Theme.color.border)
 		b.Parent = raster
 		b.Activated:Connect(function()
@@ -5868,7 +6481,7 @@ end
 
 function Plinko.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "PLINKO")
 
 	local vak = UI.panel(bord, "Board")
 	UI.list(vak, 8)
@@ -5880,7 +6493,7 @@ function Plinko.build(ouder: Instance): ()
 	veld.BackgroundColor3 = Theme.color.bg
 	veld.BackgroundTransparency = 0.4
 	veld.BorderSizePixel = 0
-	UI.corner(veld, Theme.size.radius)
+	UI.corner(veld, Theme.radius.button)
 	veld.Parent = vak
 
 	local bakkenRij = Instance.new("Frame")
@@ -5928,7 +6541,7 @@ function Plinko.build(ouder: Instance): ()
 			b.Position = UDim2.new((i - 1) / #tabel, 1, 0, 0)
 			b.BackgroundColor3 = bakKleur(m)
 			b.BorderSizePixel = 0
-			UI.corner(b, Theme.size.radiusSmall)
+			UI.corner(b, Theme.radius.chip)
 			b.Parent = bakkenRij
 
 			-- De multiplier bovenin, het nummer van het bakje onderin. Nooit allebei in het
@@ -6123,7 +6736,7 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 	local kaart = UI.panel(blad, "Card")
 	UI.list(kaart, 6)
 	local naam = UI.label(kaart, Players.LocalPlayer.DisplayName, {
-		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiBold,
+		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiMed,
 	})
 	naam.Size = UDim2.new(1, 0, 0, 28)
 	local titel = UI.label(kaart, "\u{2014}", { size = Theme.text.small, color = Theme.color.gold })
@@ -6154,7 +6767,7 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 	kop.Parent = perSpel
 	local function kolomLabel(tekst: string, x: number, breed: number, rechts: boolean)
 		local t = UI.label(kop, tekst, {
-			size = Theme.text.tiny, color = Theme.color.muted, font = Theme.font.uiBold,
+			size = Theme.text.tiny, color = Theme.color.muted, font = Theme.font.uiMed,
 			align = if rechts then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 		})
 		t.Position = UDim2.new(x, 0, 0, 0)
@@ -6275,7 +6888,7 @@ local BUITEN = {
 
 function Roulette.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "ROULETTE")
 
 	-- ---------- het rad ----------
 	local radVak = UI.panel(bord, "Wheel")
@@ -6377,7 +6990,7 @@ function Roulette.build(ouder: Instance): ()
 		local b = Instance.new("TextButton")
 		b.Name = key
 		b.Text = tekst
-		b.Font = Theme.font.uiBold
+		b.Font = Theme.font.uiMed
 		b.TextSize = Theme.text.small
 		b.TextColor3 = Theme.color.text
 		b.BackgroundColor3 = kleur
@@ -6385,7 +6998,7 @@ function Roulette.build(ouder: Instance): ()
 		b.AutoButtonColor = false
 		b.Size = UDim2.new(1, 0, 0, hoogte)
 		b.RichText = false
-		UI.corner(b, Theme.size.radiusSmall)
+		UI.corner(b, Theme.radius.chip)
 		UI.stroke(b, Theme.color.border)
 		b.Parent = ouder
 
@@ -6531,7 +7144,7 @@ local Scratch = {}
 
 function Scratch.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "SCRATCH CARDS")
 
 	local kaart = UI.panel(bord, "Card")
 	UI.list(kaart, 10)
@@ -6603,7 +7216,7 @@ function Scratch.build(ouder: Instance): ()
 		b.AutoButtonColor = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.size.radius)
+		UI.corner(b, Theme.radius.button)
 		randen[i] = UI.stroke(b, Theme.color.border)
 		b.Parent = raster
 		b.Activated:Connect(function()
@@ -6670,7 +7283,7 @@ local Slots = {}
 
 function Slots.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "777")
 
 	local kast = UI.panel(bord, "Machine")
 	UI.list(kast, 10)
@@ -6691,7 +7304,7 @@ function Slots.build(ouder: Instance): ()
 		venster.BackgroundColor3 = Theme.color.bg
 		venster.BorderSizePixel = 0
 		venster.LayoutOrder = i
-		UI.corner(venster, Theme.size.radiusBig)
+		UI.corner(venster, Theme.radius.card)
 		UI.stroke(venster, Theme.color.border)
 		venster.Parent = rollen
 
@@ -6792,7 +7405,7 @@ local MOEILIJK = {"easy", "medium", "hard", "expert", "master"}
 
 function Tower.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "DRAGON TOWER")
 
 	local toren = UI.panel(bord, "Tower")
 	UI.list(toren, 6)
@@ -6858,7 +7471,7 @@ function Tower.build(ouder: Instance): ()
 				b.LayoutOrder = k
 				b.Size = UDim2.new((1 - 0.2) / d.tiles, -4, 1, 0)
 				b.RichText = false
-				UI.corner(b, Theme.size.radiusSmall)
+				UI.corner(b, Theme.radius.chip)
 				UI.stroke(b, Theme.color.border)
 				b.Parent = rij
 				kolom[k] = b
@@ -7044,7 +7657,7 @@ function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
 	slot.Size = UDim2.new(1, 0, 0, 46)
 
 	local kop = UI.label(poort, "THE ZONE IS CLOSED", {
-		size = Theme.text.big, color = Theme.color.gold, font = Theme.font.uiBold,
+		size = Theme.text.big, color = Theme.color.gold, font = Theme.font.uiMed,
 		align = Enum.TextXAlignment.Center,
 	})
 	kop.Size = UDim2.new(1, 0, 0, 28)
@@ -7074,7 +7687,7 @@ function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
 		ic.Size = UDim2.fromOffset(30, 30)
 
 		local t = UI.label(rij, perk[2], {
-			size = Theme.text.small, color = Theme.color.gold, font = Theme.font.uiBold,
+			size = Theme.text.small, color = Theme.color.gold, font = Theme.font.uiMed,
 		})
 		t.Position = UDim2.new(0, 36, 0, 0)
 		t.Size = UDim2.new(1, -40, 0, 16)
@@ -7109,7 +7722,7 @@ function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
 		f.BackgroundColor3 = Theme.color.panel
 		f.BorderSizePixel = 0
 		f.LayoutOrder = i
-		UI.corner(f, Theme.size.radiusBig)
+		UI.corner(f, Theme.radius.card)
 		kaartRanden[i] = UI.stroke(f, Theme.color.border)
 		f.Parent = raster
 
@@ -7122,7 +7735,7 @@ function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
 		g.Color = ColorSequence.new(k.van, k.tot)
 		g.Rotation = 90
 		g.Parent = beeld
-		UI.corner(beeld, Theme.size.radiusBig)
+		UI.corner(beeld, Theme.radius.card)
 
 		local body = Instance.new("Frame")
 		body.Position = UDim2.new(0, 0, 0, 78)
@@ -7131,7 +7744,7 @@ function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
 		body.Parent = f
 		UI.padding(body, 10)
 		UI.list(body, 4)
-		UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.gold, font = Theme.font.uiBold })
+		UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.gold, font = Theme.font.uiMed })
 		local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
 		d.TextWrapped = true
 		d.Size = UDim2.new(1, 0, 0, 28)
@@ -7223,7 +7836,7 @@ end
 
 function Wheel.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "WHEEL")
 
 	local vak = UI.panel(bord, "Wheel")
 	UI.list(vak, 8)
@@ -7254,7 +7867,7 @@ function Wheel.build(ouder: Instance): ()
 		v.TextSize = Theme.text.tiny
 		v.TextColor3 = if m &gt;= 2 then Theme.color.bg else Theme.color.muted
 		v.RichText = false
-		UI.corner(v, Theme.size.radiusSmall)
+		UI.corner(v, Theme.radius.chip)
 		v.Parent = ring
 		vakjes[i] = v
 	end

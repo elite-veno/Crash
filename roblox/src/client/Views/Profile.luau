@@ -48,7 +48,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 	local kaart = UI.panel(blad, "Card")
 	UI.list(kaart, 6)
 	local naam = UI.label(kaart, Players.LocalPlayer.DisplayName, {
-		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiBold,
+		size = Theme.text.big, color = Theme.color.text, font = Theme.font.uiMed,
 	})
 	naam.Size = UDim2.new(1, 0, 0, 28)
 	local titel = UI.label(kaart, "\u{2014}", { size = Theme.text.small, color = Theme.color.gold })
@@ -79,7 +79,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 	kop.Parent = perSpel
 	local function kolomLabel(tekst: string, x: number, breed: number, rechts: boolean)
 		local t = UI.label(kop, tekst, {
-			size = Theme.text.tiny, color = Theme.color.muted, font = Theme.font.uiBold,
+			size = Theme.text.tiny, color = Theme.color.muted, font = Theme.font.uiMed,
 			align = if rechts then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 		})
 		t.Position = UDim2.new(x, 0, 0, 0)

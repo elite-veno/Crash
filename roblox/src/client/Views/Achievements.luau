@@ -53,7 +53,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 		b.AutoButtonColor = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.size.radiusBig)
+		UI.corner(b, Theme.radius.card)
 		UI.stroke(b, Theme.color.border)
 		b.Parent = vakjesRij
 		vakjes[i] = b
@@ -100,7 +100,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	local rek = UI.panel(blad, "All")
 	UI.list(rek, 6)
 	local rekTitel = UI.label(rek, "\u{25BA} ACHIEVEMENTS \u{00B7} 0 / " .. #Ach.LIST, {
-		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
 
 	local raster = Instance.new("Frame")
@@ -126,7 +126,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 		knop.BorderSizePixel = 0
 		knop.AutoButtonColor = false
 		knop.LayoutOrder = i
-		UI.corner(knop, Theme.size.radius)
+		UI.corner(knop, Theme.radius.button)
 		local rand = UI.stroke(knop, Theme.color.border)
 		knop.Parent = raster
 
@@ -137,7 +137,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 		icoon.Size = UDim2.fromOffset(34, 34)
 
 		local titel = UI.label(knop, a.title, {
-			size = Theme.text.small, color = Theme.color.text, font = Theme.font.uiBold,
+			size = Theme.text.small, color = Theme.color.text, font = Theme.font.uiMed,
 		})
 		titel.Position = UDim2.new(0, 46, 0, 8)
 		titel.Size = UDim2.new(1, -52, 0, 16)

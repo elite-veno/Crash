@@ -12,7 +12,7 @@ local Slots = {}
 
 function Slots.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "777")
 
 	local kast = UI.panel(bord, "Machine")
 	UI.list(kast, 10)
@@ -33,7 +33,7 @@ function Slots.build(ouder: Instance): ()
 		venster.BackgroundColor3 = Theme.color.bg
 		venster.BorderSizePixel = 0
 		venster.LayoutOrder = i
-		UI.corner(venster, Theme.size.radiusBig)
+		UI.corner(venster, Theme.radius.card)
 		UI.stroke(venster, Theme.color.border)
 		venster.Parent = rollen
 

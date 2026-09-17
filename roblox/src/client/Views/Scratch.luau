@@ -13,7 +13,7 @@ local Scratch = {}
 
 function Scratch.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "SCRATCH CARDS")
 
 	local kaart = UI.panel(bord, "Card")
 	UI.list(kaart, 10)
@@ -85,7 +85,7 @@ function Scratch.build(ouder: Instance): ()
 		b.AutoButtonColor = false
 		b.LayoutOrder = i
 		b.RichText = false
-		UI.corner(b, Theme.size.radius)
+		UI.corner(b, Theme.radius.button)
 		randen[i] = UI.stroke(b, Theme.color.border)
 		b.Parent = raster
 		b.Activated:Connect(function()

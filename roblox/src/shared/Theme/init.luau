@@ -1,7 +1,9 @@
 --!strict
--- De kleuren, letters en maten uit de CSS van de webversie, één op één.
--- Alles wat in de CSS een variabele was staat hier, zodat de Roblox-versie er hetzelfde
--- uitziet en één plek de toon zet.
+-- De kleuren, letters en maten uit de CSS van de webversie, één op één overgenomen. Waar
+-- de webversie een getal noemt staat dat getal hier ook; waar hij rgba() gebruikt staat de
+-- kleur plus de doorzichtigheid die daarbij hoort, want zo werkt Roblox.
+--
+-- Eén plek zet de toon: als hier iets verandert, verandert het overal.
 
 local function hex(s: string): Color3
 	return Color3.fromHex(s)
@@ -9,6 +11,7 @@ end
 
 local Theme = {}
 
+-- ---------- :root ----------
 Theme.color = {
 	bg         = hex("0e1116"),
 	panel      = hex("151a21"),
@@ -27,44 +30,81 @@ Theme.color = {
 	feltDark   = hex("4f8f2a"),
 	sky        = hex("5fb8ff"),
 	card       = hex("f7f9fc"),
+	black      = hex("000000"),
+	white      = hex("ffffff"),
 }
 
--- De neon-gloed is in de CSS rgba(62,207,142,0.28); in Roblox is dat kleur + transparantie.
+-- --neon-glow is rgba(62,207,142,0.28): in Roblox is dat de kleur plus doorzichtigheid.
 Theme.glow = { color = hex("3ecf8e"), transparency = 0.72 }
 
+-- De doorzichtigheden die in de CSS als rgba() staan.
+Theme.alpha = {
+	inputBg    = 0.4,    -- rgba(0,0,0,0.6)
+	buttonBg   = 0.5,    -- rgba(0,0,0,0.5)
+	hoverBg    = 0.96,   -- rgba(255,255,255,0.04)
+	activeNav  = 0.90,   -- rgba(62,207,142,0.10)
+	tagNeon    = 0.88,   -- rgba(62,207,142,0.12)
+	tagGold    = 0.90,   -- rgba(224,181,85,0.10)
+	locked     = 0.65,   -- opacity 0.35
+	disabled   = 0.40,   -- opacity 0.6
+}
+
 Theme.font = {
-	ui  = Enum.Font.GothamMedium,
-	uiBold = Enum.Font.GothamBold,
-	num = Enum.Font.Code,      -- staat het dichtst bij JetBrains Mono
+	ui     = Enum.Font.Gotham,        -- Inter, gewoon
+	uiMed  = Enum.Font.GothamMedium,  -- Inter 600
+	uiBold = Enum.Font.GothamBold,    -- Inter 700
+	num    = Enum.Font.Code,          -- JetBrains Mono
 }
 
--- De maten die in de CSS het vaakst voorkomen.
+-- ---------- maten ----------
+-- De border-radius waarden uit de CSS, per onderdeel.
+Theme.radius = {
+	chip   = 2,
+	button = 3,
+	input  = 3,
+	panel  = 4,
+	card   = 6,
+	pill   = 8,
+}
+
 Theme.size = {
-	radiusSmall = 2,
-	radius      = 3,
-	radiusPanel = 4,
-	radiusBig   = 8,
+	railWidth   = 64,    -- nav.sidebar
+	railOpen    = 240,   -- nav.sidebar.open
+	asideWidth  = 320,   -- .game-view grid-template-columns: 320px 1fr
+	viewPad     = 16,    -- .game-view padding
+	viewGap     = 16,    -- .game-view gap
+	asideGap    = 14,    -- aside.game-aside gap
+	panelPad    = 18,    -- .panel padding
+	homePadY    = 40,    -- #homeView padding
+	homePadX    = 50,
 	gap         = 8,
+	cardMin     = 280,   -- .games-grid minmax(280px, 1fr)
+	cardGap     = 20,
+	cardPreview = 160,   -- .game-card-preview height
+	navIcon     = 24,    -- .nav-icon
+	navPadY     = 14,    -- .nav-item padding
+	navPadX     = 20,
+	navGap      = 16,
 	pad         = 12,
-	panelPad    = 14,
-	railWidth   = 64,      -- de smalle zijbalk
-	navWidth    = 240,     -- de uitgeklapte zijbalk
 }
 
+-- De lettergroottes uit de CSS, met de naam van waar ze vandaan komen.
 Theme.text = {
-	tiny   = 10,
-	small  = 11,
-	body   = 12,
-	label  = 13,
-	title  = 18,
-	big    = 22,
-	huge   = 40,
-	giant  = 64,
+	badge    = 8,    -- .nav-badge
+	tiny     = 11,   -- .game-card-desc, .odds-note, .chip, .btn-secondary
+	small    = 11,   -- .panel-title, .balance-label, .nav-section-label
+	body     = 12,   -- .nav-label, .home-subtitle
+	label    = 13,
+	button   = 15,   -- .btn-primary
+	input    = 16,   -- input[type=number]
+	card     = 18,   -- .game-card-title
+	title    = 22,   -- .crash-header-title, .section-heading h2
+	big      = 22,
+	balance  = 30,   -- .balance-amount
+	balanceL = 36,   -- .home-balance-card .balance-value
+	huge     = 36,
+	hero     = 64,   -- .home-title
+	giant    = 64,
 }
-
--- Een halfdoorzichtige variant, zoals rgba(0,0,0,0.5) in de CSS.
-function Theme.alpha(c: Color3, a: number): (Color3, number)
-	return c, 1 - a
-end
 
 return Theme

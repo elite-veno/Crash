@@ -25,7 +25,7 @@ end
 
 function Crash.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "CRASH")
 
 	local vak = UI.panel(bord, "Flight")
 	UI.list(vak, 8)
@@ -37,7 +37,7 @@ function Crash.build(ouder: Instance): ()
 	lucht.Size = UDim2.new(1, 0, 0, 300)
 	lucht.BackgroundColor3 = Color3.fromHex("101922")
 	lucht.BorderSizePixel = 0
-	UI.corner(lucht, Theme.size.radius)
+	UI.corner(lucht, Theme.radius.button)
 	lucht.ClipsDescendants = true
 	lucht.Parent = vak
 
@@ -65,7 +65,7 @@ function Crash.build(ouder: Instance): ()
 	raket.Size = UDim2.fromOffset(28, 28)
 	raket.BackgroundTransparency = 1
 	raket.Text = "\u{25B2}"
-	raket.Font = Theme.font.uiBold
+	raket.Font = Theme.font.uiMed
 	raket.TextSize = 20
 	raket.TextColor3 = Theme.color.neon
 	raket.ZIndex = 3
@@ -82,7 +82,7 @@ function Crash.build(ouder: Instance): ()
 	groot.ZIndex = 4
 
 	local status = UI.label(lucht, "WAITING", {
-		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiBold,
+		size = Theme.text.label, color = Theme.color.muted, font = Theme.font.uiMed,
 		align = Enum.TextXAlignment.Center,
 	})
 	status.AnchorPoint = Vector2.new(0.5, 0)

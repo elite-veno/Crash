@@ -36,7 +36,7 @@ local BUITEN = {
 
 function Roulette.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "ROULETTE")
 
 	-- ---------- het rad ----------
 	local radVak = UI.panel(bord, "Wheel")
@@ -138,7 +138,7 @@ function Roulette.build(ouder: Instance): ()
 		local b = Instance.new("TextButton")
 		b.Name = key
 		b.Text = tekst
-		b.Font = Theme.font.uiBold
+		b.Font = Theme.font.uiMed
 		b.TextSize = Theme.text.small
 		b.TextColor3 = Theme.color.text
 		b.BackgroundColor3 = kleur
@@ -146,7 +146,7 @@ function Roulette.build(ouder: Instance): ()
 		b.AutoButtonColor = false
 		b.Size = UDim2.new(1, 0, 0, hoogte)
 		b.RichText = false
-		UI.corner(b, Theme.size.radiusSmall)
+		UI.corner(b, Theme.radius.chip)
 		UI.stroke(b, Theme.color.border)
 		b.Parent = ouder
 

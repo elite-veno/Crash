@@ -27,7 +27,7 @@ end
 
 function Plinko.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "PLINKO")
 
 	local vak = UI.panel(bord, "Board")
 	UI.list(vak, 8)
@@ -39,7 +39,7 @@ function Plinko.build(ouder: Instance): ()
 	veld.BackgroundColor3 = Theme.color.bg
 	veld.BackgroundTransparency = 0.4
 	veld.BorderSizePixel = 0
-	UI.corner(veld, Theme.size.radius)
+	UI.corner(veld, Theme.radius.button)
 	veld.Parent = vak
 
 	local bakkenRij = Instance.new("Frame")
@@ -87,7 +87,7 @@ function Plinko.build(ouder: Instance): ()
 			b.Position = UDim2.new((i - 1) / #tabel, 1, 0, 0)
 			b.BackgroundColor3 = bakKleur(m)
 			b.BorderSizePixel = 0
-			UI.corner(b, Theme.size.radiusSmall)
+			UI.corner(b, Theme.radius.chip)
 			b.Parent = bakkenRij
 
 			-- De multiplier bovenin, het nummer van het bakje onderin. Nooit allebei in het

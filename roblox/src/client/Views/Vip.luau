@@ -35,7 +35,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 	slot.Size = UDim2.new(1, 0, 0, 46)
 
 	local kop = UI.label(poort, "THE ZONE IS CLOSED", {
-		size = Theme.text.big, color = Theme.color.gold, font = Theme.font.uiBold,
+		size = Theme.text.big, color = Theme.color.gold, font = Theme.font.uiMed,
 		align = Enum.TextXAlignment.Center,
 	})
 	kop.Size = UDim2.new(1, 0, 0, 28)
@@ -65,7 +65,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		ic.Size = UDim2.fromOffset(30, 30)
 
 		local t = UI.label(rij, perk[2], {
-			size = Theme.text.small, color = Theme.color.gold, font = Theme.font.uiBold,
+			size = Theme.text.small, color = Theme.color.gold, font = Theme.font.uiMed,
 		})
 		t.Position = UDim2.new(0, 36, 0, 0)
 		t.Size = UDim2.new(1, -40, 0, 16)
@@ -100,7 +100,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		f.BackgroundColor3 = Theme.color.panel
 		f.BorderSizePixel = 0
 		f.LayoutOrder = i
-		UI.corner(f, Theme.size.radiusBig)
+		UI.corner(f, Theme.radius.card)
 		kaartRanden[i] = UI.stroke(f, Theme.color.border)
 		f.Parent = raster
 
@@ -113,7 +113,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		g.Color = ColorSequence.new(k.van, k.tot)
 		g.Rotation = 90
 		g.Parent = beeld
-		UI.corner(beeld, Theme.size.radiusBig)
+		UI.corner(beeld, Theme.radius.card)
 
 		local body = Instance.new("Frame")
 		body.Position = UDim2.new(0, 0, 0, 78)
@@ -122,7 +122,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		body.Parent = f
 		UI.padding(body, 10)
 		UI.list(body, 4)
-		UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.gold, font = Theme.font.uiBold })
+		UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.gold, font = Theme.font.uiMed })
 		local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
 		d.TextWrapped = true
 		d.Size = UDim2.new(1, 0, 0, 28)

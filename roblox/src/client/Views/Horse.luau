@@ -23,7 +23,7 @@ type Loop = {
 
 function Horse.build(ouder: Instance): ()
 	local blad = Common.sheet(ouder)
-	local bord, bediening = Common.columns(blad, 300)
+	local bord, bediening = Common.columns(blad, "HORSE RACE")
 
 	local baan = UI.panel(bord, "Track")
 	UI.list(baan, 8)
@@ -55,7 +55,7 @@ function Horse.build(ouder: Instance): ()
 		rij.BackgroundTransparency = 0.5
 		rij.BorderSizePixel = 0
 		rij.LayoutOrder = i
-		UI.corner(rij, Theme.size.radiusSmall)
+		UI.corner(rij, Theme.radius.chip)
 		rij.Parent = veld
 
 		local kleur = Color3.fromHex(h.color)
@@ -68,18 +68,18 @@ function Horse.build(ouder: Instance): ()
 		loper.BackgroundColor3 = kleur
 		loper.BorderSizePixel = 0
 		loper.ZIndex = 3
-		UI.corner(loper, Theme.size.radiusSmall)
+		UI.corner(loper, Theme.radius.chip)
 		loper.Parent = rij
 		lopers[i] = loper
 
 		local nr = UI.label(loper, tostring(i), {
-			size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.uiBold,
+			size = Theme.text.tiny, color = Theme.color.bg, font = Theme.font.uiMed,
 			align = Enum.TextXAlignment.Center,
 		})
 		nr.Size = UDim2.fromScale(1, 1)
 		nr.ZIndex = 4
 
-		local naam = UI.label(rij, h.name, { size = Theme.text.tiny, color = kleur, font = Theme.font.uiBold })
+		local naam = UI.label(rij, h.name, { size = Theme.text.tiny, color = kleur, font = Theme.font.uiMed })
 		naam.Position = UDim2.new(0, 44, 0, 2)
 		naam.Size = UDim2.new(0, 110, 0, 14)
 		naamLabels[i] = naam
