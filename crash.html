@@ -5724,6 +5724,17 @@ function hrStart() {
   let t = HR_BASE_TIME + Math.random() * 0.8;
   HR.order.forEach((i, rank) => { if (rank > 0) t += 0.12 + Math.random() * 0.45; HR.finish[i] = t; });
   for (const h of HR.horses) h.progress = 0;
+  // Elk paard loopt zijn eigen tempo binnen dezelfde eindtijd: onder de 1 is een sprinter
+  // die vooruit schiet en terugvalt, boven de 1 een die van achteren komt opzetten. De
+  // uitslag verandert er niet door - die ligt hierboven al vast en wordt hieronder op de
+  // seconde nauwkeurig gehaald - maar de kop van de race wisselt nu onderweg.
+  for (const h of HR.horses) h.pace = 0.55 + Math.random() * 1.35;
+  // De favoriet mag niet stelselmatig de trage starter zijn: dat zou juist verraden wie
+  // gaat winnen. Daarom loot iedereen onafhankelijk, en schudden we er een keer doorheen
+  // zodat tempo en eindtijd niets met elkaar te maken hebben.
+  const tempos = HR.horses.map(h => h.pace);
+  for (let i = tempos.length - 1; i > 0; i--) { const j = randInt(i + 1); [tempos[i], tempos[j]] = [tempos[j], tempos[i]]; }
+  HR.horses.forEach((h, i) => { h.pace = tempos[i]; });
   const w = HR.horses[HR.order[0]];
   HR.pendingPayout = HR.bets[w.i] ? floor2(HR.bets[w.i] * w.mult) : 0; // outcome fixed now
   HR.pendingMult = HR.bets[w.i] ? w.mult : 0;
@@ -5740,9 +5751,15 @@ function hrStart() {
     for (const h of HR.horses) {
       const T = HR.finish[h.i];
       maxT = Math.max(maxT, T);
-      const base = Math.min(1, t / T);
+      const u = Math.min(1, t / T);
       const w = h.wobble;
-      h.progress = base >= 1 ? 1 : Math.max(0, base + w.a * Math.sin(w.f * t + w.ph) * (1 - base));
+      // Het tempo buigt de baan, maar hij begint op 0 en eindigt op precies 1, dus de
+      // volgorde over de finish blijft exact die van de eindtijden hierboven.
+      let pos = Math.pow(u, h.pace || 1);
+      // Galop: een rimpeling die aan start en finish niets doet, zodat hij de uitslag
+      // niet kan verschuiven. Eerder stond hij juist aan de start op zijn sterkst.
+      pos += w.a * Math.sin(w.f * t + w.ph) * Math.sin(Math.PI * u);
+      h.progress = u >= 1 ? 1 : Math.max(0, Math.min(0.995, pos));
     }
     if (currentRoute === 'horse') hrDraw();
     if (t >= maxT + 0.5) hrResolve(total);
