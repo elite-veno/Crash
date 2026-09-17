@@ -9,27 +9,54 @@ import json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+# Zoals Rojo het doet: een init-bestand maakt de MAP zelf tot script, en de soort hangt
+# af van het achtervoegsel. Zonder dit onderscheid denkt de analyzer dat init.server een
+# gewone kindmodule is, en dan klopt require(script.X) nergens meer.
+INIT = {
+    "init.luau": "ModuleScript",
+    "init.server.luau": "Script",
+    "init.client.luau": "LocalScript",
+}
+
+
+def soortVan(bestand: str) -> str:
+    if bestand.endswith(".server.luau"):
+        return "Script"
+    if bestand.endswith(".client.luau"):
+        return "LocalScript"
+    return "ModuleScript"
+
+
+def naamVan(bestand: str) -> str:
+    for achter in (".server.luau", ".client.luau", ".luau"):
+        if bestand.endswith(achter):
+            return bestand[: -len(achter)]
+    return bestand
+
+
 def boom(pad: str, naam: str) -> dict:
-    """Een map wordt een Folder; een map met init.luau wordt zelf een ModuleScript."""
+    """Een map wordt een Folder, tenzij er een init-bestand in zit; dan wordt de map zelf
+    dat script."""
     vol = os.path.join(ROOT, pad)
-    init = os.path.join(vol, "init.luau")
     kinderen = []
+    eigenInit = None
     for item in sorted(os.listdir(vol)):
         vol_item = os.path.join(vol, item)
-        if item == "init.luau":
+        if item in INIT:
+            eigenInit = item
             continue
         if os.path.isdir(vol_item):
             kinderen.append(boom(os.path.join(pad, item), item))
         elif item.endswith(".luau"):
             kinderen.append({
-                "name": item[:-5],
-                "className": "ModuleScript",
+                "name": naamVan(item),
+                "className": soortVan(item),
                 "filePaths": [os.path.join(pad, item)],
             })
     knoop = {"name": naam}
-    if os.path.isfile(init):
-        knoop["className"] = "ModuleScript"
-        knoop["filePaths"] = [os.path.join(pad, "init.luau")]
+    if eigenInit:
+        knoop["className"] = INIT[eigenInit]
+        knoop["filePaths"] = [os.path.join(pad, eigenInit)]
     else:
         knoop["className"] = "Folder"
     if kinderen:

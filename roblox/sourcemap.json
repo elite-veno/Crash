@@ -55,13 +55,25 @@
    "children": [
     {
      "name": "Server",
-     "className": "Folder",
+     "className": "Script",
+     "filePaths": [
+      "src/server/init.server.luau"
+     ],
      "children": [
       {
        "name": "Games",
        "className": "ModuleScript",
        "filePaths": [
         "src/server/Games/init.luau"
+       ],
+       "children": [
+        {
+         "name": "Multi",
+         "className": "ModuleScript",
+         "filePaths": [
+          "src/server/Games/Multi.luau"
+         ]
+        }
        ]
       },
       {
@@ -85,7 +97,10 @@
      "children": [
       {
        "name": "Client",
-       "className": "Folder",
+       "className": "LocalScript",
+       "filePaths": [
+        "src/client/init.client.luau"
+       ],
        "children": [
         {
          "name": "Views",

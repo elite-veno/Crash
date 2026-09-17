@@ -33,7 +33,7 @@ LUAU=./luaubin/luau ANALYZE=./luaubin/luau-analyze bash tools/run_tests.sh
 | 2 | thema en UI-bouwstenen | af |
 | 3 | netwerklaag en geldregels | af |
 | 4 | profiel op DataStore, spellen in een beurt | af |
-| 5 | de elf spellen | volgt |
+| 5 | de elf spellen, serverzijdig | negen af, crash en blackjack volgen |
 | 6 | seizoenen, VIP, prestaties | volgt |
 | 7 | vrienden, lobby's, gedeelde tafels | volgt |
 | 8 | review met agents | volgt |
