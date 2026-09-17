@@ -45,7 +45,26 @@ Profiles.GAMES = {
 
 local store = if RunService:IsStudio() then nil else DataStoreService:GetDataStore("NeonCasino_v1")
 local levend: { [number]: Profile } = {}
-local bezig: { [number]: boolean } = {}
+local bezig: { [number]: boolean } = {}       -- lezen mislukt: niets overschrijven
+local laden: { [number]: boolean } = {}       -- er wordt nu gelezen (GetAsync hangt)
+local verlaten: { [number]: boolean } = {}    -- vertrokken terwijl er nog gelezen werd
+local afgerond: { [number]: boolean } = {}    -- al afgesloten; niet twee keer schrijven
+
+-- Zoveel seconden zonder levensteken en het slot van een andere server vervalt. Lager en
+-- een server die crasht blokkeert de speler onnodig lang; hoger en twee servers kunnen
+-- elkaar overschrijven.
+local SLOT_VERVAL = 90
+local AUTOSAVE = 120
+local POGINGEN = 4
+
+-- De haakjes die vlak voor het opslaan nog iets recht moeten zetten: een openstaande
+-- inzet teruggeven bijvoorbeeld. Ze draaien BINNEN dit bestand, zodat de volgorde
+-- vastligt en niet afhangt van welke Connect toevallig eerst is gemaakt.
+local haken: { (Player) -> () } = {}
+
+function Profiles.onLeave(f: (Player) -> ()): ()
+	table.insert(haken, f)
+end
 
 local function versStats(): Stats
 	return { rounds = 0, won = 0, lost = 0, highest = 0, profit = 0 }
@@ -124,23 +143,131 @@ local function sleutel(id: number): string
 	return "speler_" .. id
 end
 
+-- Een DataStore-aanroep mag een keer misgaan: throttling en storingen horen erbij.
+-- Zonder herhaling is een hele sessie weg door een hikje van een halve seconde.
+local function metHerhaling(wat: string, f: () -> any): (boolean, any)
+	local wacht = 0.5
+	for poging = 1, POGINGEN do
+		local ok, res = pcall(f)
+		if ok then return true, res end
+		if poging == POGINGEN then
+			warn("[Profiles] " .. wat .. " mislukt na " .. POGINGEN .. " pogingen: " .. tostring(res))
+			return false, res
+		end
+		task.wait(wacht)
+		wacht *= 2
+	end
+	return false, nil
+end
+
+-- Mag deze server het profiel claimen? Het slot is van niemand, van onszelf, of het is
+-- oud genoeg om vervallen te zijn. Los van Roblox opgeschreven, zodat het te testen is.
+function Profiles.slotVrij(rec: any, jobId: string, nu: number): boolean
+	if typeof(rec) ~= "table" then return true end
+	local job = rec.lockJob
+	if typeof(job) ~= "string" or job == "" or job == jobId then return true end
+	local at = tonumber(rec.lockAt)
+	if not at then return true end
+	return nu - at > SLOT_VERVAL
+end
+
+local function jobId(): string
+	-- In Studio is JobId leeg; dan is er toch maar een server.
+	return if game.JobId ~= "" then game.JobId else "studio"
+end
+
+-- Het profiel plus het slot, zoals het in de DataStore terechtkomt. De slotvelden zitten
+-- bewust NIET in Profile: dan kan Profiles.view ze ook niet per ongeluk doorsturen.
+local function metSlot(p: Profile, vasthouden: boolean): any
+	local rec: any = table.clone(p :: any)
+	rec.updatedAt = os.time()
+	rec.lockJob = if vasthouden then jobId() else nil
+	rec.lockAt = if vasthouden then os.time() else nil
+	return rec
+end
+
 function Profiles.load(speler: Player): Profile
 	local id = speler.UserId
 	if levend[id] then return levend[id] end
-	local p = Profiles.fresh()
-	if store then
-		local ok, res = pcall(function()
-			return store:GetAsync(sleutel(id))
-		end)
-		if ok and res then
-			p = heel(res)
-		elseif not ok then
-			-- Kon niet lezen: speel verder op een vers profiel, maar sla NIET op, anders
-			-- overschrijven we straks iemands echte voortgang met een lege.
-			warn("profiel lezen mislukt voor " .. id .. ": " .. tostring(res))
-			bezig[id] = true
+
+	-- Wordt er al gelezen, dan wachten we daarop in plaats van een tweede lezing te
+	-- starten die de eerste zou overschrijven.
+	if laden[id] then
+		local tot = os.clock() + 30
+		while laden[id] and os.clock() < tot do
+			task.wait(0.1)
 		end
+		if levend[id] then return levend[id] end
 	end
+
+	-- Een nieuwe sessie van dezelfde speler op deze server begint met een schone lei.
+	verlaten[id] = nil
+	afgerond[id] = nil
+	bezig[id] = nil
+
+	local p = Profiles.fresh()
+	if not store then
+		levend[id] = p
+		return p
+	end
+
+	laden[id] = true
+
+	local mij = jobId()
+	local geclaimd = false
+	local geblokkeerd = false
+	for ronde = 1, 3 do
+		geblokkeerd = false
+		local ok, res = metHerhaling("profiel lezen voor " .. id, function()
+			return store:UpdateAsync(sleutel(id), function(oud: any): any
+				if not Profiles.slotVrij(oud, mij, os.time()) then
+					geblokkeerd = true
+					return nil
+				end
+				local nieuw = heel(oud)
+				return metSlot(nieuw, true)
+			end)
+		end)
+		if ok and not geblokkeerd then
+			p = heel(res)
+			geclaimd = true
+			break
+		end
+		if not ok then
+			-- Lezen lukte niet. Doorspelen op een vers profiel mag, opslaan niet: anders
+			-- wist deze sessie iemands echte voortgang.
+			bezig[id] = true
+			break
+		end
+		-- Een andere server heeft het profiel nog vast. Even wachten: normaal laat hij
+		-- los zodra zijn laatste save klaar is.
+		task.wait(3)
+	end
+	if geblokkeerd and not geclaimd then
+		warn("[Profiles] " .. id .. " staat nog open op een andere server; deze sessie slaat niet op")
+		bezig[id] = true
+	end
+
+	laden[id] = nil
+	if verlaten[id] or speler.Parent ~= Players then
+		-- Vertrokken terwijl we aan het lezen waren. Niet in `levend` zetten, anders
+		-- blijft er een profiel hangen dat nooit meer wordt losgelaten en dat bij een
+		-- herstart van dezelfde speler als "al geladen" wordt teruggegeven.
+		verlaten[id] = nil
+		bezig[id] = nil
+		if geclaimd then
+			metHerhaling("slot teruggeven voor " .. id, function()
+				return store:UpdateAsync(sleutel(id), function(oud: any): any
+					if typeof(oud) ~= "table" then return nil end
+					oud.lockJob = nil
+					oud.lockAt = nil
+					return oud
+				end)
+			end)
+		end
+		return p
+	end
+
 	levend[id] = p
 	return p
 end
@@ -149,24 +276,57 @@ function Profiles.get(speler: Player): Profile?
 	return levend[speler.UserId]
 end
 
-function Profiles.save(speler: Player): ()
+-- `vrijgeven` betekent: dit was de laatste schrijfbeurt, het slot mag los.
+local function schrijf(speler: Player, vrijgeven: boolean): ()
 	local id = speler.UserId
 	local p = levend[id]
 	if not p or not store then return end
 	if bezig[id] then return end   -- lezen was mislukt; niets overschrijven
-	p.updatedAt = os.time()
-	local ok, err = pcall(function()
-		store:SetAsync(sleutel(id), p)
+	local mij = jobId()
+	metHerhaling("profiel opslaan voor " .. id, function()
+		return store:UpdateAsync(sleutel(id), function(oud: any): any
+			-- Heeft een andere server het slot intussen overgenomen, dan is zijn versie
+			-- de jongste en laten we die met rust.
+			if typeof(oud) == "table" then
+				local job = oud.lockJob
+				if typeof(job) == "string" and job ~= "" and job ~= mij then return nil end
+			end
+			return metSlot(p, not vrijgeven)
+		end)
 	end)
-	if not ok then
-		warn("profiel opslaan mislukt voor " .. id .. ": " .. tostring(err))
+end
+
+function Profiles.save(speler: Player): ()
+	schrijf(speler, false)
+end
+
+-- De hele afsluiting op een plek: eerst de haakjes (die een openstaande inzet
+-- teruggeven), dan pas opslaan. Andersom verdwijnt het geld, want dan is het saldo al
+-- weggeschreven voordat de teruggave erin staat.
+function Profiles.finish(speler: Player): ()
+	local id = speler.UserId
+	if afgerond[id] then return end
+	afgerond[id] = true
+	if laden[id] then
+		-- Nog aan het lezen: de lezing zelf ruimt straks op.
+		verlaten[id] = true
+		return
 	end
+	for _, f in haken do
+		local ok, err = pcall(function(): any
+			f(speler)
+			return nil
+		end)
+		if not ok then warn("[Profiles] opruimen mislukt voor " .. id .. ": " .. tostring(err)) end
+	end
+	schrijf(speler, true)
+	levend[id] = nil
+	bezig[id] = nil
+	verlaten[id] = nil
 end
 
 function Profiles.release(speler: Player): ()
-	Profiles.save(speler)
-	levend[speler.UserId] = nil
-	bezig[speler.UserId] = nil
+	Profiles.finish(speler)
 end
 
 -- ---------- geld ----------
@@ -175,6 +335,9 @@ end
 function Profiles.take(speler: Player, bedrag: number): boolean
 	local p = levend[speler.UserId]
 	if not p then return false end
+	-- NaN en oneindig komen hier nooit langs. Een saldo dat eenmaal NaN is, is dat voor
+	-- altijd: elke som ermee wordt weer NaN, en JSON kan het niet eens opslaan.
+	if bedrag ~= bedrag or bedrag == math.huge then return false end
 	if bedrag <= 0 then return false end
 	if p.balance + 1e-9 < bedrag then return false end
 	p.balance = Money.round2(p.balance - bedrag)
@@ -184,6 +347,7 @@ end
 function Profiles.give(speler: Player, bedrag: number): ()
 	local p = levend[speler.UserId]
 	if not p or bedrag <= 0 then return end
+	if bedrag ~= bedrag or bedrag == math.huge then return end
 	p.balance = Money.round2(p.balance + bedrag)
 end
 
@@ -215,12 +379,34 @@ function Profiles.view(speler: Player): Profile?
 end
 
 Players.PlayerRemoving:Connect(function(speler)
-	Profiles.release(speler)
+	Profiles.finish(speler)
 end)
 
+-- Bij het sluiten van de server staat er vaak nog van alles open. Dezelfde afsluiting als
+-- bij weggaan, en naast elkaar: Roblox geeft hier maar een halve minuut voor.
 game:BindToClose(function()
+	local bezigMet = 0
 	for _, speler in Players:GetPlayers() do
-		Profiles.save(speler)
+		bezigMet += 1
+		task.spawn(function()
+			Profiles.finish(speler)
+			bezigMet -= 1
+		end)
+	end
+	local tot = os.clock() + 25
+	while bezigMet > 0 and os.clock() < tot do
+		task.wait(0.1)
+	end
+end)
+
+-- Tussentijds opslaan. Gaat er iets mis met de laatste schrijfbeurt, dan kost dat
+-- minuten in plaats van een hele sessie.
+task.spawn(function()
+	while true do
+		task.wait(AUTOSAVE)
+		for _, speler in Players:GetPlayers() do
+			if levend[speler.UserId] then Profiles.save(speler) end
+		end
 	end
 end)
 

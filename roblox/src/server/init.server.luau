@@ -24,11 +24,10 @@ Players.PlayerAdded:Connect(function(speler)
 	stuurProfiel(speler)
 end)
 
-Players.PlayerRemoving:Connect(function(speler)
-	-- Een openstaande ronde krijgt zijn inzet terug voordat het profiel wordt bewaard.
-	Multi.refund(speler)
-	Games.refund(speler)
-end)
+-- Weggaan wordt niet hier afgehandeld. Games en Multi hangen hun teruggave als haakje
+-- aan Profiles, en Profiles draait die haakjes zelf af voordat het profiel wordt
+-- opgeslagen. Met twee losse PlayerRemoving-verbindingen hing dat af van de volgorde
+-- waarin ze toevallig gemaakt zijn, en verdween de inzet als het profiel eerst weg was.
 
 for _, speler in Players:GetPlayers() do
 	Profiles.load(speler)

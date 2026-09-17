@@ -25,7 +25,6 @@ type Open = {
 	level: number?,
 	-- mines
 	grid: { boolean }?,
-	picked: { number }?,
 	mines: number?,
 	-- bus
 	deck: { Odds.Card }?,
@@ -50,6 +49,8 @@ function Games.openOf(speler: Player): Open?
 end
 
 -- Wat er nog in het spel zit als een speler weggaat: teruggeven, niet laten verdampen.
+-- Profiles roept dit zelf aan, vlak voor het opslaan; zo staat de teruggave gegarandeerd
+-- in het saldo dat wordt weggeschreven.
 function Games.refund(speler: Player): ()
 	local o = open[speler.UserId]
 	if not o then return end
@@ -85,9 +86,10 @@ function Games.roulette(speler: Player, inzetten: any): any
 	local schoon: { { key: string, bet: number } } = {}
 	for key, bedrag in inzetten do
 		if typeof(key) ~= "string" then continue end
-		local b = tonumber(bedrag)
-		if not b or b < Money.MIN_BET then continue end
-		b = Money.floor2(b)
+		-- Door dezelfde zeef als een enkele inzet: die vangt NaN en oneindig af, wat een
+		-- gewone `b < MIN_BET` nooit doet.
+		local b = Money.cleanAmount(bedrag)
+		if not b then continue end
 		totaal += b
 		table.insert(schoon, { key = key, bet = b })
 	end
@@ -148,10 +150,12 @@ end
 function Games.scratchReveal(speler: Player, index: any): any
 	local o = open[speler.UserId]
 	if not o or o.game ~= "scratch" then return { ok = false, err = "geen lot" } end
-	local i = tonumber(index)
 	local cells = o.cells :: { string }
 	local revealed = o.revealed :: { boolean }
-	if not i or i < 1 or i > #cells or revealed[i] then return { ok = false, err = "dat vakje niet" } end
+	-- Een heel getal binnen het rooster, anders niet. revealed[1.5] leest nil en
+	-- revealed[NaN] = true laat de RemoteFunction klappen.
+	local i = Money.cleanIndex(index, 1, #cells)
+	if not i or revealed[i] then return { ok = false, err = "dat vakje niet" } end
 	revealed[i] = true
 
 	local allesOpen = true
@@ -208,10 +212,9 @@ function Games.horse(speler: Player, inzetten: any): any
 	local totaal = 0
 	local schoon: { { i: number, bet: number } } = {}
 	for i, bedrag in inzetten do
-		local idx = tonumber(i)
-		local b = tonumber(bedrag)
-		if not idx or not b or idx < 1 or idx > #Odds.HORSES or b < Money.MIN_BET then continue end
-		b = Money.floor2(b)
+		local idx = Money.cleanIndex(i, 1, #Odds.HORSES)
+		local b = Money.cleanAmount(bedrag)
+		if not idx or not b then continue end
 		totaal += b
 		table.insert(schoon, { i = idx, bet = b })
 	end
@@ -234,5 +237,7 @@ function Games.horse(speler: Player, inzetten: any): any
 		payout = uit, balance = p.balance,
 	}
 end
+
+Profiles.onLeave(Games.refund)
 
 return Games
