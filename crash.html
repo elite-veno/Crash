@@ -4876,7 +4876,7 @@ function bjRender() {
   const pv = ODDS.bjValue(BJ.player), dv = ODDS.bjValue(BJ.dealer);
   $('bjPlayerVal').textContent = BJ.player.length ? (pv.soft && pv.total <= 21 ? `${pv.total - 10}/${pv.total}` : pv.total) : '—';
   $('bjDealerVal').textContent = BJ.dealer.length ? (hideHole ? ODDS.bjValue([BJ.dealer[0]]).total : dv.total) : '—';
-  $('bjBetLabel').textContent = BJ.bet ? `· STAKE $${fmt(BJ.bet)}` : '';
+  $('bjBetLabel').textContent = BJ.bet ? '\u00b7 STAKE $' + fmt(BJ.bet) + (BJ.doubled ? ' (DOUBLED)' : '') : '';
 
   if (MBJ.on) {
     // Aan de gedeelde tafel bepaalt de klok van de server wat er mag, niet de eigen fase.
@@ -4941,6 +4941,9 @@ function bjDouble() {
   if (!extra) return;
   BJ.bet = round2(BJ.bet + extra);
   BJ.doubled = true;
+  // Zeg het hardop. Zonder dit verandert alleen het kleine label naast je hand en kun je
+  // achteraf niet zien of de verdubbeling is aangekomen of stil geweigerd werd.
+  flash(`DOUBLED \u00b7 STAKE $${fmt(BJ.bet)}`, 'gold', 'blackjackToasts');
   BJ.player.push(bjDraw());
   bjRender();
   saveState();
@@ -4978,20 +4981,26 @@ function bjFinish() {
   recordRound('blackjack', BJ.bet, ret, mult);
   const p = ODDS.bjValue(BJ.player).total, d = ODDS.bjValue(BJ.dealer).total;
   const pBJ = ODDS.bjIsBlackjack(BJ.player), dBJ = ODDS.bjIsBlackjack(BJ.dealer);
+  // Bij een verdubbelde hand erbij zetten dat het over de dubbele inzet gaat: anders is
+  // '+$200' niet te onderscheiden van een gewone winst op een inzet van 200.
+  const dbl = BJ.doubled ? ' (DOUBLED)' : '';
   let msg, cls;
   if (pBJ && dBJ) { msg = 'BOTH BLACKJACK · PUSH'; cls = 'push'; }
   else if (pBJ) { msg = `BLACKJACK! +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
-  else if (dBJ) { msg = 'DEALER BLACKJACK'; cls = 'lose'; }
-  else if (p > 21) { msg = 'BUST'; cls = 'lose'; }
-  else if (d > 21) { msg = `DEALER BUST · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
-  else if (mult === 2) { msg = `WON · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
-  else if (mult === 1) { msg = 'PUSH · STAKE RETURNED'; cls = 'push'; }
-  else { msg = `LOST · -$${fmt(BJ.bet)}`; cls = 'lose'; }
+  else if (dBJ) { msg = `DEALER BLACKJACK${dbl}`; cls = 'lose'; }
+  else if (p > 21) { msg = `BUST${dbl}`; cls = 'lose'; }
+  else if (d > 21) { msg = `DEALER BUST${dbl} · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
+  else if (mult === 2) { msg = `WON${dbl} · +$${fmt(ret - BJ.bet)}`; cls = 'win'; }
+  else if (mult === 1) { msg = `PUSH${dbl} · STAKE RETURNED`; cls = 'push'; }
+  else { msg = `LOST${dbl} · -$${fmt(BJ.bet)}`; cls = 'lose'; }
   bjMessage(msg, cls);
   bjRender();
   const wager = BJ.bet;
   BJ.bet = 0;
-  $('bjBetLabel').textContent = `· STAKE $${fmt(wager)}`;
+  // Het label hier rechtstreeks overschrijven wiste de vermelding dat er verdubbeld was.
+  // Dan staat er na afloop alleen 'STAKE $200', precies wat een gewone inzet van 200 ook
+  // toont, en is er geen spoor meer dat je verdubbeling iets heeft gedaan.
+  $('bjBetLabel').textContent = '\u00b7 STAKE $' + fmt(wager) + (BJ.lastDoubled ? ' (DOUBLED)' : '');
 }
 
 
@@ -5423,6 +5432,10 @@ async function mbjAct(move) {
     const d = await api('/rest/v1/rpc/bj_act', { method: 'POST', body: { p_move: move } });
     const b = Number(d && d.balance);
     if (Number.isFinite(b)) { state.balance = round2(b); renderBalance(); }
+    if (move === 'double') {
+      const st = round2(Number(me.amount) * 2);
+      flash(`DOUBLED \u00b7 STAKE $${fmt(st)}`, 'gold', 'blackjackToasts');
+    }
     await mbjPull();
   } catch (e) {
     flash(String(e.message || 'REFUSED').toUpperCase(), 'red', 'blackjackToasts');
