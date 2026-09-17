@@ -63,10 +63,12 @@ local function saldo(speler: Player): number
 	return if p then p.balance else 0
 end
 
-local function afrekenen(speler: Player, spel: string, inzet: number, uit: number, mult: number)
+-- `over` draagt wat alleen dit spel weet en wat de prestaties nodig hebben: hoe hoog je in
+-- de toren kwam, hoeveel mijnen er lagen, hoeveel calls je bij de bus haalde.
+local function afrekenen(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any)
 	open[speler.UserId] = nil
 	if uit > 0 then Profiles.give(speler, uit) end
-	Profiles.record(speler, spel, inzet, uit, mult)
+	Profiles.record(speler, spel, inzet, uit, mult, over)
 end
 
 -- ---------- Dragon Tower ----------
@@ -90,7 +92,7 @@ function Multi.towerPick(speler: Player, kolom: any): any
 	local rij = (o.layout :: { { boolean } })[niveau]
 	local veilig = rij[k]
 	if not veilig then
-		afrekenen(speler, "tower", o.bet, 0, 0)
+		afrekenen(speler, "tower", o.bet, 0, 0, { level = o.level, diff = o.diff })
 		return { ok = true, safe = false, row = rij, payout = 0, balance = saldo(speler) }
 	end
 
@@ -98,7 +100,7 @@ function Multi.towerPick(speler: Player, kolom: any): any
 	local mult = Odds.towerMultiplier(o.diff :: string, niveau)
 	if niveau >= Odds.TOWER_LEVELS then
 		local uit = Money.floor2(o.bet * mult)
-		afrekenen(speler, "tower", o.bet, uit, mult)
+		afrekenen(speler, "tower", o.bet, uit, mult, { level = niveau, diff = o.diff })
 		return { ok = true, safe = true, row = rij, done = true, mult = mult, payout = uit, balance = saldo(speler) }
 	end
 	return { ok = true, safe = true, level = niveau, mult = mult }
@@ -111,7 +113,7 @@ function Multi.towerCashOut(speler: Player): any
 	if niveau < 1 then return { ok = false, err = "nog niets gehaald" } end
 	local mult = Odds.towerMultiplier(o.diff :: string, niveau)
 	local uit = Money.floor2(o.bet * mult)
-	afrekenen(speler, "tower", o.bet, uit, mult)
+	afrekenen(speler, "tower", o.bet, uit, mult, { level = niveau, diff = o.diff })
 	return { ok = true, mult = mult, payout = uit, balance = saldo(speler) }
 end
 
@@ -138,7 +140,7 @@ function Multi.minesPick(speler: Player, tegel: any): any
 	if opened[i] then return { ok = false, err = "die tegel ligt al open" } end
 
 	if grid[i] then
-		afrekenen(speler, "mines", o.bet, 0, 0)
+		afrekenen(speler, "mines", o.bet, 0, 0, { mines = o.mines, cleared = o.picked })
 		return { ok = true, mine = true, grid = grid, payout = 0, balance = saldo(speler) }
 	end
 
@@ -149,7 +151,7 @@ function Multi.minesPick(speler: Player, tegel: any): any
 	local over = Odds.MINES_TILES - (o.mines :: number)
 	if gepakt >= over then
 		local uit = Money.floor2(o.bet * mult)
-		afrekenen(speler, "mines", o.bet, uit, mult)
+		afrekenen(speler, "mines", o.bet, uit, mult, { mines = o.mines, cleared = gepakt, perfect = true })
 		return { ok = true, mine = false, done = true, mult = mult, payout = uit, balance = saldo(speler) }
 	end
 	return { ok = true, mine = false, picked = gepakt, mult = mult }
@@ -162,7 +164,7 @@ function Multi.minesCashOut(speler: Player): any
 	if gepakt < 1 then return { ok = false, err = "nog niets gepakt" } end
 	local mult = Odds.minesMultiplier(o.mines :: number, gepakt)
 	local uit = Money.floor2(o.bet * mult)
-	afrekenen(speler, "mines", o.bet, uit, mult)
+	afrekenen(speler, "mines", o.bet, uit, mult, { mines = o.mines, cleared = gepakt })
 	return { ok = true, mult = mult, payout = uit, grid = o.grid, balance = saldo(speler) }
 end
 
@@ -183,6 +185,8 @@ local function busKansen(deck: { Odds.Card }, stap: number, shown: { Odds.Card }
 end
 
 function Multi.busStart(speler: Player, inzet: any): any
+	-- Ride the Bus zit achter de VIP-zone, net als 777.
+	if not Profiles.vipActive(speler) then return { ok = false, err = "vip pass required" } end
 	local bet, err = begin(speler, inzet)
 	if not bet then return { ok = false, err = err } end
 	local deck = Odds.bjNewShoe(1)
@@ -220,7 +224,7 @@ function Multi.busCall(speler: Player, keuze: any): any
 	o.step = stap
 
 	if not raak then
-		afrekenen(speler, "bus", o.bet, 0, 0)
+		afrekenen(speler, "bus", o.bet, 0, 0, { steps = stap - 1 })
 		return { ok = true, card = kaart, hit = false, payout = 0, balance = saldo(speler) }
 	end
 
@@ -229,7 +233,7 @@ function Multi.busCall(speler: Player, keuze: any): any
 	local mult = Odds.busMultiplier(prob)
 	if stap >= #Odds.BUS_STEPS then
 		local uit = Money.floor2(o.bet * mult)
-		afrekenen(speler, "bus", o.bet, uit, mult)
+		afrekenen(speler, "bus", o.bet, uit, mult, { steps = stap })
 		return { ok = true, card = kaart, hit = true, done = true, mult = mult, payout = uit, balance = saldo(speler) }
 	end
 	return {
@@ -244,7 +248,7 @@ function Multi.busCashOut(speler: Player): any
 	if (o.step :: number) < 1 then return { ok = false, err = "nog geen call gemaakt" } end
 	local mult = Odds.busMultiplier(o.prob :: number)
 	local uit = Money.floor2(o.bet * mult)
-	afrekenen(speler, "bus", o.bet, uit, mult)
+	afrekenen(speler, "bus", o.bet, uit, mult, { steps = o.step })
 	return { ok = true, mult = mult, payout = uit, balance = saldo(speler) }
 end
 

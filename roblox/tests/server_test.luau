@@ -98,6 +98,9 @@ end
 do
 	local w = wereld()
 	local s, p = meldEen(w)
+	-- De bus zit achter de VIP-zone; zonder pas begint er niets.
+	h.check("zonder pas geen bus", false, w.Multi.busStart(s, 50).ok)
+	p.vipSeason = w.Season.seasonId()
 	w.Multi.busStart(s, 50)
 	local o = w.Multi.get(s)
 
@@ -119,7 +122,8 @@ do
 	-- De client krijgt de kansen mee, zodat hij de onmogelijke knop grijs kan zetten.
 	local w2 = wereld()
 	local s2 = w2.speler(2, "Beer")
-	w2.Profiles.load(s2)
+	local p2 = w2.Profiles.load(s2)
+	p2.vipSeason = w2.Season.seasonId()
 	local start = w2.Multi.busStart(s2, 50)
 	h.check("bus geeft twee opties bij de start", 2, #start.options)
 	h.check("een optie draagt zijn kans mee", true, start.options[1].chance > 0)
@@ -209,7 +213,7 @@ do
 	local p = w.Profiles.load(s)
 	h.check("na twee mislukte pogingen is er toch gelezen", true, w.Profiles.get(s) ~= nil)
 	h.check("en dan wordt er wel opgeslagen", 1000, p.balance)
-	w.Games.slots(s, 10)
+	w.Games.wheel(s, 10)
 	w.vertrek(s)
 	h.check("de sessie is bewaard", true, w.store.data["speler_1"] ~= nil)
 end
@@ -219,7 +223,7 @@ do
 	w.store.kapot = 99   -- lezen lukt helemaal niet
 	local s = w.speler(1, "Aap")
 	w.Profiles.load(s)
-	w.Games.slots(s, 10)
+	w.Games.wheel(s, 10)
 	w.vertrek(s)
 	h.check("een profiel dat niet gelezen kon worden, wordt niet overschreven", nil, w.store.data["speler_1"])
 end
@@ -230,7 +234,7 @@ do
 	local a = wereld({ store = gedeeld, jobId = "server-A" })
 	local sa = a.speler(7, "Aap")
 	a.Profiles.load(sa)
-	a.Games.slots(sa, 100)
+	a.Games.wheel(sa, 100)
 	local saldoA = a.Profiles.get(sa).balance
 
 	-- Server B probeert dezelfde speler te laden terwijl A hem nog vasthoudt. Wat er op
@@ -239,7 +243,7 @@ do
 	local b = wereld({ store = gedeeld, jobId = "server-B" })
 	local sb = b.speler(7, "Aap")
 	b.Profiles.load(sb)
-	b.Games.slots(sb, 500)
+	b.Games.wheel(sb, 500)
 	b.vertrek(sb)
 	h.check("server B heeft niets overschreven", voorB, gedeeld.data["speler_7"].balance)
 	h.check("het slot is nog van A", "server-A", gedeeld.data["speler_7"].lockJob)

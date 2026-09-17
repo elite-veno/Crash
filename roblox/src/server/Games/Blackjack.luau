@@ -86,7 +86,10 @@ local function afrekenen(speler: Player, r: Ronde, dealerSpeelt: boolean): any
 	local uit = Money.floor2(inzet * factor)
 	open[speler.UserId] = nil
 	if uit > 0 then Profiles.give(speler, uit) end
-	Profiles.record(speler, "blackjack", inzet, uit, factor)
+	Profiles.record(speler, "blackjack", inzet, uit, factor, {
+		natural = Odds.bjIsBlackjack(r.speler),
+		doubled = r.doubled,
+	})
 
 	local spelerWaarde = (Odds.bjValue(r.speler))
 	local dealerWaarde = (Odds.bjValue(r.dealer))

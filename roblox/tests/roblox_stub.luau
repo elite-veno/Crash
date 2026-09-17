@@ -148,16 +148,24 @@ function Stub.wereld(opties)
 	local Odds = require("../src/shared/Odds")
 	local Money = require("../src/shared/Money")
 	local Sha256 = require("../src/shared/Sha256")
+	local SeasonMod = require("../src/shared/Season")
+	local AchMod = require("../src/shared/Achievements")
 	ReplicatedStorage.Shared.Odds = {}
 	ReplicatedStorage.Shared.Money = {}
 	ReplicatedStorage.Shared.Sha256 = {}
 	ReplicatedStorage.Shared.Net = {}
+	ReplicatedStorage.Shared.Season = {}
+	ReplicatedStorage.Shared.Achievements = {}
 	geladen[ReplicatedStorage.Shared.Odds] = Odds
 	geladen[ReplicatedStorage.Shared.Money] = Money
 	geladen[ReplicatedStorage.Shared.Sha256] = Sha256
+	geladen[ReplicatedStorage.Shared.Season] = SeasonMod
+	geladen[ReplicatedStorage.Shared.Achievements] = AchMod
 	w.Odds = Odds
 	w.Money = Money
 	w.Sha256 = Sha256
+	w.Season = SeasonMod
+	w.Achievements = AchMod
 
 	-- Een nagemaakte netwerklaag: geen echte RemoteEvents, wel een lijst van alles wat de
 	-- server naar de clients heeft geduwd. Daar is op na te rekenen wat er wel en niet in

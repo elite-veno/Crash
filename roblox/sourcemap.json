@@ -11,6 +11,13 @@
      "className": "Folder",
      "children": [
       {
+       "name": "Achievements",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Achievements/init.luau"
+       ]
+      },
+      {
        "name": "Money",
        "className": "ModuleScript",
        "filePaths": [
@@ -29,6 +36,13 @@
        "className": "ModuleScript",
        "filePaths": [
         "src/shared/Odds/init.luau"
+       ]
+      },
+      {
+       "name": "Season",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/shared/Season/init.luau"
        ]
       },
       {
@@ -103,6 +117,20 @@
        "filePaths": [
         "src/server/Profiles/init.luau"
        ]
+      },
+      {
+       "name": "Ranking",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Ranking/init.luau"
+       ]
+      },
+      {
+       "name": "Social",
+       "className": "ModuleScript",
+       "filePaths": [
+        "src/server/Social/init.luau"
+       ]
       }
      ]
     }
@@ -127,6 +155,13 @@
          "name": "Views",
          "className": "Folder",
          "children": [
+          {
+           "name": "Achievements",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Achievements.luau"
+           ]
+          },
           {
            "name": "Blackjack",
            "className": "ModuleScript",
@@ -153,6 +188,13 @@
            "className": "ModuleScript",
            "filePaths": [
             "src/client/Views/Crash.luau"
+           ]
+          },
+          {
+           "name": "Friends",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Friends.luau"
            ]
           },
           {
@@ -216,6 +258,13 @@
            "className": "ModuleScript",
            "filePaths": [
             "src/client/Views/Tower.luau"
+           ]
+          },
+          {
+           "name": "Vip",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Vip.luau"
            ]
           },
           {

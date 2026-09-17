@@ -11,8 +11,29 @@ local Games = require(script.Games)
 local Multi = require(script.Games.Multi)
 local Blackjack = require(script.Games.Blackjack)
 local Crash = require(script.Crash)
+local Ranking = require(script.Ranking)
+local Social = require(script.Social)
+local Season = require(ReplicatedStorage.Shared.Season)
+local Achievements = require(ReplicatedStorage.Shared.Achievements)
 
 Net.build()
+
+-- Profiles regelt het profiel en weet niets van ranglijsten of het netwerk; hier worden
+-- die draadjes aan elkaar geknoopt.
+Profiles.setPublisher(function(speler, sprint, winst)
+	Ranking.publish(speler, sprint, winst)
+end)
+Profiles.setPlaceLookup(function(sprint, userId)
+	return Ranking.placeOf(sprint, userId)
+end)
+Profiles.onUnlock(function(speler, ids)
+	for _, id in ids do
+		local a = Achievements.BY_ID[id]
+		if a then
+			Net.ev("Toast"):FireClient(speler, a.icon .. "  " .. string.upper(a.title), "gold")
+		end
+	end
+end)
 
 local function stuurProfiel(speler: Player)
 	local p = Profiles.view(speler)
@@ -46,12 +67,54 @@ Net.fn("GetProfile").OnServerInvoke = function(speler)
 	return Profiles.view(speler)
 end
 
+-- De ranglijst van de lopende sprint, plus waar deze speler zelf staat.
+Net.fn("Leaderboard").OnServerInvoke = function(speler, welke)
+	local sprint = if welke == "previous" then Season.sprintId() - 1 else Season.sprintId()
+	local p = Profiles.get(speler)
+	return {
+		ok = true,
+		sprint = sprint,
+		label = Season.sprintLabel(sprint),
+		endsAt = Season.sprintEndsAt(sprint),
+		seasonEndsAt = Season.seasonEndsAt(Season.seasonId()),
+		sprintsLeft = Season.sprintsLeft(),
+		now = os.time(),
+		top = Ranking.top(sprint, 25),
+		mine = if p then p.sprintProfit else 0,
+		vipActive = Profiles.vipActive(speler),
+	}
+end
+
+-- Vrienden en tafels. Roblox kent de vrienden al en heeft al privéservers; die worden
+-- gebruikt in plaats van er een eigen, slechtere versie naast te zetten.
+Net.fn("Friends").OnServerInvoke = function(speler, actie, gegevens)
+	if actie == "list" then
+		return { ok = true, friends = Social.friends(speler), here = Social.here() }
+	elseif actie == "reserve" then
+		return Social.reserve(speler)
+	elseif actie == "join" then
+		return Social.join(speler, gegevens)
+	elseif actie == "quick" then
+		return Social.quick(speler)
+	end
+	return { ok = false, err = "onbekende actie" }
+end
+
+-- De drie badges die een speler aan anderen laat zien.
+Net.fn("SetFeatured").OnServerInvoke = function(speler, lijst)
+	local ok = Profiles.setFeatured(speler, lijst)
+	stuurProfiel(speler)
+	return { ok = ok }
+end
+
 -- De stand van de gedeelde crashronde, voor een speler die er net binnenkomt.
 Net.fn("RoundState").OnServerInvoke = function(_speler, spel)
 	if spel == "crash" then return Crash.state() end
 	return { ok = false, err = "geen gedeelde tafel" }
 end
 
+-- De VIP-poort staat bij de spellen zelf (Games.slots en Multi.busStart), niet hier: zo kan
+-- geen enkele route eromheen, ook geen die er later bij komt.
 Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
 	local uit
 	if spel == "roulette" then uit = Games.roulette(speler, inzet)

@@ -68,9 +68,10 @@ local function start(speler: Player, spel: string, inzet: any): (number?, string
 	return bet, nil
 end
 
-local function settle(speler: Player, spel: string, inzet: number, uit: number, mult: number): ()
+-- `over` draagt wat alleen dit spel weet en wat de prestaties nodig hebben.
+local function settle(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any): ()
 	if uit > 0 then Profiles.give(speler, uit) end
-	Profiles.record(speler, spel, inzet, uit, mult)
+	Profiles.record(speler, spel, inzet, uit, mult, over)
 end
 
 -- ---------- spellen in één beurt ----------
@@ -99,11 +100,16 @@ function Games.roulette(speler: Player, inzetten: any): any
 
 	local n = Odds.ROULETTE_ORDER[rng:NextInteger(1, #Odds.ROULETTE_ORDER)]
 	local uit = 0
+	local losNummer = false
 	for _, s in schoon do
-		uit += s.bet * Odds.roulettePayout(s.key, n)
+		local factor = Odds.roulettePayout(s.key, n)
+		uit += s.bet * factor
+		-- Winnen op een los nummer telt voor een prestatie; dat is de enige inzet met
+		-- een sleutel die met "n:" begint.
+		if factor > 0 and string.sub(s.key, 1, 2) == "n:" then losNummer = true end
 	end
 	uit = Money.floor2(uit)
-	settle(speler, "roulette", totaal, uit, if uit > 0 then uit / totaal else 0)
+	settle(speler, "roulette", totaal, uit, if uit > 0 then uit / totaal else 0, { straight = losNummer })
 	return { ok = true, number = n, color = Odds.rouletteColor(n), payout = uit, balance = p.balance }
 end
 
@@ -181,6 +187,9 @@ function Games.scratchReveal(speler: Player, index: any): any
 end
 
 function Games.slots(speler: Player, inzet: any): any
+	-- 777 zit achter de VIP-zone. Die controle staat hier, bij het spel zelf, en niet bij
+	-- de ingang: dan kan geen enkele latere route eromheen.
+	if not Profiles.vipActive(speler) then return { ok = false, err = "vip pass required" } end
 	local bet, err = start(speler, "slots", inzet)
 	if not bet then return { ok = false, err = err } end
 	local idx = Odds.slotDraw()

@@ -64,7 +64,7 @@ bash tools/run_tests.sh
 ```
 
 Typecheckt elk bestand tegen de echte Roblox-API en draait daarna elke
-`tests/*_test.luau` — samen bijna duizend beweringen. De wiskunde in `src/shared/Odds`
+`tests/*_test.luau` — samen ruim achttienhonderd beweringen. De wiskunde in `src/shared/Odds`
 gebruikt met opzet geen enkel Roblox-type, juist zodat dit kan.
 
 De serverbestanden gebruiken die types wel, en worden toch getest: `tools/bundle_server.py`
@@ -85,9 +85,9 @@ uitkomen, weggaan met een ronde open, en twee servers die dezelfde speler willen
 | 3 | netwerklaag en geldregels | af |
 | 4 | profiel op DataStore, spellen in een beurt | af, met slot en herhaling |
 | 5 | de elf spellen, serverzijdig | alle elf af |
-| 3b | de schermen | alle elf spellen; profiel, VIP, vrienden volgen |
-| 6 | seizoenen, VIP, prestaties | volgt |
-| 7 | vrienden, lobby's, gedeelde tafels | volgt |
+| 3b | de schermen | alle zestien af |
+| 6 | seizoenen, VIP, prestaties | af, 34 prestaties en de ranglijst |
+| 7 | vrienden, lobby's, gedeelde tafels | af, via Roblox' eigen vrienden en privéservers |
 | 8 | review met agents | ronde 1 verwerkt (19 bevindingen) |
 
 Het volledige plan staat in `PLAN.md`.

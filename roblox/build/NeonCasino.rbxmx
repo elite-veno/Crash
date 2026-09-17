@@ -11,6 +11,246 @@
 			</Properties>
 			<Item class="ModuleScript" referent="RBX3">
 				<Properties>
+					<string name="Name">Achievements</string>
+					<ProtectedString name="Source">--!strict
+-- De prestaties, één op één uit de webversie. Elke prestatie kijkt naar de stand van een
+-- speler; de server beslist wanneer er eentje opengaat, niet de client.
+--
+-- `extra` is het boekje naast de statistieken: reeksen, records per spel, en de paar
+-- gebeurtenissen die je anders niet uit de totalen kunt aflezen (een gewonnen dubbele hand
+-- bijvoorbeeld). Alles hier is puur rekenwerk, dus buiten Studio te bewijzen.
+local Achievements = {}
+
+export type Extra = {
+	streak: number,
+	bestStreak: number,
+	bigWin: number,
+	crashAbove2: number,
+	rouletteStraight: boolean,
+	towerLevel: number,
+	towerMaster: boolean,
+	minesMines: number,
+	minesPerfect: boolean,
+	bjNatural: boolean,
+	bjDouble: boolean,
+	horseStreak: number,
+	comeback: boolean,
+	busFull: boolean,
+	wasBroke: boolean,
+	max: { [string]: number },
+	maxWinPer: { [string]: number },
+}
+
+export type Stand = {
+	balance: number,
+	rounds: number,
+	won: number,
+	stats: { [string]: { rounds: number, won: number } },
+	extra: Extra,
+	vipSeason: number?,
+	title: string?,
+}
+
+export type Prestatie = {
+	id: string,
+	icon: string,
+	tier: string,
+	title: string,
+	desc: string,
+	test: (Stand) -&gt; boolean,
+}
+
+-- De negen spellen die iedereen kan spelen; 777 en de bus zitten achter de VIP-zone en
+-- tellen daarom niet mee voor "speel elke stand een keer".
+Achievements.BASE_GAMES = {"crash", "roulette", "tower", "mines", "plinko", "blackjack", "horse", "scratch", "wheel"}
+
+local function max(s: Stand, spel: string): number
+	return s.extra.max[spel] or 0
+end
+
+local function winst(s: Stand, spel: string): number
+	return s.extra.maxWinPer[spel] or 0
+end
+
+local function rondes(s: Stand, spel: string): number
+	local g = s.stats[spel]
+	return if g then g.rounds else 0
+end
+
+local function gewonnen(s: Stand, spel: string): number
+	local g = s.stats[spel]
+	return if g then g.won else 0
+end
+
+Achievements.LIST = {
+	{ id = "first_bet", icon = "\u{1F3B2}", tier = "bronze", title = "First bet", desc = "Play your first round",
+	  test = function(s) return s.rounds &gt;= 1 end },
+	{ id = "first_win", icon = "\u{1F4B5}", tier = "bronze", title = "First win", desc = "Win a round",
+	  test = function(s) return s.won &gt;= 1 end },
+	{ id = "rounds_50", icon = "\u{1F550}", tier = "bronze", title = "Regular", desc = "Play 50 rounds",
+	  test = function(s) return s.rounds &gt;= 50 end },
+	{ id = "rounds_250", icon = "\u{1F3DB}", tier = "silver", title = "Fixture", desc = "Play 250 rounds",
+	  test = function(s) return s.rounds &gt;= 250 end },
+	{ id = "all_games", icon = "\u{1F3A0}", tier = "silver", title = "Allrounder", desc = "Play every mode at least once",
+	  test = function(s)
+		for _, g in Achievements.BASE_GAMES do
+			if rondes(s, g) &lt; 1 then return false end
+		end
+		return true
+	  end },
+	{ id = "streak_5", icon = "\u{1F4C8}", tier = "bronze", title = "On a roll", desc = "Win five rounds in a row",
+	  test = function(s) return s.extra.bestStreak &gt;= 5 end },
+	{ id = "streak_10", icon = "\u{1F680}", tier = "gold", title = "Untouchable", desc = "Win ten rounds in a row",
+	  test = function(s) return s.extra.bestStreak &gt;= 10 end },
+	{ id = "balance_2500", icon = "\u{1F4B0}", tier = "bronze", title = "Well off", desc = "Reach a balance of $2,500",
+	  test = function(s) return s.balance &gt;= 2500 end },
+	{ id = "balance_10k", icon = "\u{1F3E6}", tier = "gold", title = "Fortune", desc = "Reach a balance of $10,000",
+	  test = function(s) return s.balance &gt;= 10000 end },
+	{ id = "big_win_500", icon = "\u{1F48E}", tier = "silver", title = "Big hit", desc = "Win $500 or more in one round",
+	  test = function(s) return s.extra.bigWin &gt;= 500 end },
+	{ id = "comeback", icon = "\u{1F504}", tier = "silver", title = "Comeback", desc = "Go from under $50 back above $1,000",
+	  test = function(s) return s.extra.comeback end },
+	{ id = "crash_5x", icon = "\u{2708}", tier = "bronze", title = "High flyer", desc = "Cash out at 5x or higher in Crash",
+	  test = function(s) return max(s, "crash") &gt;= 5 end },
+	{ id = "crash_20x", icon = "\u{1F6F0}", tier = "gold", title = "Stratosphere", desc = "Cash out at 20x or higher in Crash",
+	  test = function(s) return max(s, "crash") &gt;= 20 end },
+	{ id = "crash_cool", icon = "\u{1F9CA}", tier = "silver", title = "Cool head", desc = "Cash out above 2x ten times in Crash",
+	  test = function(s) return s.extra.crashAbove2 &gt;= 10 end },
+	{ id = "rl_straight", icon = "\u{1F3AF}", tier = "gold", title = "Straight up", desc = "Win on a straight number bet",
+	  test = function(s) return s.extra.rouletteStraight end },
+	{ id = "rl_500", icon = "\u{1FA99}", tier = "silver", title = "Table master", desc = "Win $500 or more on one spin",
+	  test = function(s) return winst(s, "roulette") &gt;= 500 end },
+	{ id = "tw_top", icon = "\u{1F5FC}", tier = "silver", title = "Tower keeper", desc = "Reach the ninth floor",
+	  test = function(s) return s.extra.towerLevel &gt;= 9 end },
+	{ id = "tw_master", icon = "\u{1F409}", tier = "gold", title = "Dragon tamer", desc = "Cash out on master in the Dragon Tower",
+	  test = function(s) return s.extra.towerMaster end },
+	{ id = "mn_10", icon = "\u{26CF}", tier = "silver", title = "Miner", desc = "Cash out with ten mines on the field",
+	  test = function(s) return s.extra.minesMines &gt;= 10 end },
+	{ id = "mn_perfect", icon = "\u{1F9E8}", tier = "gold", title = "Bomb squad", desc = "Clear a whole field with five mines on it",
+	  test = function(s) return s.extra.minesPerfect end },
+	{ id = "pk_50", icon = "\u{1F53B}", tier = "silver", title = "Bouncer", desc = "Hit a 50x or better slot in Plinko",
+	  test = function(s) return max(s, "plinko") &gt;= 50 end },
+	{ id = "pk_500", icon = "\u{1F3B0}", tier = "gold", title = "Jackpot", desc = "Hit a 500x or better slot in Plinko",
+	  test = function(s) return max(s, "plinko") &gt;= 500 end },
+	{ id = "bj_natural", icon = "\u{1F0CF}", tier = "bronze", title = "Blackjack!", desc = "Win a hand with a blackjack",
+	  test = function(s) return s.extra.bjNatural end },
+	{ id = "bj_double", icon = "\u{270C}", tier = "silver", title = "Nerve", desc = "Win a doubled hand",
+	  test = function(s) return s.extra.bjDouble end },
+	{ id = "hr_outsider", icon = "\u{1F40E}", tier = "gold", title = "Longshot", desc = "Win a race on a horse paying 8x or more",
+	  test = function(s) return max(s, "horse") &gt;= 8 end },
+	{ id = "hr_triple", icon = "\u{1F3C7}", tier = "silver", title = "Stable master", desc = "Win three races in a row",
+	  test = function(s) return s.extra.horseStreak &gt;= 3 end },
+	{ id = "sc_win", icon = "\u{1F39F}", tier = "bronze", title = "Scratched a prize", desc = "Win on a scratch card",
+	  test = function(s) return gewonnen(s, "scratch") &gt;= 1 end },
+	{ id = "sc_diamond", icon = "\u{1F48E}", tier = "gold", title = "Three diamonds", desc = "Scratch open three diamonds (50x)",
+	  test = function(s) return max(s, "scratch") &gt;= 50 end },
+	{ id = "wh_top", icon = "\u{1F3A1}", tier = "gold", title = "Wheel topper", desc = "Hit the 10x segment on the wheel",
+	  test = function(s) return max(s, "wheel") &gt;= 10 end },
+	{ id = "vip_zone", icon = "\u{1F511}", tier = "gold", title = "Key to the zone", desc = "Finish a sprint at #1 and enter the VIP zone",
+	  test = function(s) return s.vipSeason ~= nil end },
+	{ id = "sl_777", icon = "\u{0037}\u{FE0F}\u{20E3}", tier = "gold", title = "Three sevens", desc = "Spin 777 in the VIP zone (40x)",
+	  test = function(s) return max(s, "slots") &gt;= 40 end },
+	{ id = "bus_ride", icon = "\u{1F68C}", tier = "silver", title = "All aboard", desc = "Win a ride in Ride the Bus",
+	  test = function(s) return gewonnen(s, "bus") &gt;= 1 end },
+	{ id = "bus_full", icon = "\u{1F3AB}", tier = "gold", title = "The full ride", desc = "Make all four calls in Ride the Bus",
+	  test = function(s) return s.extra.busFull end },
+	{ id = "season_pod", icon = "\u{1F3C6}", tier = "gold", title = "On the podium", desc = "Finish a sprint in the top three",
+	  test = function(s) return s.title ~= nil and s.title ~= "" end },
+} :: { Prestatie }
+
+Achievements.BY_ID = {} :: { [string]: Prestatie }
+for _, a in Achievements.LIST do
+	Achievements.BY_ID[a.id] = a
+end
+
+function Achievements.fresh(): Extra
+	return {
+		streak = 0, bestStreak = 0, bigWin = 0, crashAbove2 = 0, rouletteStraight = false,
+		towerLevel = 0, towerMaster = false, minesMines = 0, minesPerfect = false,
+		bjNatural = false, bjDouble = false, horseStreak = 0, comeback = false,
+		busFull = false, wasBroke = false, max = {}, maxWinPer = {},
+	}
+end
+
+-- Wat er van een ronde onthouden moet worden. De server vult dit; de client komt er niet aan.
+export type Ronde = {
+	game: string,
+	wager: number,
+	payout: number,
+	mult: number?,
+	straight: boolean?,   -- roulette: gewonnen op een los nummer
+	level: number?,       -- tower: hoe hoog
+	diff: string?,        -- tower: op welke stand
+	mines: number?,       -- mines: hoeveel mijnen er lagen
+	cleared: number?,     -- mines: hoeveel tegels open
+	perfect: boolean?,    -- mines: het hele veld leeg
+	natural: boolean?,    -- blackjack
+	doubled: boolean?,    -- blackjack
+	steps: number?,       -- bus: hoeveel calls gehaald
+}
+
+local function hoogste(t: { [string]: number }, sleutel: string, waarde: number)
+	if waarde &gt; (t[sleutel] or 0) then t[sleutel] = waarde end
+end
+
+-- Een afgelopen ronde in het boekje verwerken. Dit past `extra` aan en geeft hem terug.
+function Achievements.record(e: Extra, r: Ronde, saldoNa: number): Extra
+	local netto = math.floor((r.payout - r.wager) * 100 + 0.5) / 100
+
+	if r.payout &gt; r.wager then
+		e.streak += 1
+		if e.streak &gt; e.bestStreak then e.bestStreak = e.streak end
+		if netto &gt; e.bigWin then e.bigWin = netto end
+		hoogste(e.max, r.game, r.mult or 0)
+		hoogste(e.maxWinPer, r.game, netto)
+		if r.game == "horse" then e.horseStreak += 1 end
+		if r.game == "crash" and (r.mult or 0) &gt;= 2 then e.crashAbove2 += 1 end
+		if r.game == "roulette" and r.straight then e.rouletteStraight = true end
+		if r.game == "blackjack" then
+			if r.natural then e.bjNatural = true end
+			if r.doubled then e.bjDouble = true end
+		end
+		if r.game == "bus" and (r.steps or 0) &gt;= 4 then e.busFull = true end
+	else
+		e.streak = 0
+		if r.game == "horse" then e.horseStreak = 0 end
+	end
+
+	-- Deze twee tellen ook als de ronde verloren is: hoe hoog je kwam in de toren, en
+	-- hoeveel mijnen er op het veld lagen, zegt iets over het risico dat je nam.
+	if r.game == "tower" then
+		if (r.level or 0) &gt; e.towerLevel then e.towerLevel = r.level :: number end
+		if r.diff == "master" and r.payout &gt; r.wager then e.towerMaster = true end
+	end
+	if r.game == "mines" and r.payout &gt; r.wager then
+		if (r.mines or 0) &gt; e.minesMines then e.minesMines = r.mines :: number end
+		if r.perfect and (r.mines or 0) &gt;= 5 and (r.cleared or 0) &gt;= 5 then e.minesPerfect = true end
+	end
+
+	-- De comeback: onder de vijftig gezeten hebben en daarna weer boven de duizend komen.
+	if saldoNa &lt; 50 then e.wasBroke = true end
+	if e.wasBroke and saldoNa &gt; 1000 then e.comeback = true end
+	return e
+end
+
+-- Welke prestaties nu open zouden moeten staan en dat nog niet doen.
+function Achievements.check(s: Stand, open: { [string]: number }): { string }
+	local nieuw: { string } = {}
+	for _, a in Achievements.LIST do
+		if not open[a.id] then
+			local ok, uit = pcall(a.test, s)
+			if ok and uit then table.insert(nieuw, a.id) end
+		end
+	end
+	return nieuw
+end
+
+return Achievements
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX4">
+				<Properties>
 					<string name="Name">Money</string>
 					<ProtectedString name="Source">--!strict
 -- Bedragen. In de webversie is dit round2/floor2 door de hele code heen; hier staat het
@@ -70,7 +310,7 @@ return Money
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX4">
+			<Item class="ModuleScript" referent="RBX5">
 				<Properties>
 					<string name="Name">Net</string>
 					<ProtectedString name="Source">--!strict
@@ -180,7 +420,7 @@ return Net
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX5">
+			<Item class="ModuleScript" referent="RBX6">
 				<Properties>
 					<string name="Name">Odds</string>
 					<ProtectedString name="Source">--!strict
@@ -710,7 +950,130 @@ return Odds
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX6">
+			<Item class="ModuleScript" referent="RBX7">
+				<Properties>
+					<string name="Name">Season</string>
+					<ProtectedString name="Source">--!strict
+-- Twee klokken naast elkaar, precies als in de webversie. Een SPRINT duurt drie dagen: daar
+-- wordt de ranglijst op gescoord, en wie hem wint krijgt een titel. Een SEIZOEN duurt twaalf
+-- dagen -- vier sprints -- en is hoe lang een VIP-pas geldig blijft.
+--
+-- Alles hier is rekenwerk op een tijdstempel, zonder Roblox-type erin. Daardoor is het te
+-- bewijzen zonder Studio, net als de kansen in Odds.
+local Season = {}
+
+Season.SPRINT_SECONDS = 3 * 24 * 3600
+Season.SEASON_SECONDS = 12 * 24 * 3600
+Season.SPRINTS_PER_SEASON = 4
+
+-- Wat elke plek in een sprint oplevert. Geen geld: een titel, en voor de winnaar een pas
+-- voor de VIP-zone tot het einde van het seizoen.
+Season.PRIZES = {"VIP PASS + TITLE", "TITLE", "TITLE"}
+
+-- De dag dat het casino openging (16 september 2026, UTC). De blokken worden vanaf het
+-- epoch geteld en zijn daardoor enorm; spelers zien het aantal sinds de opening.
+Season.OPENING = 1789516800   -- os.time van 2026-09-16 00:00 UTC
+
+function Season.sprintId(nu: number?): number
+	return math.floor((nu or os.time()) / Season.SPRINT_SECONDS)
+end
+
+function Season.seasonId(nu: number?): number
+	return math.floor((nu or os.time()) / Season.SEASON_SECONDS)
+end
+
+function Season.sprintEndsAt(id: number): number
+	return (id + 1) * Season.SPRINT_SECONDS
+end
+
+function Season.seasonEndsAt(id: number): number
+	return (id + 1) * Season.SEASON_SECONDS
+end
+
+local EERSTE = math.floor(Season.OPENING / Season.SEASON_SECONDS)
+
+function Season.seasonNoOf(sprint: number): number
+	return math.floor(sprint / Season.SPRINTS_PER_SEASON) - EERSTE + 1
+end
+
+function Season.sprintNoOf(sprint: number): number
+	return sprint - math.floor(sprint / Season.SPRINTS_PER_SEASON) * Season.SPRINTS_PER_SEASON + 1
+end
+
+function Season.seasonNo(nu: number?): number
+	return Season.seasonId(nu) - EERSTE + 1
+end
+
+function Season.sprintNo(nu: number?): number
+	return Season.sprintNoOf(Season.sprintId(nu))
+end
+
+-- Uitslagen van voor de opening zouden anders als seizoen 0 of lager gelezen worden.
+function Season.sprintLabel(sprint: number): string
+	local se = Season.seasonNoOf(sprint)
+	local kop = if se &gt;= 1 then "SEASON " .. se else "PRESEASON"
+	return kop .. " \u{00B7} SPRINT " .. Season.sprintNoOf(sprint)
+end
+
+-- Hoeveel sprints er nog in dit seizoen zitten, deze meegerekend.
+function Season.sprintsLeft(nu: number?): number
+	return Season.SPRINTS_PER_SEASON
+		- (Season.sprintId(nu) - Season.seasonId(nu) * Season.SPRINTS_PER_SEASON)
+end
+
+-- Een sprint winnen opent de zone op het moment dat die sprint afloopt, en hij blijft open
+-- tot het seizoen waar dat moment in valt voorbij is. Win je de laatste sprint van een
+-- seizoen, dan dekt de pas het seizoen dat begint -- nooit een dat al voorbij is.
+function Season.vipSeasonFor(sprint: number): number
+	return Season.seasonId((sprint + 1) * Season.SPRINT_SECONDS)
+end
+
+function Season.vipActive(vipSeason: number?, nu: number?): boolean
+	return vipSeason ~= nil and vipSeason == Season.seasonId(nu)
+end
+
+-- Wat er van een saldo overblijft als het seizoen omslaat: $1000 plus een tiende van wat
+-- je daarboven had. Naar beneden op de cent, nooit in het voordeel van de speler.
+function Season.balanceAfter(saldo: number): number
+	local b = math.floor(saldo * 100 + 0.5) / 100
+	local boven = math.max(0, b - 1000)
+	return math.floor((1000 + math.floor(boven * 0.10 * 100) / 100) * 100 + 0.5) / 100
+end
+
+-- "2d 5h 12m", of korter als er minder over is.
+function Season.countdown(tot: number, nu: number?): string
+	local over = math.max(0, tot - (nu or os.time()))
+	local d = math.floor(over / 86400)
+	local u = math.floor(over / 3600) % 24
+	local m = math.floor(over / 60) % 60
+	if d &gt; 0 then return string.format("%dd %dh %dm", d, u, m) end
+	if u &gt; 0 then return string.format("%dh %dm", u, m) end
+	return string.format("%dm", m)
+end
+
+-- De titels worden opgeslagen als "Kampioen S&lt;sprint&gt;"; dit maakt er leesbare tekst van
+-- zonder aan het opgeslagen veld te komen.
+local RANG = { Kampioen = "Champion", Tweede = "Runner-up", Derde = "Third" }
+
+function Season.titleLabel(titel: string?): string
+	local t = titel or ""
+	local rang, sprint = string.match(t, "^(%a+) S(%-?%d+)$")
+	if rang and sprint and RANG[rang] then
+		return RANG[rang] .. " \u{00B7} " .. Season.sprintLabel(tonumber(sprint) :: number)
+	end
+	return t
+end
+
+function Season.titleFor(plaats: number, sprint: number): string?
+	local rang = if plaats == 1 then "Kampioen" elseif plaats == 2 then "Tweede" elseif plaats == 3 then "Derde" else nil
+	return if rang then rang .. " S" .. sprint else nil
+end
+
+return Season
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX8">
 				<Properties>
 					<string name="Name">Sha256</string>
 					<ProtectedString name="Source">--!strict
@@ -831,7 +1194,7 @@ return Sha256
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX7">
+			<Item class="ModuleScript" referent="RBX9">
 				<Properties>
 					<string name="Name">Theme</string>
 					<ProtectedString name="Source">--!strict
@@ -907,7 +1270,7 @@ return Theme
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX8">
+			<Item class="ModuleScript" referent="RBX10">
 				<Properties>
 					<string name="Name">UI</string>
 					<ProtectedString name="Source">--!strict
@@ -1151,7 +1514,7 @@ return UI
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Script" referent="RBX9">
+		<Item class="Script" referent="RBX11">
 			<Properties>
 				<string name="Name">Server</string>
 				<ProtectedString name="Source">--!strict
@@ -1167,8 +1530,29 @@ local Games = require(script.Games)
 local Multi = require(script.Games.Multi)
 local Blackjack = require(script.Games.Blackjack)
 local Crash = require(script.Crash)
+local Ranking = require(script.Ranking)
+local Social = require(script.Social)
+local Season = require(ReplicatedStorage.Shared.Season)
+local Achievements = require(ReplicatedStorage.Shared.Achievements)
 
 Net.build()
+
+-- Profiles regelt het profiel en weet niets van ranglijsten of het netwerk; hier worden
+-- die draadjes aan elkaar geknoopt.
+Profiles.setPublisher(function(speler, sprint, winst)
+	Ranking.publish(speler, sprint, winst)
+end)
+Profiles.setPlaceLookup(function(sprint, userId)
+	return Ranking.placeOf(sprint, userId)
+end)
+Profiles.onUnlock(function(speler, ids)
+	for _, id in ids do
+		local a = Achievements.BY_ID[id]
+		if a then
+			Net.ev("Toast"):FireClient(speler, a.icon .. "  " .. string.upper(a.title), "gold")
+		end
+	end
+end)
 
 local function stuurProfiel(speler: Player)
 	local p = Profiles.view(speler)
@@ -1202,12 +1586,54 @@ Net.fn("GetProfile").OnServerInvoke = function(speler)
 	return Profiles.view(speler)
 end
 
+-- De ranglijst van de lopende sprint, plus waar deze speler zelf staat.
+Net.fn("Leaderboard").OnServerInvoke = function(speler, welke)
+	local sprint = if welke == "previous" then Season.sprintId() - 1 else Season.sprintId()
+	local p = Profiles.get(speler)
+	return {
+		ok = true,
+		sprint = sprint,
+		label = Season.sprintLabel(sprint),
+		endsAt = Season.sprintEndsAt(sprint),
+		seasonEndsAt = Season.seasonEndsAt(Season.seasonId()),
+		sprintsLeft = Season.sprintsLeft(),
+		now = os.time(),
+		top = Ranking.top(sprint, 25),
+		mine = if p then p.sprintProfit else 0,
+		vipActive = Profiles.vipActive(speler),
+	}
+end
+
+-- Vrienden en tafels. Roblox kent de vrienden al en heeft al privéservers; die worden
+-- gebruikt in plaats van er een eigen, slechtere versie naast te zetten.
+Net.fn("Friends").OnServerInvoke = function(speler, actie, gegevens)
+	if actie == "list" then
+		return { ok = true, friends = Social.friends(speler), here = Social.here() }
+	elseif actie == "reserve" then
+		return Social.reserve(speler)
+	elseif actie == "join" then
+		return Social.join(speler, gegevens)
+	elseif actie == "quick" then
+		return Social.quick(speler)
+	end
+	return { ok = false, err = "onbekende actie" }
+end
+
+-- De drie badges die een speler aan anderen laat zien.
+Net.fn("SetFeatured").OnServerInvoke = function(speler, lijst)
+	local ok = Profiles.setFeatured(speler, lijst)
+	stuurProfiel(speler)
+	return { ok = ok }
+end
+
 -- De stand van de gedeelde crashronde, voor een speler die er net binnenkomt.
 Net.fn("RoundState").OnServerInvoke = function(_speler, spel)
 	if spel == "crash" then return Crash.state() end
 	return { ok = false, err = "geen gedeelde tafel" }
 end
 
+-- De VIP-poort staat bij de spellen zelf (Games.slots en Multi.busStart), niet hier: zo kan
+-- geen enkele route eromheen, ook geen die er later bij komt.
 Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
 	local uit
 	if spel == "roulette" then uit = Games.roulette(speler, inzet)
@@ -1252,7 +1678,7 @@ end
 return nil
 </ProtectedString>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX10">
+			<Item class="ModuleScript" referent="RBX12">
 				<Properties>
 					<string name="Name">Crash</string>
 					<ProtectedString name="Source">--!strict
@@ -1489,7 +1915,7 @@ return Crash
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX11">
+			<Item class="ModuleScript" referent="RBX13">
 				<Properties>
 					<string name="Name">Games</string>
 					<ProtectedString name="Source">--!strict
@@ -1562,9 +1988,10 @@ local function start(speler: Player, spel: string, inzet: any): (number?, string
 	return bet, nil
 end
 
-local function settle(speler: Player, spel: string, inzet: number, uit: number, mult: number): ()
+-- `over` draagt wat alleen dit spel weet en wat de prestaties nodig hebben.
+local function settle(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any): ()
 	if uit &gt; 0 then Profiles.give(speler, uit) end
-	Profiles.record(speler, spel, inzet, uit, mult)
+	Profiles.record(speler, spel, inzet, uit, mult, over)
 end
 
 -- ---------- spellen in één beurt ----------
@@ -1593,11 +2020,16 @@ function Games.roulette(speler: Player, inzetten: any): any
 
 	local n = Odds.ROULETTE_ORDER[rng:NextInteger(1, #Odds.ROULETTE_ORDER)]
 	local uit = 0
+	local losNummer = false
 	for _, s in schoon do
-		uit += s.bet * Odds.roulettePayout(s.key, n)
+		local factor = Odds.roulettePayout(s.key, n)
+		uit += s.bet * factor
+		-- Winnen op een los nummer telt voor een prestatie; dat is de enige inzet met
+		-- een sleutel die met "n:" begint.
+		if factor &gt; 0 and string.sub(s.key, 1, 2) == "n:" then losNummer = true end
 	end
 	uit = Money.floor2(uit)
-	settle(speler, "roulette", totaal, uit, if uit &gt; 0 then uit / totaal else 0)
+	settle(speler, "roulette", totaal, uit, if uit &gt; 0 then uit / totaal else 0, { straight = losNummer })
 	return { ok = true, number = n, color = Odds.rouletteColor(n), payout = uit, balance = p.balance }
 end
 
@@ -1675,6 +2107,9 @@ function Games.scratchReveal(speler: Player, index: any): any
 end
 
 function Games.slots(speler: Player, inzet: any): any
+	-- 777 zit achter de VIP-zone. Die controle staat hier, bij het spel zelf, en niet bij
+	-- de ingang: dan kan geen enkele latere route eromheen.
+	if not Profiles.vipActive(speler) then return { ok = false, err = "vip pass required" } end
 	local bet, err = start(speler, "slots", inzet)
 	if not bet then return { ok = false, err = err } end
 	local idx = Odds.slotDraw()
@@ -1737,7 +2172,7 @@ Profiles.onLeave(Games.refund)
 return Games
 </ProtectedString>
 				</Properties>
-				<Item class="ModuleScript" referent="RBX12">
+				<Item class="ModuleScript" referent="RBX14">
 					<Properties>
 						<string name="Name">Blackjack</string>
 						<ProtectedString name="Source">--!strict
@@ -1828,7 +2263,10 @@ local function afrekenen(speler: Player, r: Ronde, dealerSpeelt: boolean): any
 	local uit = Money.floor2(inzet * factor)
 	open[speler.UserId] = nil
 	if uit &gt; 0 then Profiles.give(speler, uit) end
-	Profiles.record(speler, "blackjack", inzet, uit, factor)
+	Profiles.record(speler, "blackjack", inzet, uit, factor, {
+		natural = Odds.bjIsBlackjack(r.speler),
+		doubled = r.doubled,
+	})
 
 	local spelerWaarde = (Odds.bjValue(r.speler))
 	local dealerWaarde = (Odds.bjValue(r.dealer))
@@ -1927,7 +2365,7 @@ return Blackjack
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX13">
+				<Item class="ModuleScript" referent="RBX15">
 					<Properties>
 						<string name="Name">Multi</string>
 						<ProtectedString name="Source">--!strict
@@ -1995,10 +2433,12 @@ local function saldo(speler: Player): number
 	return if p then p.balance else 0
 end
 
-local function afrekenen(speler: Player, spel: string, inzet: number, uit: number, mult: number)
+-- `over` draagt wat alleen dit spel weet en wat de prestaties nodig hebben: hoe hoog je in
+-- de toren kwam, hoeveel mijnen er lagen, hoeveel calls je bij de bus haalde.
+local function afrekenen(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any)
 	open[speler.UserId] = nil
 	if uit &gt; 0 then Profiles.give(speler, uit) end
-	Profiles.record(speler, spel, inzet, uit, mult)
+	Profiles.record(speler, spel, inzet, uit, mult, over)
 end
 
 -- ---------- Dragon Tower ----------
@@ -2022,7 +2462,7 @@ function Multi.towerPick(speler: Player, kolom: any): any
 	local rij = (o.layout :: { { boolean } })[niveau]
 	local veilig = rij[k]
 	if not veilig then
-		afrekenen(speler, "tower", o.bet, 0, 0)
+		afrekenen(speler, "tower", o.bet, 0, 0, { level = o.level, diff = o.diff })
 		return { ok = true, safe = false, row = rij, payout = 0, balance = saldo(speler) }
 	end
 
@@ -2030,7 +2470,7 @@ function Multi.towerPick(speler: Player, kolom: any): any
 	local mult = Odds.towerMultiplier(o.diff :: string, niveau)
 	if niveau &gt;= Odds.TOWER_LEVELS then
 		local uit = Money.floor2(o.bet * mult)
-		afrekenen(speler, "tower", o.bet, uit, mult)
+		afrekenen(speler, "tower", o.bet, uit, mult, { level = niveau, diff = o.diff })
 		return { ok = true, safe = true, row = rij, done = true, mult = mult, payout = uit, balance = saldo(speler) }
 	end
 	return { ok = true, safe = true, level = niveau, mult = mult }
@@ -2043,7 +2483,7 @@ function Multi.towerCashOut(speler: Player): any
 	if niveau &lt; 1 then return { ok = false, err = "nog niets gehaald" } end
 	local mult = Odds.towerMultiplier(o.diff :: string, niveau)
 	local uit = Money.floor2(o.bet * mult)
-	afrekenen(speler, "tower", o.bet, uit, mult)
+	afrekenen(speler, "tower", o.bet, uit, mult, { level = niveau, diff = o.diff })
 	return { ok = true, mult = mult, payout = uit, balance = saldo(speler) }
 end
 
@@ -2070,7 +2510,7 @@ function Multi.minesPick(speler: Player, tegel: any): any
 	if opened[i] then return { ok = false, err = "die tegel ligt al open" } end
 
 	if grid[i] then
-		afrekenen(speler, "mines", o.bet, 0, 0)
+		afrekenen(speler, "mines", o.bet, 0, 0, { mines = o.mines, cleared = o.picked })
 		return { ok = true, mine = true, grid = grid, payout = 0, balance = saldo(speler) }
 	end
 
@@ -2081,7 +2521,7 @@ function Multi.minesPick(speler: Player, tegel: any): any
 	local over = Odds.MINES_TILES - (o.mines :: number)
 	if gepakt &gt;= over then
 		local uit = Money.floor2(o.bet * mult)
-		afrekenen(speler, "mines", o.bet, uit, mult)
+		afrekenen(speler, "mines", o.bet, uit, mult, { mines = o.mines, cleared = gepakt, perfect = true })
 		return { ok = true, mine = false, done = true, mult = mult, payout = uit, balance = saldo(speler) }
 	end
 	return { ok = true, mine = false, picked = gepakt, mult = mult }
@@ -2094,7 +2534,7 @@ function Multi.minesCashOut(speler: Player): any
 	if gepakt &lt; 1 then return { ok = false, err = "nog niets gepakt" } end
 	local mult = Odds.minesMultiplier(o.mines :: number, gepakt)
 	local uit = Money.floor2(o.bet * mult)
-	afrekenen(speler, "mines", o.bet, uit, mult)
+	afrekenen(speler, "mines", o.bet, uit, mult, { mines = o.mines, cleared = gepakt })
 	return { ok = true, mult = mult, payout = uit, grid = o.grid, balance = saldo(speler) }
 end
 
@@ -2115,6 +2555,8 @@ local function busKansen(deck: { Odds.Card }, stap: number, shown: { Odds.Card }
 end
 
 function Multi.busStart(speler: Player, inzet: any): any
+	-- Ride the Bus zit achter de VIP-zone, net als 777.
+	if not Profiles.vipActive(speler) then return { ok = false, err = "vip pass required" } end
 	local bet, err = begin(speler, inzet)
 	if not bet then return { ok = false, err = err } end
 	local deck = Odds.bjNewShoe(1)
@@ -2152,7 +2594,7 @@ function Multi.busCall(speler: Player, keuze: any): any
 	o.step = stap
 
 	if not raak then
-		afrekenen(speler, "bus", o.bet, 0, 0)
+		afrekenen(speler, "bus", o.bet, 0, 0, { steps = stap - 1 })
 		return { ok = true, card = kaart, hit = false, payout = 0, balance = saldo(speler) }
 	end
 
@@ -2161,7 +2603,7 @@ function Multi.busCall(speler: Player, keuze: any): any
 	local mult = Odds.busMultiplier(prob)
 	if stap &gt;= #Odds.BUS_STEPS then
 		local uit = Money.floor2(o.bet * mult)
-		afrekenen(speler, "bus", o.bet, uit, mult)
+		afrekenen(speler, "bus", o.bet, uit, mult, { steps = stap })
 		return { ok = true, card = kaart, hit = true, done = true, mult = mult, payout = uit, balance = saldo(speler) }
 	end
 	return {
@@ -2176,7 +2618,7 @@ function Multi.busCashOut(speler: Player): any
 	if (o.step :: number) &lt; 1 then return { ok = false, err = "nog geen call gemaakt" } end
 	local mult = Odds.busMultiplier(o.prob :: number)
 	local uit = Money.floor2(o.bet * mult)
-	afrekenen(speler, "bus", o.bet, uit, mult)
+	afrekenen(speler, "bus", o.bet, uit, mult, { steps = o.step })
 	return { ok = true, mult = mult, payout = uit, balance = saldo(speler) }
 end
 
@@ -2189,7 +2631,7 @@ return Multi
 					</Properties>
 				</Item>
 			</Item>
-			<Item class="ModuleScript" referent="RBX14">
+			<Item class="ModuleScript" referent="RBX16">
 				<Properties>
 					<string name="Name">Profiles</string>
 					<ProtectedString name="Source">--!strict
@@ -2203,7 +2645,10 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local Money = require(game:GetService("ReplicatedStorage").Shared.Money)
+local Gedeeld = game:GetService("ReplicatedStorage").Shared
+local Money = require(Gedeeld.Money)
+local Season = require(Gedeeld.Season)
+local Achievements = require(Gedeeld.Achievements)
 
 local Profiles = {}
 
@@ -2223,12 +2668,23 @@ export type Profile = {
 	profit: number,
 	stats: { [string]: Stats },
 	achievements: { [string]: number },
+	-- Het boekje naast de statistieken: reeksen, records per spel, en de gebeurtenissen
+	-- die je niet uit de totalen kunt aflezen.
+	extra: Achievements.Extra,
 	featured: { string },
 	titles: { string },
 	title: string?,
 	titleSeason: number?,
 	resetSeason: number?,
 	seasonStart: number,
+	-- De lopende sprint, en wat je er tot nu toe aan overgehouden hebt. Daar wordt de
+	-- ranglijst op gescoord.
+	sprint: number?,
+	sprintProfit: number,
+	-- Tot en met welke sprint de prijzen al zijn uitgedeeld aan deze speler.
+	awardedSprint: number?,
+	-- Het seizoen waarvoor zijn VIP-pas geldt, of niets.
+	vipSeason: number?,
 	updatedAt: number,
 }
 
@@ -2274,12 +2730,17 @@ function Profiles.fresh(): Profile
 		rounds = 0, won = 0, lost = 0, profit = 0,
 		stats = stats,
 		achievements = {},
+		extra = Achievements.fresh(),
 		featured = {},
 		titles = {},
 		title = nil,
 		titleSeason = nil,
-		resetSeason = nil,
+		resetSeason = Season.seasonId(),
 		seasonStart = Money.START,
+		sprint = Season.sprintId(),
+		sprintProfit = 0,
+		awardedSprint = nil,
+		vipSeason = nil,
 		updatedAt = os.time(),
 	}
 end
@@ -2295,6 +2756,10 @@ local function heel(p: any): Profile
 	uit.profit = tonumber(p.profit) or 0
 	uit.seasonStart = tonumber(p.seasonStart) or Money.START
 	uit.resetSeason = tonumber(p.resetSeason)
+	uit.sprint = tonumber(p.sprint)
+	uit.sprintProfit = tonumber(p.sprintProfit) or 0
+	uit.awardedSprint = tonumber(p.awardedSprint)
+	uit.vipSeason = tonumber(p.vipSeason)
 	uit.title = if typeof(p.title) == "string" then p.title else nil
 	uit.titleSeason = tonumber(p.titleSeason)
 	if typeof(p.stats) == "table" then
@@ -2308,6 +2773,36 @@ local function heel(p: any): Profile
 					highest = tonumber(s.highest) or 0,
 					profit = tonumber(s.profit) or 0,
 				}
+			end
+		end
+	end
+	-- Het boekje veld voor veld overzetten: wat er niet in staat blijft op de verse waarde,
+	-- zodat een profiel van een oudere versie gewoon doorloopt.
+	if typeof(p.extra) == "table" then
+		local o = p.extra
+		local e = uit.extra
+		e.streak = tonumber(o.streak) or 0
+		e.bestStreak = tonumber(o.bestStreak) or 0
+		e.bigWin = tonumber(o.bigWin) or 0
+		e.crashAbove2 = tonumber(o.crashAbove2) or 0
+		e.towerLevel = tonumber(o.towerLevel) or 0
+		e.minesMines = tonumber(o.minesMines) or 0
+		e.horseStreak = tonumber(o.horseStreak) or 0
+		e.rouletteStraight = o.rouletteStraight == true
+		e.towerMaster = o.towerMaster == true
+		e.minesPerfect = o.minesPerfect == true
+		e.bjNatural = o.bjNatural == true
+		e.bjDouble = o.bjDouble == true
+		e.comeback = o.comeback == true
+		e.busFull = o.busFull == true
+		e.wasBroke = o.wasBroke == true
+		for _, veld in {"max", "maxWinPer"} do
+			if typeof(o[veld]) == "table" then
+				for k, v in o[veld] do
+					if typeof(k) == "string" and tonumber(v) then
+						(e :: any)[veld][k] = tonumber(v)
+					end
+				end
 			end
 		end
 	end
@@ -2463,11 +2958,87 @@ function Profiles.load(speler: Player): Profile
 	end
 
 	levend[id] = p
+	Profiles.rollOver(speler, p)
 	return p
+end
+
+-- Waar de prijzen vandaan komen. Ranking hangt zichzelf hier in; Profiles hoeft dan niets
+-- van DataStores voor ranglijsten te weten.
+local plaatsZoeker: ((number, number) -&gt; number?)? = nil
+
+function Profiles.setPlaceLookup(f: (number, number) -&gt; number?): ()
+	plaatsZoeker = f
+end
+
+-- Twee dingen die bij binnenkomst moeten kloppen: het seizoen, en de prijzen van de
+-- sprints die voorbij zijn gegaan terwijl deze speler weg was.
+function Profiles.rollOver(speler: Player, p: Profile): ()
+	local nuSeizoen = Season.seasonId()
+	local nuSprint = Season.sprintId()
+
+	-- Een nieuw seizoen: iedereen begint weer op $1000 plus een tiende van wat hij
+	-- daarboven had. Precies zoals in de webversie.
+	if p.resetSeason == nil then
+		p.resetSeason = nuSeizoen
+	elseif p.resetSeason &lt; nuSeizoen then
+		p.balance = Season.balanceAfter(p.balance)
+		p.seasonStart = p.balance
+		p.resetSeason = nuSeizoen
+		p.sprint = nuSprint
+		p.sprintProfit = 0
+	end
+
+	-- Een verlopen pas hoort niet meer te gelden.
+	if p.vipSeason ~= nil and p.vipSeason &lt; nuSeizoen then
+		p.vipSeason = nil
+	end
+
+	-- Een nieuwe sprint: de stand begint op nul.
+	if p.sprint ~= nuSprint then
+		p.sprint = nuSprint
+		p.sprintProfit = 0
+	end
+
+	-- De sprint die net voorbij is: stond deze speler in de top drie?
+	local vorige = nuSprint - 1
+	local zoek = plaatsZoeker
+	if zoek and (p.awardedSprint == nil or p.awardedSprint &lt; vorige) then
+		p.awardedSprint = vorige
+		local plaats = zoek(vorige, speler.UserId)
+		if plaats and plaats &lt;= 3 then
+			local titel = Season.titleFor(plaats, vorige)
+			if titel then
+				-- Dezelfde titel kan er maar één keer in. De teller hierboven hoort dat
+				-- al te voorkomen, maar een kast met twee keer "Kampioen S12" erin is
+				-- zo'n gekke uitkomst dat hij ook hier wordt tegengehouden.
+				if not table.find(p.titles, titel) then
+					table.insert(p.titles, titel)
+				end
+				p.title = titel
+				p.titleSeason = nuSeizoen
+			end
+			if plaats == 1 then
+				p.vipSeason = Season.vipSeasonFor(vorige)
+			end
+		end
+	end
 end
 
 function Profiles.get(speler: Player): Profile?
 	return levend[speler.UserId]
+end
+
+-- Mag deze speler de VIP-zone in? Een pas geldt voor precies één seizoen van twaalf dagen.
+function Profiles.vipActive(speler: Player): boolean
+	local p = levend[speler.UserId]
+	return p ~= nil and Season.vipActive(p.vipSeason)
+end
+
+-- Wie de sprintstand naar de ranglijst brengt. Ranking hangt zichzelf hier in.
+local publiceer: ((Player, number, number) -&gt; ())? = nil
+
+function Profiles.setPublisher(f: (Player, number, number) -&gt; ()): ()
+	publiceer = f
 end
 
 -- `vrijgeven` betekent: dit was de laatste schrijfbeurt, het slot mag los.
@@ -2475,6 +3046,15 @@ local function schrijf(speler: Player, vrijgeven: boolean): ()
 	local id = speler.UserId
 	local p = levend[id]
 	if not p or not store then return end
+	-- De ranglijst gaat mee met elke save, dus ongeveer elke twee minuten en bij het
+	-- weggaan. Dat is vaak genoeg voor een stand die drie dagen loopt.
+	local pub = publiceer
+	if pub and p.sprint then
+		pcall(function(): any
+			pub(speler, p.sprint :: number, p.sprintProfit)
+			return nil
+		end)
+	end
 	if bezig[id] then return end   -- lezen was mislukt; niets overschrijven
 	local mij = jobId()
 	metHerhaling("profiel opslaan voor " .. id, function()
@@ -2545,8 +3125,31 @@ function Profiles.give(speler: Player, bedrag: number): ()
 	p.balance = Money.round2(p.balance + bedrag)
 end
 
--- Een afgelopen ronde boeken. `inzet` is wat er is ingezet, `uit` wat eruit kwam.
-function Profiles.record(speler: Player, spel: string, inzet: number, uit: number, mult: number): ()
+-- Wie er meekijkt als er een prestatie opengaat. De server hangt hier een melding aan;
+-- Profiles zelf weet niets van het netwerk.
+local ontgrendelHaken: { (Player, { string }) -&gt; () } = {}
+
+function Profiles.onUnlock(f: (Player, { string }) -&gt; ()): ()
+	table.insert(ontgrendelHaken, f)
+end
+
+-- De stand zoals de prestaties hem willen zien.
+local function stand(p: Profile): Achievements.Stand
+	return {
+		balance = p.balance,
+		rounds = p.rounds,
+		won = p.won,
+		stats = p.stats :: any,
+		extra = p.extra,
+		vipSeason = p.vipSeason,
+		title = p.title,
+	}
+end
+
+-- Een afgelopen ronde boeken. `inzet` is wat er is ingezet, `uit` wat eruit kwam. `over`
+-- draagt wat alleen het spel zelf weet: op welke verdieping je stond, of de hand gedubbeld
+-- was, of je op een los nummer won.
+function Profiles.record(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any): ()
 	local p = levend[speler.UserId]
 	if not p then return end
 	local s = p.stats[spel]
@@ -2563,6 +3166,61 @@ function Profiles.record(speler: Player, spel: string, inzet: number, uit: numbe
 	s.profit = Money.round2(s.profit + uit - inzet)
 	p.profit = Money.round2(p.profit + uit - inzet)
 	if mult &gt; s.highest then s.highest = mult end
+
+	-- De sprintstand: wat je binnen deze drie dagen hebt overgehouden. Bij een nieuwe
+	-- sprint begint iedereen weer op nul.
+	local nuSprint = Season.sprintId()
+	if p.sprint ~= nuSprint then
+		p.sprint = nuSprint
+		p.sprintProfit = 0
+	end
+	p.sprintProfit = Money.round2(p.sprintProfit + uit - inzet)
+
+	-- Het boekje bijwerken en kijken of er iets opengaat.
+	local ronde: Achievements.Ronde = {
+		game = spel, wager = inzet, payout = uit, mult = mult,
+	}
+	if typeof(over) == "table" then
+		ronde.straight = over.straight
+		ronde.level = over.level
+		ronde.diff = over.diff
+		ronde.mines = over.mines
+		ronde.cleared = over.cleared
+		ronde.perfect = over.perfect
+		ronde.natural = over.natural
+		ronde.doubled = over.doubled
+		ronde.steps = over.steps
+	end
+	Achievements.record(p.extra, ronde, p.balance)
+
+	local nieuwe = Achievements.check(stand(p), p.achievements)
+	if #nieuwe == 0 then return end
+	for _, id in nieuwe do
+		p.achievements[id] = os.time()
+	end
+	for _, f in ontgrendelHaken do
+		pcall(function(): any
+			f(speler, nieuwe)
+			return nil
+		end)
+	end
+end
+
+-- De drie badges die een speler aan anderen laat zien. Alleen prestaties die hij echt
+-- heeft, en hoogstens drie.
+function Profiles.setFeatured(speler: Player, lijst: any): boolean
+	local p = levend[speler.UserId]
+	if not p or typeof(lijst) ~= "table" then return false end
+	local uit: { string } = {}
+	local gezien: { [string]: boolean } = {}
+	for _, id in lijst do
+		if typeof(id) == "string" and p.achievements[id] and not gezien[id] and #uit &lt; 3 then
+			gezien[id] = true
+			table.insert(uit, id)
+		end
+	end
+	p.featured = uit
+	return true
 end
 
 -- Wat de client mag zien. Precies genoeg om het scherm te vullen, niets meer.
@@ -2608,8 +3266,255 @@ return Profiles
 </ProtectedString>
 				</Properties>
 			</Item>
+			<Item class="ModuleScript" referent="RBX17">
+				<Properties>
+					<string name="Name">Ranking</string>
+					<ProtectedString name="Source">--!strict
+-- De ranglijst. Elke sprint van drie dagen heeft zijn eigen lijst, gescoord op wat een
+-- speler er binnen die sprint aan overhoudt. Wie als eerste eindigt krijgt een titel en een
+-- pas voor de VIP-zone; nummer twee en drie krijgen een titel.
+--
+-- In de webversie stond dit in een tabel met RLS erop. Hier is het een OrderedDataStore:
+-- die kan gesorteerd lezen, wat een gewone DataStore niet kan. Hij bewaart alleen getallen,
+-- dus de winst gaat er in centen in, en de namen worden apart opgezocht.
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Gedeeld = game:GetService("ReplicatedStorage").Shared
+local Money = require(Gedeeld.Money)
+
+local Ranking = {}
+
+local PLAATSEN = 25
+local lijsten: { [number]: OrderedDataStore } = {}
+local naamCache: { [number]: string } = {}
+local aanUit = not RunService:IsStudio()
+
+local function lijstVan(sprint: number): OrderedDataStore?
+	if not aanUit then return nil end
+	local l = lijsten[sprint]
+	if l then return l end
+	local ok, nieuw = pcall(function()
+		return DataStoreService:GetOrderedDataStore("NeonSprint_v1_" .. sprint)
+	end)
+	if not ok then return nil end
+	lijsten[sprint] = nieuw
+	return nieuw
+end
+
+-- Centen, want een OrderedDataStore neemt alleen hele getallen. De grens houdt hem binnen
+-- wat een DataStore aankan, ook als iemand een absurd saldo bij elkaar speelt.
+function Ranking.toScore(winst: number): number
+	return math.clamp(math.floor(winst * 100), -1e12, 1e12)
+end
+
+function Ranking.fromScore(score: number): number
+	return Money.round2(score / 100)
+end
+
+-- De stand van deze speler in de lopende sprint wegschrijven. Wordt bij elke save gedaan,
+-- dus ongeveer elke twee minuten en bij het weggaan.
+function Ranking.publish(speler: Player, sprint: number, winst: number): ()
+	local l = lijstVan(sprint)
+	if not l then return end
+	naamCache[speler.UserId] = speler.DisplayName
+	pcall(function()
+		l:SetAsync(tostring(speler.UserId), Ranking.toScore(winst))
+	end)
+end
+
+local function naamVan(id: number): string
+	local c = naamCache[id]
+	if c then return c end
+	local speler = Players:GetPlayerByUserId(id)
+	if speler then
+		naamCache[id] = speler.DisplayName
+		return speler.DisplayName
+	end
+	local ok, naam = pcall(function()
+		return Players:GetNameFromUserIdAsync(id)
+	end)
+	local uit = if ok and typeof(naam) == "string" then naam else "speler " .. id
+	naamCache[id] = uit
+	return uit
+end
+
+export type Plek = { rank: number, userId: number, name: string, profit: number }
+
+-- De bovenste plaatsen van een sprint, hoogste winst eerst.
+function Ranking.top(sprint: number, hoeveel: number?): { Plek }
+	local l = lijstVan(sprint)
+	if not l then return {} end
+	local n = math.clamp(hoeveel or PLAATSEN, 1, 100)
+	local ok, pagina = pcall(function()
+		return l:GetSortedAsync(false, n)
+	end)
+	if not ok then return {} end
+	local ok2, rij = pcall(function()
+		return pagina:GetCurrentPage()
+	end)
+	if not ok2 then return {} end
+
+	local uit: { Plek } = {}
+	for i, item in rij do
+		local id = tonumber(item.key)
+		if id then
+			table.insert(uit, {
+				rank = i,
+				userId = id,
+				name = naamVan(id),
+				profit = Ranking.fromScore(item.value),
+			})
+		end
+	end
+	return uit
+end
+
+-- Op welke plaats stond deze speler in die sprint? nil als hij er niet bij zat.
+function Ranking.placeOf(sprint: number, userId: number): number?
+	for _, plek in Ranking.top(sprint, PLAATSEN) do
+		if plek.userId == userId then return plek.rank end
+	end
+	return nil
+end
+
+return Ranking
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX18">
+				<Properties>
+					<string name="Name">Social</string>
+					<ProtectedString name="Source">--!strict
+-- Vrienden en privélobby's.
+--
+-- Hier wijkt de Roblox-versie bewust af van de webversie, en het wordt er beter van. Daar
+-- moest een eigen vriendenlijst gebouwd worden, met uitnodigingen, een tabel en RLS eromheen,
+-- omdat Supabase geen vrienden kent. Roblox kent ze wel: een speler heeft al vrienden, en
+-- het platform heeft al privéservers. Die opnieuw nabouwen zou een slechtere kopie zijn van
+-- iets dat er al staat -- en een eigen lijst zou bovendien niet weten wie er echt bij elkaar
+-- horen.
+--
+-- Wat blijft: je ziet je vrienden, je ziet wie er nu meespeelt, je kunt een privétafel
+-- openen en daar mensen bij halen, en je kunt met één knop terug naar de publieke tafel.
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+
+local Social = {}
+
+export type Vriend = {
+	userId: number,
+	name: string,
+	displayName: string,
+	here: boolean,
+}
+
+-- De vrienden van deze speler, met erbij wie er nu in deze server zit. GetFriendsAsync is
+-- een webaanroep die kan hangen of falen; dan komt er een lege lijst uit in plaats van een
+-- foutmelding op het scherm.
+function Social.friends(speler: Player): { Vriend }
+	local uit: { Vriend } = {}
+	local ok, pagina = pcall(function()
+		return Players:GetFriendsAsync(speler.UserId)
+	end)
+	if not ok then return uit end
+
+	local hier: { [number]: boolean } = {}
+	for _, p in Players:GetPlayers() do
+		hier[p.UserId] = true
+	end
+
+	-- Hoogstens honderd; daarboven wordt het scherm toch onleesbaar en kost het paginaas.
+	local geteld = 0
+	while geteld &lt; 100 do
+		local okPagina, rij = pcall(function()
+			return pagina:GetCurrentPage()
+		end)
+		if not okPagina then break end
+		for _, v in rij do
+			local id = tonumber(v.Id)
+			if id then
+				geteld += 1
+				table.insert(uit, {
+					userId = id,
+					name = tostring(v.Username),
+					displayName = tostring(v.DisplayName or v.Username),
+					here = hier[id] == true,
+				})
+			end
+		end
+		local okKlaar, klaar = pcall(function()
+			return pagina.IsFinished
+		end)
+		if not okKlaar or klaar then break end
+		local okStap = pcall(function()
+			pagina:AdvanceToNextPageAsync()
+		end)
+		if not okStap then break end
+	end
+
+	-- Wie er nu meespeelt bovenaan.
+	table.sort(uit, function(a, b)
+		if a.here ~= b.here then return a.here end
+		return a.displayName &lt; b.displayName
+	end)
+	return uit
+end
+
+-- Wie er nu in deze server zit, vrienden of niet.
+function Social.here(): { { userId: number, displayName: string } }
+	local uit = {}
+	for _, p in Players:GetPlayers() do
+		table.insert(uit, { userId = p.UserId, displayName = p.DisplayName })
+	end
+	return uit
+end
+
+-- Een privétafel openen: Roblox geeft er een code voor, en daar teleporteert de speler
+-- naartoe. Wie hij erbij wil hebben kan met dezelfde code mee.
+local codes: { [number]: string } = {}
+
+function Social.reserve(speler: Player): any
+	local ok, code = pcall(function()
+		return TeleportService:ReserveServer(game.PlaceId)
+	end)
+	if not ok or typeof(code) ~= "string" then
+		return { ok = false, err = "private tables are not available here" }
+	end
+	codes[speler.UserId] = code
+	return { ok = true, code = code }
+end
+
+function Social.join(speler: Player, code: any): any
+	local c = if typeof(code) == "string" and #code &gt; 0 then code else codes[speler.UserId]
+	if not c then return { ok = false, err = "no table to join" } end
+	local ok, err = pcall(function()
+		TeleportService:TeleportToPrivateServer(game.PlaceId, c, { speler })
+	end)
+	if not ok then return { ok = false, err = "teleport failed: " .. tostring(err) } end
+	return { ok = true }
+end
+
+-- Terug naar de publieke tafel.
+function Social.quick(speler: Player): any
+	local ok, err = pcall(function()
+		TeleportService:Teleport(game.PlaceId, speler)
+	end)
+	if not ok then return { ok = false, err = "teleport failed: " .. tostring(err) } end
+	return { ok = true }
+end
+
+Players.PlayerRemoving:Connect(function(speler)
+	codes[speler.UserId] = nil
+end)
+
+return Social
+</ProtectedString>
+				</Properties>
+			</Item>
 		</Item>
-		<Item class="LocalScript" referent="RBX15">
+		<Item class="LocalScript" referent="RBX19">
 			<Properties>
 				<string name="Name">Client</string>
 				<ProtectedString name="Source">--!strict
@@ -2623,8 +3528,12 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
+local Season = require(ReplicatedStorage.Shared.Season)
 local Home = require(script.Views.Home)
 local ProfileView = require(script.Views.Profile)
+local AchievementsView = require(script.Views.Achievements)
+local VipView = require(script.Views.Vip)
+local FriendsView = require(script.Views.Friends)
 local Common = require(script.Views.Common)
 
 -- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
@@ -2661,23 +3570,28 @@ root.Parent = gui
 
 -- ---------- de schermen ----------
 local SCHERMEN = {
-	{ id = "home",    label = "HOME",          groep = "PLAY" },
-	{ id = "crash",   label = "CRASH",         groep = "PLAY" },
-	{ id = "roulette",label = "ROULETTE",      groep = "PLAY" },
-	{ id = "tower",   label = "DRAGON TOWER",  groep = "PLAY" },
-	{ id = "mines",   label = "MINES",         groep = "PLAY" },
-	{ id = "plinko",  label = "PLINKO",        groep = "PLAY" },
-	{ id = "blackjack",label = "BLACKJACK",    groep = "PLAY" },
-	{ id = "scratch", label = "SCRATCH CARDS", groep = "PLAY" },
-	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
-	{ id = "slots",   label = "777",           groep = "PLAY" },
-	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
-	{ id = "bus",     label = "RIDE THE BUS",  groep = "PLAY" },
-	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
-	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
-	{ id = "friends", label = "FRIENDS",       groep = "ACCOUNT" },
-	{ id = "achievements", label = "ACHIEVEMENTS", groep = "ACCOUNT" },
+	{ id = "home",    label = "HOME",          icon = "\u{2302}",  groep = "PLAY" },
+	{ id = "crash",   label = "CRASH",         icon = "\u{2708}",  groep = "PLAY" },
+	{ id = "roulette",label = "ROULETTE",      icon = "\u{25CE}",  groep = "PLAY" },
+	{ id = "tower",   label = "DRAGON TOWER",  icon = "\u{1F5FC}", groep = "PLAY" },
+	{ id = "mines",   label = "MINES",         icon = "\u{25C6}",  groep = "PLAY" },
+	{ id = "plinko",  label = "PLINKO",        icon = "\u{25BC}",  groep = "PLAY" },
+	{ id = "blackjack",label = "BLACKJACK",    icon = "\u{2660}",  groep = "PLAY" },
+	{ id = "scratch", label = "SCRATCH CARDS", icon = "\u{25A6}",  groep = "PLAY" },
+	{ id = "wheel",   label = "WHEEL",         icon = "\u{2733}",  groep = "PLAY" },
+	{ id = "slots",   label = "777",           icon = "7\u{FE0F}\u{20E3}", groep = "VIP" },
+	{ id = "horse",   label = "HORSE RACE",    icon = "\u{265E}",  groep = "PLAY" },
+	{ id = "bus",     label = "RIDE THE BUS",  icon = "\u{1F68C}", groep = "VIP" },
+	{ id = "profile", label = "PROFILE",       icon = "\u{25CF}",  groep = "ACCOUNT" },
+	{ id = "vip",     label = "VIP ZONE",      icon = "\u{1F511}", groep = "ACCOUNT" },
+	{ id = "friends", label = "FRIENDS",       icon = "\u{263A}",  groep = "ACCOUNT" },
+	{ id = "achievements", label = "ACHIEVEMENTS", icon = "\u{1F3C6}", groep = "ACCOUNT" },
 }
+
+-- De twee VIP-spellen zijn alleen bereikbaar zolang de pas geldt; anders kom je uit bij de
+-- zone zelf, die uitlegt hoe je er binnenkomt. Precies zoals VIP_ROUTES in de webversie.
+local VIP_ROUTES = { slots = true, bus = true }
+local vipOpen = false
 
 local inhoud = Instance.new("Frame")
 inhoud.Name = "Content"
@@ -2687,7 +3601,7 @@ inhoud.BackgroundTransparency = 1
 inhoud.Parent = root
 
 local views: { [string]: Frame } = {}
-local _huidige = "home"
+local huidige = "home"
 
 local function view(id: string): Frame
 	local v = views[id]
@@ -2725,12 +3639,12 @@ UI.list(railLijst, 2)
 local navKnoppen: { [string]: TextButton } = {}
 local navigate: (string) -&gt; ()
 
-local function navItem(item: { id: string, label: string, groep: string }, volgorde: number)
+local function navItem(item: { id: string, label: string, icon: string, groep: string }, volgorde: number)
 	local b = Instance.new("TextButton")
 	b.Name = item.id
-	b.Text = string.sub(item.label, 1, 2)
+	b.Text = item.icon
 	b.Font = Theme.font.uiBold
-	b.TextSize = Theme.text.small
+	b.TextSize = 16
 	b.TextColor3 = Theme.color.muted
 	b.BackgroundColor3 = Theme.color.neon
 	b.BackgroundTransparency = 1
@@ -2787,13 +3701,19 @@ local toastLijst = UI.list(toasts, 6)
 toastLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
 function navigate(id: string)
+	-- Zonder pas kom je bij de zone uit in plaats van bij het spel.
+	if VIP_ROUTES[id] and not vipOpen then
+		id = "vip"
+	end
 	for naam, v in views do
 		v.Visible = naam == id
 	end
 	for naam, b in navKnoppen do
-		local aan = naam == id
+		local aan = naam == id or (VIP_ROUTES[naam] and id == "vip" and not vipOpen)
 		b.TextColor3 = if aan then Theme.color.neon else Theme.color.muted
 		b.BackgroundTransparency = if aan then 0.88 else 1
+		-- Een gesloten VIP-spel staat gedimd in de balk.
+		b.TextTransparency = if VIP_ROUTES[naam] and not vipOpen then 0.55 else 0
 	end
 	for _, item in SCHERMEN do
 		if item.id == id then
@@ -2801,12 +3721,14 @@ function navigate(id: string)
 			break
 		end
 	end
-	_huidige = id
+	huidige = id
 end
 
 -- ---------- de schermen vullen ----------
 local zetSaldoHome: ((number) -&gt; ())? = nil
 local zetProfiel: ((any) -&gt; ())? = nil
+local zetPrestaties: ((any) -&gt; ())? = nil
+local zetVip: ((any) -&gt; ())? = nil
 
 for _, item in SCHERMEN do
 	local v = view(item.id)
@@ -2821,6 +3743,12 @@ for _, item in SCHERMEN do
 		zetSaldoHome = Home.build(vak, navigate)
 	elseif item.id == "profile" then
 		zetProfiel = ProfileView.build(vak)
+	elseif item.id == "achievements" then
+		zetPrestaties = AchievementsView.build(vak)
+	elseif item.id == "vip" then
+		zetVip = VipView.build(vak, navigate)
+	elseif item.id == "friends" then
+		FriendsView.build(vak)
 	elseif spel then
 		spel.build(vak)
 	else
@@ -2847,6 +3775,15 @@ local function toon(p: any)
 	end
 	local prof = zetProfiel
 	if prof then prof(p) end
+	local pres = zetPrestaties
+	if pres then pres(p) end
+	local vip = zetVip
+	if vip then vip(p) end
+
+	-- De poort van de balk gaat mee met de pas in het profiel.
+	local was = vipOpen
+	vipOpen = Season.vipActive(tonumber(p.vipSeason))
+	if was ~= vipOpen then navigate(huidige) end
 end
 
 -- De schermen laten hun meldingen door de schil lopen; die weet waar het meldingenvak zit.
@@ -2873,11 +3810,255 @@ end)
 return nil
 </ProtectedString>
 			</Properties>
-			<Item class="Folder" referent="RBX16">
+			<Item class="Folder" referent="RBX20">
 				<Properties>
 					<string name="Name">Views</string>
 				</Properties>
-				<Item class="ModuleScript" referent="RBX17">
+				<Item class="ModuleScript" referent="RBX21">
+					<Properties>
+						<string name="Name">Achievements</string>
+						<ProtectedString name="Source">--!strict
+-- Prestaties: de drie badges die je aan anderen laat zien, de stand van de sprint, en het
+-- hele rek met wat er te halen valt.
+--
+-- Klikken op een badge in een gevuld vakje legt hem weer af. Dat was in de webversie een
+-- aparte wens: zonder dat kon je een badge wel oppakken maar nooit meer neerleggen.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Money = require(ReplicatedStorage.Shared.Money)
+local Ach = require(ReplicatedStorage.Shared.Achievements)
+local Season = require(ReplicatedStorage.Shared.Season)
+local Common = require(script.Parent.Common)
+
+local Achievements = {}
+
+local NIVEAU = {
+	bronze = Color3.fromHex("c98a4b"),
+	silver = Color3.fromHex("b9c2cf"),
+	gold = Color3.fromHex("e0b555"),
+}
+
+function Achievements.build(ouder: Instance): (any) -&gt; ()
+	local blad = Common.sheet(ouder)
+
+	-- ---------- de drie vakjes ----------
+	local etalage = UI.panel(blad, "Featured")
+	UI.list(etalage, 6)
+	UI.panelTitle(etalage, "featured \u{00B7} click a filled slot to take it off")
+
+	local vakjesRij = Instance.new("Frame")
+	vakjesRij.Size = UDim2.new(1, 0, 0, 72)
+	vakjesRij.BackgroundTransparency = 1
+	vakjesRij.Parent = etalage
+	UI.list(vakjesRij, 8, Enum.FillDirection.Horizontal)
+
+	local uitgelicht: { string } = {}
+	local open: { [string]: number } = {}
+	local vakjes: { TextButton } = {}
+	local zetUitgelicht: () -&gt; ()
+
+	for i = 1, 3 do
+		local b = Instance.new("TextButton")
+		b.Name = "Slot" .. i
+		b.Size = UDim2.fromOffset(72, 72)
+		b.Text = "+"
+		b.Font = Theme.font.ui
+		b.TextSize = 30
+		b.TextColor3 = Theme.color.muted
+		b.BackgroundColor3 = Theme.color.bg
+		b.BackgroundTransparency = 0.45
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.LayoutOrder = i
+		b.RichText = false
+		UI.corner(b, Theme.size.radiusBig)
+		UI.stroke(b, Theme.color.border)
+		b.Parent = vakjesRij
+		vakjes[i] = b
+
+		-- Een gevuld vakje legt de badge weer af.
+		b.Activated:Connect(function()
+			local id = uitgelicht[i]
+			if not id then return end
+			table.remove(uitgelicht, i)
+			Common.call("SetFeatured", uitgelicht)
+			zetUitgelicht()
+			Common.toast("BADGE TAKEN OFF", nil)
+		end)
+	end
+
+	-- ---------- de sprint ----------
+	local sprintVak = UI.panel(blad, "Sprint")
+	UI.list(sprintVak, 4)
+	UI.panelTitle(sprintVak, "sprint profit \u{00B7} title and a vip pass")
+	local sprintNaam = Common.statRow(sprintVak, "SPRINT", "\u{2014}")
+	local sprintKlok = Common.statRow(sprintVak, "ENDS IN", "\u{2014}")
+	local seizoenKlok = Common.statRow(sprintVak, "SEASON ENDS IN", "\u{2014}")
+	local mijnWinst = Common.statRow(sprintVak, "YOUR SPRINT PROFIT", "$0.00")
+	local prijsUitleg = UI.label(sprintVak, "\u{25BA} FINISH A SPRINT AT #1 AND THE VIP ZONE IS YOURS FOR THE SEASON", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	prijsUitleg.TextWrapped = true
+	prijsUitleg.Size = UDim2.new(1, 0, 0, 26)
+
+	local standVak = UI.panel(blad, "Standings")
+	UI.list(standVak, 3)
+	UI.panelTitle(standVak, "standings")
+	local standLijst = Instance.new("Frame")
+	standLijst.Size = UDim2.new(1, 0, 0, 0)
+	standLijst.AutomaticSize = Enum.AutomaticSize.Y
+	standLijst.BackgroundTransparency = 1
+	standLijst.Parent = standVak
+	UI.list(standLijst, 2)
+	local leegLabel = UI.label(standLijst, "Nog niemand op de lijst deze sprint.", {
+		size = Theme.text.small, color = Theme.color.muted,
+	})
+
+	-- ---------- het rek ----------
+	local rek = UI.panel(blad, "All")
+	UI.list(rek, 6)
+	local rekTitel = UI.label(rek, "\u{25BA} ACHIEVEMENTS \u{00B7} 0 / " .. #Ach.LIST, {
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+	})
+
+	local raster = Instance.new("Frame")
+	raster.Size = UDim2.new(1, 0, 0, 0)
+	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.BackgroundTransparency = 1
+	raster.Parent = rek
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0, 168, 0, 74)
+	layout.CellPadding = UDim2.fromOffset(8, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = raster
+
+	type Kaartje = { knop: TextButton, rand: UIStroke, icoon: TextLabel, titel: TextLabel, tekst: TextLabel }
+	local kaartjes: { [string]: Kaartje } = {}
+
+	for i, a in Ach.LIST do
+		local knop = Instance.new("TextButton")
+		knop.Name = a.id
+		knop.Text = ""
+		knop.BackgroundColor3 = Theme.color.bg
+		knop.BackgroundTransparency = 0.5
+		knop.BorderSizePixel = 0
+		knop.AutoButtonColor = false
+		knop.LayoutOrder = i
+		UI.corner(knop, Theme.size.radius)
+		local rand = UI.stroke(knop, Theme.color.border)
+		knop.Parent = raster
+
+		local icoon = UI.label(knop, a.icon, {
+			size = 26, align = Enum.TextXAlignment.Center,
+		})
+		icoon.Position = UDim2.new(0, 6, 0, 8)
+		icoon.Size = UDim2.fromOffset(34, 34)
+
+		local titel = UI.label(knop, a.title, {
+			size = Theme.text.small, color = Theme.color.text, font = Theme.font.uiBold,
+		})
+		titel.Position = UDim2.new(0, 46, 0, 8)
+		titel.Size = UDim2.new(1, -52, 0, 16)
+
+		local tekst = UI.label(knop, a.desc, { size = Theme.text.tiny, color = Theme.color.muted })
+		tekst.Position = UDim2.new(0, 46, 0, 26)
+		tekst.Size = UDim2.new(1, -52, 0, 40)
+		tekst.TextWrapped = true
+		tekst.TextYAlignment = Enum.TextYAlignment.Top
+
+		kaartjes[a.id] = { knop = knop, rand = rand, icoon = icoon, titel = titel, tekst = tekst }
+
+		-- Een prestatie die je hebt kun je in een vrij vakje leggen.
+		knop.Activated:Connect(function()
+			if not open[a.id] then
+				Common.toast("NOT UNLOCKED YET", "red")
+				return
+			end
+			if table.find(uitgelicht, a.id) then
+				Common.toast("ALREADY FEATURED", nil)
+				return
+			end
+			if #uitgelicht &gt;= 3 then
+				Common.toast("ALL THREE SLOTS ARE FULL", "red")
+				return
+			end
+			table.insert(uitgelicht, a.id)
+			Common.call("SetFeatured", uitgelicht)
+			zetUitgelicht()
+		end)
+	end
+
+	function zetUitgelicht()
+		for i, b in vakjes do
+			local id = uitgelicht[i]
+			local a = if id then Ach.BY_ID[id] else nil
+			b.Text = if a then a.icon else "+"
+			b.TextSize = if a then 34 else 30
+			b.TextColor3 = if a then Theme.color.text else Theme.color.muted
+			b.BackgroundTransparency = if a then 0.2 else 0.45
+		end
+	end
+
+	-- ---------- de ranglijst ophalen ----------
+	local function ververs()
+		local res = Common.call("Leaderboard")
+		if not res then return end
+		sprintNaam.Text = res.label
+		sprintKlok.Text = Season.countdown(res.endsAt, res.now)
+		seizoenKlok.Text = Season.countdown(res.seasonEndsAt, res.now)
+		mijnWinst.Text = "$" .. Money.fmt(res.mine or 0)
+
+		for _, k in standLijst:GetChildren() do
+			if k:IsA("Frame") then k:Destroy() end
+		end
+		leegLabel.Visible = #res.top == 0
+		for _, plek in res.top do
+			local naam = plek.rank .. ". " .. plek.name
+			local rij = Common.statRow(standLijst, naam, "$" .. Money.fmt(plek.profit))
+			rij.TextColor3 = if plek.rank &lt;= 3 then Theme.color.gold else Theme.color.text
+		end
+	end
+
+	task.spawn(function()
+		while true do
+			ververs()
+			task.wait(30)
+		end
+	end)
+
+	-- Het profiel binnenkrijgen.
+	return function(p: any)
+		if typeof(p) ~= "table" then return end
+		open = if typeof(p.achievements) == "table" then p.achievements else {}
+		uitgelicht = {}
+		if typeof(p.featured) == "table" then
+			for _, id in p.featured do
+				if typeof(id) == "string" and Ach.BY_ID[id] then table.insert(uitgelicht, id) end
+			end
+		end
+		zetUitgelicht()
+
+		local aantal = 0
+		for _, a in Ach.LIST do
+			local k = kaartjes[a.id]
+			local heeft = open[a.id] ~= nil
+			if heeft then aantal += 1 end
+			k.knop.BackgroundTransparency = if heeft then 0.15 else 0.55
+			k.rand.Color = if heeft then NIVEAU[a.tier] else Theme.color.border
+			k.icoon.TextTransparency = if heeft then 0 else 0.6
+			k.titel.TextColor3 = if heeft then NIVEAU[a.tier] else Theme.color.muted
+			k.tekst.TextTransparency = if heeft then 0 else 0.35
+		end
+		rekTitel.Text = "\u{25BA} ACHIEVEMENTS \u{00B7} " .. aantal .. " / " .. #Ach.LIST
+	end
+end
+
+return Achievements
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX22">
 					<Properties>
 						<string name="Name">Blackjack</string>
 						<ProtectedString name="Source">--!strict
@@ -3077,7 +4258,7 @@ return Blackjack
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX18">
+				<Item class="ModuleScript" referent="RBX23">
 					<Properties>
 						<string name="Name">Bus</string>
 						<ProtectedString name="Source">--!strict
@@ -3288,7 +4469,7 @@ return Bus
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX19">
+				<Item class="ModuleScript" referent="RBX24">
 					<Properties>
 						<string name="Name">Common</string>
 						<ProtectedString name="Source">--!strict
@@ -3557,7 +4738,7 @@ return Common
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX20">
+				<Item class="ModuleScript" referent="RBX25">
 					<Properties>
 						<string name="Name">Crash</string>
 						<ProtectedString name="Source">--!strict
@@ -3852,7 +5033,163 @@ return Crash
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX21">
+				<Item class="ModuleScript" referent="RBX26">
+					<Properties>
+						<string name="Name">Friends</string>
+						<ProtectedString name="Source">--!strict
+-- Vrienden en tafels. Je vrienden komen van Roblox zelf, want die kent ze al; wie er nu
+-- meespeelt staat bovenaan. Een privétafel is een eigen server waar je mensen bij haalt,
+-- en quick play zet je terug aan de publieke tafel.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SocialService = game:GetService("SocialService")
+local Players = game:GetService("Players")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Common = require(script.Parent.Common)
+
+local Friends = {}
+
+function Friends.build(ouder: Instance): ()
+	local blad = Common.sheet(ouder)
+	local links, rechts = Common.columns(blad, 300)
+
+	-- ---------- de lijst ----------
+	local lijstVak = UI.panel(links, "Friends")
+	UI.list(lijstVak, 4)
+	local lijstTitel = UI.label(lijstVak, "\u{25BA} FRIENDS", {
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+	})
+
+	local lijst = Instance.new("Frame")
+	lijst.Size = UDim2.new(1, 0, 0, 0)
+	lijst.AutomaticSize = Enum.AutomaticSize.Y
+	lijst.BackgroundTransparency = 1
+	lijst.Parent = lijstVak
+	UI.list(lijst, 3)
+
+	local leeg = UI.label(lijst, "Nog niemand opgehaald.", {
+		size = Theme.text.small, color = Theme.color.muted,
+	})
+
+	-- ---------- wie er nu aan tafel zit ----------
+	local tafelVak = UI.panel(links, "AtTable")
+	UI.list(tafelVak, 4)
+	UI.panelTitle(tafelVak, "at this table")
+	local tafelLijst = Instance.new("Frame")
+	tafelLijst.Size = UDim2.new(1, 0, 0, 0)
+	tafelLijst.AutomaticSize = Enum.AutomaticSize.Y
+	tafelLijst.BackgroundTransparency = 1
+	tafelLijst.Parent = tafelVak
+	UI.list(tafelLijst, 2)
+
+	-- ---------- de knoppen ----------
+	local uitleg = UI.panel(rechts, "Explain")
+	UI.list(uitleg, 4)
+	UI.panelTitle(uitleg, "tables")
+	local tekst = UI.label(uitleg, "Een privétafel is een eigen server: alleen wie jij erbij haalt speelt mee, aan dezelfde crashronde en dezelfde blackjacktafel. Quick play zet je terug aan de publieke tafel.", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	tekst.TextWrapped = true
+	tekst.Size = UDim2.new(1, 0, 0, 64)
+
+	local prive = UI.primary(rechts, "PRIVATE TABLE")
+	local nodig = UI.secondary(rechts, "INVITE FRIENDS")
+	nodig.Size = UDim2.new(1, 0, 0, 40)
+	local snel = UI.secondary(rechts, "QUICK PLAY")
+	snel.Size = UDim2.new(1, 0, 0, 40)
+	local ververs = UI.secondary(rechts, "REFRESH")
+	ververs.Size = UDim2.new(1, 0, 0, 32)
+
+	local codeVak = UI.panel(rechts, "Code")
+	UI.list(codeVak, 4)
+	UI.panelTitle(codeVak, "your table")
+	local codeLabel = UI.label(codeVak, "geen privétafel open", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	codeLabel.TextWrapped = true
+	codeLabel.Size = UDim2.new(1, 0, 0, 30)
+
+	-- ---------- vullen ----------
+	local function rijVoor(ouderVak: Instance, naam: string, erbij: boolean): TextLabel
+		local rij = Common.statRow(ouderVak, naam, if erbij then "AT THE TABLE" else "ELSEWHERE")
+		rij.TextColor3 = if erbij then Theme.color.neon else Theme.color.muted
+		return rij
+	end
+
+	local function vul()
+		local res = Common.call("Friends", "list")
+		if not res then return end
+
+		for _, k in lijst:GetChildren() do
+			if k:IsA("Frame") then k:Destroy() end
+		end
+		local n = 0
+		local hier = 0
+		for _, v in res.friends do
+			n += 1
+			if v.here then hier += 1 end
+			rijVoor(lijst, v.displayName, v.here)
+		end
+		leeg.Visible = n == 0
+		leeg.Text = if n == 0
+			then "Geen vrienden gevonden. Roblox geeft die lijst alleen vrij als je hem gedeeld hebt."
+			else ""
+		lijstTitel.Text = "\u{25BA} FRIENDS \u{00B7} " .. hier .. " / " .. n .. " HERE"
+
+		for _, k in tafelLijst:GetChildren() do
+			if k:IsA("Frame") then k:Destroy() end
+		end
+		for _, p in res.here do
+			local rij = Common.statRow(tafelLijst, p.displayName,
+				if p.userId == Players.LocalPlayer.UserId then "YOU" else "")
+			rij.TextColor3 = Theme.color.muted
+		end
+	end
+
+	ververs.Activated:Connect(vul)
+
+	prive.Activated:Connect(function()
+		local res = Common.call("Friends", "reserve")
+		if not res then return end
+		codeLabel.Text = "Tafel klaar. Je wordt er nu naartoe gebracht; nodig daarna je vrienden uit."
+		codeLabel.TextColor3 = Theme.color.neon
+		Common.toast("OPENING YOUR TABLE", "green")
+		task.wait(1)
+		Common.call("Friends", "join")
+	end)
+
+	-- De uitnodiging is die van Roblox zelf: wie je aantikt komt in jouw server terecht.
+	nodig.Activated:Connect(function()
+		local ok, kan = pcall(function()
+			return SocialService:CanSendGameInviteAsync(Players.LocalPlayer)
+		end)
+		if not ok or not kan then
+			Common.toast("INVITES ARE NOT AVAILABLE HERE", "red")
+			return
+		end
+		pcall(function()
+			SocialService:PromptGameInvite(Players.LocalPlayer)
+		end)
+	end)
+
+	snel.Activated:Connect(function()
+		Common.toast("BACK TO THE PUBLIC TABLE", nil)
+		Common.call("Friends", "quick")
+	end)
+
+	task.spawn(function()
+		while true do
+			vul()
+			task.wait(20)
+		end
+	end)
+end
+
+return Friends
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX27">
 					<Properties>
 						<string name="Name">Home</string>
 						<ProtectedString name="Source">--!strict
@@ -4036,7 +5373,7 @@ return Home
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX22">
+				<Item class="ModuleScript" referent="RBX28">
 					<Properties>
 						<string name="Name">Horse</string>
 						<ProtectedString name="Source">--!strict
@@ -4292,7 +5629,7 @@ return Horse
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX23">
+				<Item class="ModuleScript" referent="RBX29">
 					<Properties>
 						<string name="Name">Mines</string>
 						<ProtectedString name="Source">--!strict
@@ -4496,7 +5833,7 @@ return Mines
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX24">
+				<Item class="ModuleScript" referent="RBX30">
 					<Properties>
 						<string name="Name">Plinko</string>
 						<ProtectedString name="Source">--!strict
@@ -4730,7 +6067,7 @@ return Plinko
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX25">
+				<Item class="ModuleScript" referent="RBX31">
 					<Properties>
 						<string name="Name">Profile</string>
 						<ProtectedString name="Source">--!strict
@@ -4894,7 +6231,7 @@ return Profile
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX26">
+				<Item class="ModuleScript" referent="RBX32">
 					<Properties>
 						<string name="Name">Roulette</string>
 						<ProtectedString name="Source">--!strict
@@ -5173,7 +6510,7 @@ return Roulette
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX27">
+				<Item class="ModuleScript" referent="RBX33">
 					<Properties>
 						<string name="Name">Scratch</string>
 						<ProtectedString name="Source">--!strict
@@ -5313,7 +6650,7 @@ return Scratch
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX28">
+				<Item class="ModuleScript" referent="RBX34">
 					<Properties>
 						<string name="Name">Slots</string>
 						<ProtectedString name="Source">--!strict
@@ -5433,7 +6770,7 @@ return Slots
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX29">
+				<Item class="ModuleScript" referent="RBX35">
 					<Properties>
 						<string name="Name">Tower</string>
 						<ProtectedString name="Source">--!strict
@@ -5664,7 +7001,200 @@ return Tower
 </ProtectedString>
 					</Properties>
 				</Item>
-				<Item class="ModuleScript" referent="RBX30">
+				<Item class="ModuleScript" referent="RBX36">
+					<Properties>
+						<string name="Name">Vip</string>
+						<ProtectedString name="Source">--!strict
+-- De VIP-zone. Wie een sprint van drie dagen op nummer één afsluit, mag het hele seizoen
+-- naar binnen: twee spellen die nergens anders in het casino staan.
+--
+-- De poort staat op de server, bij de spellen zelf. Dit scherm laat alleen zien of hij open
+-- is; de knoppen uitzetten is netjes, maar het is niet wat je tegenhoudt.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Theme = require(ReplicatedStorage.Shared.Theme)
+local UI = require(ReplicatedStorage.Shared.UI)
+local Season = require(ReplicatedStorage.Shared.Season)
+local Common = require(script.Parent.Common)
+
+local Vip = {}
+
+local PERKS = {
+	{ "\u{1F3B0}", "777", "Three reels. Three sevens pay 40x. Nowhere else in the casino." },
+	{ "\u{1F68C}", "Ride the Bus", "Four calls through a shuffled deck, cash out after any of them." },
+	{ "\u{1F39F}", "Four ways in", "Every three-day sprint crowns a new number one, so a season has four." },
+}
+
+local KAARTEN = {
+	{ id = "slots", label = "777", desc = "Three reels, three sevens pay 40x.",
+	  van = Color3.fromHex("4a3a12"), tot = Color3.fromHex("1e1707") },
+	{ id = "bus", label = "RIDE THE BUS", desc = "Four calls through one deck.",
+	  van = Color3.fromHex("2a3550"), tot = Color3.fromHex("141a28") },
+}
+
+function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
+	local blad = Common.sheet(ouder)
+
+	-- ---------- de poort ----------
+	local poort = UI.panel(blad, "Gate")
+	UI.list(poort, 6)
+	local slot = UI.label(poort, "\u{1F512}", { size = 40, align = Enum.TextXAlignment.Center })
+	slot.Size = UDim2.new(1, 0, 0, 46)
+
+	local kop = UI.label(poort, "THE ZONE IS CLOSED", {
+		size = Theme.text.big, color = Theme.color.gold, font = Theme.font.uiBold,
+		align = Enum.TextXAlignment.Center,
+	})
+	kop.Size = UDim2.new(1, 0, 0, 28)
+
+	local onder = UI.label(poort, "\u{25BA} FINISH A SPRINT AT #1 AND THE ZONE IS YOURS FOR THE SEASON", {
+		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
+	})
+	onder.TextWrapped = true
+	onder.Size = UDim2.new(1, 0, 0, 30)
+
+	local klok = UI.label(poort, "", {
+		size = Theme.text.small, color = Theme.color.neon, font = Theme.font.num,
+		align = Enum.TextXAlignment.Center,
+	})
+
+	-- ---------- wat je ermee krijgt ----------
+	local voordelen = UI.panel(blad, "Perks")
+	UI.list(voordelen, 6)
+	UI.panelTitle(voordelen, "what a pass gets you")
+	for _, perk in PERKS do
+		local rij = Instance.new("Frame")
+		rij.Size = UDim2.new(1, 0, 0, 36)
+		rij.BackgroundTransparency = 1
+		rij.Parent = voordelen
+
+		local ic = UI.label(rij, perk[1], { size = 22, align = Enum.TextXAlignment.Center })
+		ic.Size = UDim2.fromOffset(30, 30)
+
+		local t = UI.label(rij, perk[2], {
+			size = Theme.text.small, color = Theme.color.gold, font = Theme.font.uiBold,
+		})
+		t.Position = UDim2.new(0, 36, 0, 0)
+		t.Size = UDim2.new(1, -40, 0, 16)
+
+		local d = UI.label(rij, perk[3], { size = Theme.text.tiny, color = Theme.color.muted })
+		d.Position = UDim2.new(0, 36, 0, 16)
+		d.Size = UDim2.new(1, -40, 0, 18)
+	end
+
+	-- ---------- de twee spellen ----------
+	local spellen = UI.panel(blad, "Games")
+	UI.list(spellen, 6)
+	UI.panelTitle(spellen, "vip games")
+
+	local raster = Instance.new("Frame")
+	raster.Size = UDim2.new(1, 0, 0, 0)
+	raster.AutomaticSize = Enum.AutomaticSize.Y
+	raster.BackgroundTransparency = 1
+	raster.Parent = spellen
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0, 250, 0, 150)
+	layout.CellPadding = UDim2.fromOffset(12, 12)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = raster
+
+	local kaartRanden: { UIStroke } = {}
+	local kaartSloten: { TextLabel } = {}
+
+	for i, k in KAARTEN do
+		local f = Instance.new("Frame")
+		f.Name = k.id
+		f.BackgroundColor3 = Theme.color.panel
+		f.BorderSizePixel = 0
+		f.LayoutOrder = i
+		UI.corner(f, Theme.size.radiusBig)
+		kaartRanden[i] = UI.stroke(f, Theme.color.border)
+		f.Parent = raster
+
+		local beeld = Instance.new("Frame")
+		beeld.Size = UDim2.new(1, 0, 0, 78)
+		beeld.BackgroundColor3 = k.van
+		beeld.BorderSizePixel = 0
+		beeld.Parent = f
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new(k.van, k.tot)
+		g.Rotation = 90
+		g.Parent = beeld
+		UI.corner(beeld, Theme.size.radiusBig)
+
+		local body = Instance.new("Frame")
+		body.Position = UDim2.new(0, 0, 0, 78)
+		body.Size = UDim2.new(1, 0, 1, -78)
+		body.BackgroundTransparency = 1
+		body.Parent = f
+		UI.padding(body, 10)
+		UI.list(body, 4)
+		UI.label(body, k.label, { size = Theme.text.label, color = Theme.color.gold, font = Theme.font.uiBold })
+		local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
+		d.TextWrapped = true
+		d.Size = UDim2.new(1, 0, 0, 28)
+
+		local hangslot = UI.label(f, "\u{1F512}", { size = 26, align = Enum.TextXAlignment.Center })
+		hangslot.AnchorPoint = Vector2.new(0.5, 0.5)
+		hangslot.Position = UDim2.fromScale(0.5, 0.26)
+		hangslot.Size = UDim2.fromOffset(40, 40)
+		hangslot.ZIndex = 4
+		kaartSloten[i] = hangslot
+
+		local knop = Instance.new("TextButton")
+		knop.Text = ""
+		knop.BackgroundTransparency = 1
+		knop.Size = UDim2.fromScale(1, 1)
+		knop.ZIndex = 5
+		knop.Parent = f
+		knop.Activated:Connect(function()
+			if hangslot.Visible then
+				Common.toast("VIP PASS REQUIRED", "red")
+				return
+			end
+			ga(k.id)
+		end)
+	end
+
+	local function zetPoort(open: boolean, tot: number?, nu: number?)
+		slot.Text = if open then "\u{1F511}" else "\u{1F512}"
+		kop.Text = if open then "THE ZONE IS OPEN" else "THE ZONE IS CLOSED"
+		kop.TextColor3 = if open then Theme.color.neon else Theme.color.gold
+		onder.Text = if open
+			then "\u{25BA} YOUR PASS RUNS UNTIL THE END OF THIS SEASON"
+			else "\u{25BA} FINISH A SPRINT AT #1 AND THE ZONE IS YOURS FOR THE SEASON"
+		klok.Text = if open and tot then "PASS EXPIRES IN " .. Season.countdown(tot, nu) else ""
+		for i = 1, #KAARTEN do
+			kaartSloten[i].Visible = not open
+			kaartRanden[i].Color = if open then Theme.color.gold else Theme.color.border
+		end
+	end
+
+	zetPoort(false)
+
+	-- De server zegt of de pas geldt; de klok komt er bij de ranglijst mee.
+	task.spawn(function()
+		while true do
+			local res = Common.call("Leaderboard")
+			if res then
+				zetPoort(res.vipActive == true, res.seasonEndsAt, res.now)
+			end
+			task.wait(30)
+		end
+	end)
+
+	return function(p: any)
+		if typeof(p) ~= "table" then return end
+		-- Het profiel draagt het seizoen van de pas; dat is genoeg om het scherm meteen
+		-- goed te zetten zonder op de ranglijst te wachten.
+		zetPoort(Season.vipActive(tonumber(p.vipSeason)), nil, nil)
+	end
+end
+
+return Vip
+</ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX37">
 					<Properties>
 						<string name="Name">Wheel</string>
 						<ProtectedString name="Source">--!strict

@@ -9,8 +9,12 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
+local Season = require(ReplicatedStorage.Shared.Season)
 local Home = require(script.Views.Home)
 local ProfileView = require(script.Views.Profile)
+local AchievementsView = require(script.Views.Achievements)
+local VipView = require(script.Views.Vip)
+local FriendsView = require(script.Views.Friends)
 local Common = require(script.Views.Common)
 
 -- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
@@ -47,23 +51,28 @@ root.Parent = gui
 
 -- ---------- de schermen ----------
 local SCHERMEN = {
-	{ id = "home",    label = "HOME",          groep = "PLAY" },
-	{ id = "crash",   label = "CRASH",         groep = "PLAY" },
-	{ id = "roulette",label = "ROULETTE",      groep = "PLAY" },
-	{ id = "tower",   label = "DRAGON TOWER",  groep = "PLAY" },
-	{ id = "mines",   label = "MINES",         groep = "PLAY" },
-	{ id = "plinko",  label = "PLINKO",        groep = "PLAY" },
-	{ id = "blackjack",label = "BLACKJACK",    groep = "PLAY" },
-	{ id = "scratch", label = "SCRATCH CARDS", groep = "PLAY" },
-	{ id = "wheel",   label = "WHEEL",         groep = "PLAY" },
-	{ id = "slots",   label = "777",           groep = "PLAY" },
-	{ id = "horse",   label = "HORSE RACE",    groep = "PLAY" },
-	{ id = "bus",     label = "RIDE THE BUS",  groep = "PLAY" },
-	{ id = "profile", label = "PROFILE",       groep = "ACCOUNT" },
-	{ id = "vip",     label = "VIP ZONE",      groep = "ACCOUNT" },
-	{ id = "friends", label = "FRIENDS",       groep = "ACCOUNT" },
-	{ id = "achievements", label = "ACHIEVEMENTS", groep = "ACCOUNT" },
+	{ id = "home",    label = "HOME",          icon = "\u{2302}",  groep = "PLAY" },
+	{ id = "crash",   label = "CRASH",         icon = "\u{2708}",  groep = "PLAY" },
+	{ id = "roulette",label = "ROULETTE",      icon = "\u{25CE}",  groep = "PLAY" },
+	{ id = "tower",   label = "DRAGON TOWER",  icon = "\u{1F5FC}", groep = "PLAY" },
+	{ id = "mines",   label = "MINES",         icon = "\u{25C6}",  groep = "PLAY" },
+	{ id = "plinko",  label = "PLINKO",        icon = "\u{25BC}",  groep = "PLAY" },
+	{ id = "blackjack",label = "BLACKJACK",    icon = "\u{2660}",  groep = "PLAY" },
+	{ id = "scratch", label = "SCRATCH CARDS", icon = "\u{25A6}",  groep = "PLAY" },
+	{ id = "wheel",   label = "WHEEL",         icon = "\u{2733}",  groep = "PLAY" },
+	{ id = "slots",   label = "777",           icon = "7\u{FE0F}\u{20E3}", groep = "VIP" },
+	{ id = "horse",   label = "HORSE RACE",    icon = "\u{265E}",  groep = "PLAY" },
+	{ id = "bus",     label = "RIDE THE BUS",  icon = "\u{1F68C}", groep = "VIP" },
+	{ id = "profile", label = "PROFILE",       icon = "\u{25CF}",  groep = "ACCOUNT" },
+	{ id = "vip",     label = "VIP ZONE",      icon = "\u{1F511}", groep = "ACCOUNT" },
+	{ id = "friends", label = "FRIENDS",       icon = "\u{263A}",  groep = "ACCOUNT" },
+	{ id = "achievements", label = "ACHIEVEMENTS", icon = "\u{1F3C6}", groep = "ACCOUNT" },
 }
+
+-- De twee VIP-spellen zijn alleen bereikbaar zolang de pas geldt; anders kom je uit bij de
+-- zone zelf, die uitlegt hoe je er binnenkomt. Precies zoals VIP_ROUTES in de webversie.
+local VIP_ROUTES = { slots = true, bus = true }
+local vipOpen = false
 
 local inhoud = Instance.new("Frame")
 inhoud.Name = "Content"
@@ -73,7 +82,7 @@ inhoud.BackgroundTransparency = 1
 inhoud.Parent = root
 
 local views: { [string]: Frame } = {}
-local _huidige = "home"
+local huidige = "home"
 
 local function view(id: string): Frame
 	local v = views[id]
@@ -111,12 +120,12 @@ UI.list(railLijst, 2)
 local navKnoppen: { [string]: TextButton } = {}
 local navigate: (string) -> ()
 
-local function navItem(item: { id: string, label: string, groep: string }, volgorde: number)
+local function navItem(item: { id: string, label: string, icon: string, groep: string }, volgorde: number)
 	local b = Instance.new("TextButton")
 	b.Name = item.id
-	b.Text = string.sub(item.label, 1, 2)
+	b.Text = item.icon
 	b.Font = Theme.font.uiBold
-	b.TextSize = Theme.text.small
+	b.TextSize = 16
 	b.TextColor3 = Theme.color.muted
 	b.BackgroundColor3 = Theme.color.neon
 	b.BackgroundTransparency = 1
@@ -173,13 +182,19 @@ local toastLijst = UI.list(toasts, 6)
 toastLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
 function navigate(id: string)
+	-- Zonder pas kom je bij de zone uit in plaats van bij het spel.
+	if VIP_ROUTES[id] and not vipOpen then
+		id = "vip"
+	end
 	for naam, v in views do
 		v.Visible = naam == id
 	end
 	for naam, b in navKnoppen do
-		local aan = naam == id
+		local aan = naam == id or (VIP_ROUTES[naam] and id == "vip" and not vipOpen)
 		b.TextColor3 = if aan then Theme.color.neon else Theme.color.muted
 		b.BackgroundTransparency = if aan then 0.88 else 1
+		-- Een gesloten VIP-spel staat gedimd in de balk.
+		b.TextTransparency = if VIP_ROUTES[naam] and not vipOpen then 0.55 else 0
 	end
 	for _, item in SCHERMEN do
 		if item.id == id then
@@ -187,12 +202,14 @@ function navigate(id: string)
 			break
 		end
 	end
-	_huidige = id
+	huidige = id
 end
 
 -- ---------- de schermen vullen ----------
 local zetSaldoHome: ((number) -> ())? = nil
 local zetProfiel: ((any) -> ())? = nil
+local zetPrestaties: ((any) -> ())? = nil
+local zetVip: ((any) -> ())? = nil
 
 for _, item in SCHERMEN do
 	local v = view(item.id)
@@ -207,6 +224,12 @@ for _, item in SCHERMEN do
 		zetSaldoHome = Home.build(vak, navigate)
 	elseif item.id == "profile" then
 		zetProfiel = ProfileView.build(vak)
+	elseif item.id == "achievements" then
+		zetPrestaties = AchievementsView.build(vak)
+	elseif item.id == "vip" then
+		zetVip = VipView.build(vak, navigate)
+	elseif item.id == "friends" then
+		FriendsView.build(vak)
 	elseif spel then
 		spel.build(vak)
 	else
@@ -233,6 +256,15 @@ local function toon(p: any)
 	end
 	local prof = zetProfiel
 	if prof then prof(p) end
+	local pres = zetPrestaties
+	if pres then pres(p) end
+	local vip = zetVip
+	if vip then vip(p) end
+
+	-- De poort van de balk gaat mee met de pas in het profiel.
+	local was = vipOpen
+	vipOpen = Season.vipActive(tonumber(p.vipSeason))
+	if was ~= vipOpen then navigate(huidige) end
 end
 
 -- De schermen laten hun meldingen door de schil lopen; die weet waar het meldingenvak zit.

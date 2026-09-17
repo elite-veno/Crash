@@ -9,7 +9,10 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local Money = require(game:GetService("ReplicatedStorage").Shared.Money)
+local Gedeeld = game:GetService("ReplicatedStorage").Shared
+local Money = require(Gedeeld.Money)
+local Season = require(Gedeeld.Season)
+local Achievements = require(Gedeeld.Achievements)
 
 local Profiles = {}
 
@@ -29,12 +32,23 @@ export type Profile = {
 	profit: number,
 	stats: { [string]: Stats },
 	achievements: { [string]: number },
+	-- Het boekje naast de statistieken: reeksen, records per spel, en de gebeurtenissen
+	-- die je niet uit de totalen kunt aflezen.
+	extra: Achievements.Extra,
 	featured: { string },
 	titles: { string },
 	title: string?,
 	titleSeason: number?,
 	resetSeason: number?,
 	seasonStart: number,
+	-- De lopende sprint, en wat je er tot nu toe aan overgehouden hebt. Daar wordt de
+	-- ranglijst op gescoord.
+	sprint: number?,
+	sprintProfit: number,
+	-- Tot en met welke sprint de prijzen al zijn uitgedeeld aan deze speler.
+	awardedSprint: number?,
+	-- Het seizoen waarvoor zijn VIP-pas geldt, of niets.
+	vipSeason: number?,
 	updatedAt: number,
 }
 
@@ -80,12 +94,17 @@ function Profiles.fresh(): Profile
 		rounds = 0, won = 0, lost = 0, profit = 0,
 		stats = stats,
 		achievements = {},
+		extra = Achievements.fresh(),
 		featured = {},
 		titles = {},
 		title = nil,
 		titleSeason = nil,
-		resetSeason = nil,
+		resetSeason = Season.seasonId(),
 		seasonStart = Money.START,
+		sprint = Season.sprintId(),
+		sprintProfit = 0,
+		awardedSprint = nil,
+		vipSeason = nil,
 		updatedAt = os.time(),
 	}
 end
@@ -101,6 +120,10 @@ local function heel(p: any): Profile
 	uit.profit = tonumber(p.profit) or 0
 	uit.seasonStart = tonumber(p.seasonStart) or Money.START
 	uit.resetSeason = tonumber(p.resetSeason)
+	uit.sprint = tonumber(p.sprint)
+	uit.sprintProfit = tonumber(p.sprintProfit) or 0
+	uit.awardedSprint = tonumber(p.awardedSprint)
+	uit.vipSeason = tonumber(p.vipSeason)
 	uit.title = if typeof(p.title) == "string" then p.title else nil
 	uit.titleSeason = tonumber(p.titleSeason)
 	if typeof(p.stats) == "table" then
@@ -114,6 +137,36 @@ local function heel(p: any): Profile
 					highest = tonumber(s.highest) or 0,
 					profit = tonumber(s.profit) or 0,
 				}
+			end
+		end
+	end
+	-- Het boekje veld voor veld overzetten: wat er niet in staat blijft op de verse waarde,
+	-- zodat een profiel van een oudere versie gewoon doorloopt.
+	if typeof(p.extra) == "table" then
+		local o = p.extra
+		local e = uit.extra
+		e.streak = tonumber(o.streak) or 0
+		e.bestStreak = tonumber(o.bestStreak) or 0
+		e.bigWin = tonumber(o.bigWin) or 0
+		e.crashAbove2 = tonumber(o.crashAbove2) or 0
+		e.towerLevel = tonumber(o.towerLevel) or 0
+		e.minesMines = tonumber(o.minesMines) or 0
+		e.horseStreak = tonumber(o.horseStreak) or 0
+		e.rouletteStraight = o.rouletteStraight == true
+		e.towerMaster = o.towerMaster == true
+		e.minesPerfect = o.minesPerfect == true
+		e.bjNatural = o.bjNatural == true
+		e.bjDouble = o.bjDouble == true
+		e.comeback = o.comeback == true
+		e.busFull = o.busFull == true
+		e.wasBroke = o.wasBroke == true
+		for _, veld in {"max", "maxWinPer"} do
+			if typeof(o[veld]) == "table" then
+				for k, v in o[veld] do
+					if typeof(k) == "string" and tonumber(v) then
+						(e :: any)[veld][k] = tonumber(v)
+					end
+				end
 			end
 		end
 	end
@@ -269,11 +322,87 @@ function Profiles.load(speler: Player): Profile
 	end
 
 	levend[id] = p
+	Profiles.rollOver(speler, p)
 	return p
+end
+
+-- Waar de prijzen vandaan komen. Ranking hangt zichzelf hier in; Profiles hoeft dan niets
+-- van DataStores voor ranglijsten te weten.
+local plaatsZoeker: ((number, number) -> number?)? = nil
+
+function Profiles.setPlaceLookup(f: (number, number) -> number?): ()
+	plaatsZoeker = f
+end
+
+-- Twee dingen die bij binnenkomst moeten kloppen: het seizoen, en de prijzen van de
+-- sprints die voorbij zijn gegaan terwijl deze speler weg was.
+function Profiles.rollOver(speler: Player, p: Profile): ()
+	local nuSeizoen = Season.seasonId()
+	local nuSprint = Season.sprintId()
+
+	-- Een nieuw seizoen: iedereen begint weer op $1000 plus een tiende van wat hij
+	-- daarboven had. Precies zoals in de webversie.
+	if p.resetSeason == nil then
+		p.resetSeason = nuSeizoen
+	elseif p.resetSeason < nuSeizoen then
+		p.balance = Season.balanceAfter(p.balance)
+		p.seasonStart = p.balance
+		p.resetSeason = nuSeizoen
+		p.sprint = nuSprint
+		p.sprintProfit = 0
+	end
+
+	-- Een verlopen pas hoort niet meer te gelden.
+	if p.vipSeason ~= nil and p.vipSeason < nuSeizoen then
+		p.vipSeason = nil
+	end
+
+	-- Een nieuwe sprint: de stand begint op nul.
+	if p.sprint ~= nuSprint then
+		p.sprint = nuSprint
+		p.sprintProfit = 0
+	end
+
+	-- De sprint die net voorbij is: stond deze speler in de top drie?
+	local vorige = nuSprint - 1
+	local zoek = plaatsZoeker
+	if zoek and (p.awardedSprint == nil or p.awardedSprint < vorige) then
+		p.awardedSprint = vorige
+		local plaats = zoek(vorige, speler.UserId)
+		if plaats and plaats <= 3 then
+			local titel = Season.titleFor(plaats, vorige)
+			if titel then
+				-- Dezelfde titel kan er maar één keer in. De teller hierboven hoort dat
+				-- al te voorkomen, maar een kast met twee keer "Kampioen S12" erin is
+				-- zo'n gekke uitkomst dat hij ook hier wordt tegengehouden.
+				if not table.find(p.titles, titel) then
+					table.insert(p.titles, titel)
+				end
+				p.title = titel
+				p.titleSeason = nuSeizoen
+			end
+			if plaats == 1 then
+				p.vipSeason = Season.vipSeasonFor(vorige)
+			end
+		end
+	end
 end
 
 function Profiles.get(speler: Player): Profile?
 	return levend[speler.UserId]
+end
+
+-- Mag deze speler de VIP-zone in? Een pas geldt voor precies één seizoen van twaalf dagen.
+function Profiles.vipActive(speler: Player): boolean
+	local p = levend[speler.UserId]
+	return p ~= nil and Season.vipActive(p.vipSeason)
+end
+
+-- Wie de sprintstand naar de ranglijst brengt. Ranking hangt zichzelf hier in.
+local publiceer: ((Player, number, number) -> ())? = nil
+
+function Profiles.setPublisher(f: (Player, number, number) -> ()): ()
+	publiceer = f
 end
 
 -- `vrijgeven` betekent: dit was de laatste schrijfbeurt, het slot mag los.
@@ -281,6 +410,15 @@ local function schrijf(speler: Player, vrijgeven: boolean): ()
 	local id = speler.UserId
 	local p = levend[id]
 	if not p or not store then return end
+	-- De ranglijst gaat mee met elke save, dus ongeveer elke twee minuten en bij het
+	-- weggaan. Dat is vaak genoeg voor een stand die drie dagen loopt.
+	local pub = publiceer
+	if pub and p.sprint then
+		pcall(function(): any
+			pub(speler, p.sprint :: number, p.sprintProfit)
+			return nil
+		end)
+	end
 	if bezig[id] then return end   -- lezen was mislukt; niets overschrijven
 	local mij = jobId()
 	metHerhaling("profiel opslaan voor " .. id, function()
@@ -351,8 +489,31 @@ function Profiles.give(speler: Player, bedrag: number): ()
 	p.balance = Money.round2(p.balance + bedrag)
 end
 
--- Een afgelopen ronde boeken. `inzet` is wat er is ingezet, `uit` wat eruit kwam.
-function Profiles.record(speler: Player, spel: string, inzet: number, uit: number, mult: number): ()
+-- Wie er meekijkt als er een prestatie opengaat. De server hangt hier een melding aan;
+-- Profiles zelf weet niets van het netwerk.
+local ontgrendelHaken: { (Player, { string }) -> () } = {}
+
+function Profiles.onUnlock(f: (Player, { string }) -> ()): ()
+	table.insert(ontgrendelHaken, f)
+end
+
+-- De stand zoals de prestaties hem willen zien.
+local function stand(p: Profile): Achievements.Stand
+	return {
+		balance = p.balance,
+		rounds = p.rounds,
+		won = p.won,
+		stats = p.stats :: any,
+		extra = p.extra,
+		vipSeason = p.vipSeason,
+		title = p.title,
+	}
+end
+
+-- Een afgelopen ronde boeken. `inzet` is wat er is ingezet, `uit` wat eruit kwam. `over`
+-- draagt wat alleen het spel zelf weet: op welke verdieping je stond, of de hand gedubbeld
+-- was, of je op een los nummer won.
+function Profiles.record(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any): ()
 	local p = levend[speler.UserId]
 	if not p then return end
 	local s = p.stats[spel]
@@ -369,6 +530,61 @@ function Profiles.record(speler: Player, spel: string, inzet: number, uit: numbe
 	s.profit = Money.round2(s.profit + uit - inzet)
 	p.profit = Money.round2(p.profit + uit - inzet)
 	if mult > s.highest then s.highest = mult end
+
+	-- De sprintstand: wat je binnen deze drie dagen hebt overgehouden. Bij een nieuwe
+	-- sprint begint iedereen weer op nul.
+	local nuSprint = Season.sprintId()
+	if p.sprint ~= nuSprint then
+		p.sprint = nuSprint
+		p.sprintProfit = 0
+	end
+	p.sprintProfit = Money.round2(p.sprintProfit + uit - inzet)
+
+	-- Het boekje bijwerken en kijken of er iets opengaat.
+	local ronde: Achievements.Ronde = {
+		game = spel, wager = inzet, payout = uit, mult = mult,
+	}
+	if typeof(over) == "table" then
+		ronde.straight = over.straight
+		ronde.level = over.level
+		ronde.diff = over.diff
+		ronde.mines = over.mines
+		ronde.cleared = over.cleared
+		ronde.perfect = over.perfect
+		ronde.natural = over.natural
+		ronde.doubled = over.doubled
+		ronde.steps = over.steps
+	end
+	Achievements.record(p.extra, ronde, p.balance)
+
+	local nieuwe = Achievements.check(stand(p), p.achievements)
+	if #nieuwe == 0 then return end
+	for _, id in nieuwe do
+		p.achievements[id] = os.time()
+	end
+	for _, f in ontgrendelHaken do
+		pcall(function(): any
+			f(speler, nieuwe)
+			return nil
+		end)
+	end
+end
+
+-- De drie badges die een speler aan anderen laat zien. Alleen prestaties die hij echt
+-- heeft, en hoogstens drie.
+function Profiles.setFeatured(speler: Player, lijst: any): boolean
+	local p = levend[speler.UserId]
+	if not p or typeof(lijst) ~= "table" then return false end
+	local uit: { string } = {}
+	local gezien: { [string]: boolean } = {}
+	for _, id in lijst do
+		if typeof(id) == "string" and p.achievements[id] and not gezien[id] and #uit < 3 then
+			gezien[id] = true
+			table.insert(uit, id)
+		end
+	end
+	p.featured = uit
+	return true
 end
 
 -- Wat de client mag zien. Precies genoeg om het scherm te vullen, niets meer.
