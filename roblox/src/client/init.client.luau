@@ -19,6 +19,7 @@ local AchievementsView = require(script.Views.Achievements)
 local VipView = require(script.Views.Vip)
 local FriendsView = require(script.Views.Friends)
 local Common = require(script.Views.Common)
+local Icons = require(script.Icons)
 
 -- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
 -- elkaar en praten alleen met de server.
@@ -56,22 +57,22 @@ root.Parent = gui
 type Scherm = { id: string, label: string, icon: string, groep: string, badge: string? }
 
 local SCHERMEN: { Scherm } = {
-	{ id = "home",         label = "HOME",          icon = "\u{2302}", groep = "PLAY" },
-	{ id = "crash",        label = "CRASH",         icon = "\u{2197}", groep = "PLAY", badge = "LIVE" },
-	{ id = "roulette",     label = "ROULETTE",      icon = "\u{25CE}", groep = "PLAY", badge = "LIVE" },
-	{ id = "tower",        label = "DRAGON TOWER",  icon = "\u{25B3}", groep = "PLAY", badge = "LIVE" },
-	{ id = "mines",        label = "MINES",         icon = "\u{25A6}", groep = "PLAY", badge = "LIVE" },
-	{ id = "plinko",       label = "PLINKO",        icon = "\u{25BD}", groep = "PLAY", badge = "LIVE" },
-	{ id = "blackjack",    label = "BLACKJACK",     icon = "\u{2660}", groep = "PLAY", badge = "LIVE" },
-	{ id = "scratch",      label = "SCRATCH CARDS", icon = "\u{25A4}", groep = "PLAY", badge = "LIVE" },
-	{ id = "wheel",        label = "WHEEL",         icon = "\u{2733}", groep = "PLAY", badge = "LIVE" },
-	{ id = "horse",        label = "HORSE RACE",    icon = "\u{265E}", groep = "PLAY", badge = "LIVE" },
-	{ id = "slots",        label = "777",           icon = "\u{2756}", groep = "VIP",  badge = "VIP" },
-	{ id = "bus",          label = "RIDE THE BUS",  icon = "\u{25B7}", groep = "VIP",  badge = "VIP" },
-	{ id = "profile",      label = "PROFILE",       icon = "\u{25CB}", groep = "ACCOUNT" },
-	{ id = "vip",          label = "VIP ZONE",      icon = "\u{2726}", groep = "ACCOUNT" },
-	{ id = "friends",      label = "FRIENDS",       icon = "\u{263A}", groep = "ACCOUNT" },
-	{ id = "achievements", label = "ACHIEVEMENTS",  icon = "\u{2691}", groep = "ACCOUNT" },
+	{ id = "home",         label = "HOME",          icon = "home", groep = "PLAY" },
+	{ id = "crash",        label = "CRASH",         icon = "crash", groep = "PLAY", badge = "LIVE" },
+	{ id = "roulette",     label = "ROULETTE",      icon = "roulette", groep = "PLAY", badge = "LIVE" },
+	{ id = "tower",        label = "DRAGON TOWER",  icon = "tower", groep = "PLAY", badge = "LIVE" },
+	{ id = "mines",        label = "MINES",         icon = "mines", groep = "PLAY", badge = "LIVE" },
+	{ id = "plinko",       label = "PLINKO",        icon = "plinko", groep = "PLAY", badge = "LIVE" },
+	{ id = "blackjack",    label = "BLACKJACK",     icon = "blackjack", groep = "PLAY", badge = "LIVE" },
+	{ id = "scratch",      label = "SCRATCH CARDS", icon = "scratch", groep = "PLAY", badge = "LIVE" },
+	{ id = "wheel",        label = "WHEEL",         icon = "wheel", groep = "PLAY", badge = "LIVE" },
+	{ id = "horse",        label = "HORSE RACE",    icon = "horse", groep = "PLAY", badge = "LIVE" },
+	{ id = "slots",        label = "777",           icon = "slots", groep = "VIP",  badge = "VIP" },
+	{ id = "bus",          label = "RIDE THE BUS",  icon = "bus", groep = "VIP",  badge = "VIP" },
+	{ id = "profile",      label = "PROFILE",       icon = "profile", groep = "ACCOUNT" },
+	{ id = "vip",          label = "VIP ZONE",      icon = "vip", groep = "ACCOUNT" },
+	{ id = "friends",      label = "FRIENDS",       icon = "friends", groep = "ACCOUNT" },
+	{ id = "achievements", label = "ACHIEVEMENTS",  icon = "achievements", groep = "ACCOUNT" },
 }
 
 -- De twee VIP-spellen zijn alleen bereikbaar zolang de pas geldt; anders kom je uit bij de
@@ -235,12 +236,20 @@ local function navItem(item: Scherm, volgorde: number)
 	streep.ZIndex = 12
 	streep.Parent = b
 
-	local icoon = UI.label(b, item.icon, {
-		size = 17, color = Theme.color.text, align = Enum.TextXAlignment.Center, name = "Icon",
-	})
-	icoon.Position = UDim2.new(0, Theme.size.navPadX, 0, 0)
-	icoon.Size = UDim2.new(0, Theme.size.navIcon, 1, 0)
+	-- .nav-icon: een lijntekening van 24 bij 24, geen letterteken.
+	local icoonVak = Instance.new("Frame")
+	icoonVak.Name = "IconBox"
+	icoonVak.AnchorPoint = Vector2.new(0, 0.5)
+	icoonVak.Position = UDim2.new(0, Theme.size.navPadX, 0.5, 0)
+	icoonVak.Size = UDim2.fromOffset(Theme.size.navIcon, Theme.size.navIcon)
+	icoonVak.BackgroundTransparency = 1
+	icoonVak.ZIndex = 11
+	icoonVak.Parent = b
+	local icoon = Icons.build(icoonVak, item.icon, Theme.size.navIcon)
 	icoon.ZIndex = 11
+	for _, k in icoon:GetDescendants() do
+		if k:IsA("GuiObject") then k.ZIndex = 11 end
+	end
 
 	local label = UI.label(b, item.label, {
 		size = Theme.text.body, color = Theme.color.text, name = "NavLabel",
@@ -366,7 +375,7 @@ function verfBalk()
 		local aan = naam == huidige or (VIP_ROUTES[naam] and huidige == "vip" and not vipOpen)
 		local zweeft = hoverOp == naam and not aan
 		local streep = b:FindFirstChild("Marker") :: Frame?
-		local icoon = b:FindFirstChild("Icon") :: TextLabel?
+		local icoonVak = b:FindFirstChild("IconBox") :: Frame?
 		local label = b:FindFirstChild("NavLabel") :: TextLabel?
 
 		if aan then
@@ -387,9 +396,9 @@ function verfBalk()
 		local opSlot = VIP_ROUTES[naam] == true and not vipOpen
 		local kleur = if aan then Theme.color.neon else Theme.color.text
 		local dim = if opSlot then Theme.alpha.locked else 0
-		if icoon then
-			icoon.TextColor3 = kleur
-			icoon.TextTransparency = dim
+		if icoonVak then
+			local ic = icoonVak:FindFirstChild("Icon") :: Frame?
+			if ic then Icons.tint(ic, kleur, dim) end
 		end
 		if label then
 			label.TextColor3 = kleur
