@@ -184,6 +184,13 @@
            ]
           },
           {
+           "name": "Profile",
+           "className": "ModuleScript",
+           "filePaths": [
+            "src/client/Views/Profile.luau"
+           ]
+          },
+          {
            "name": "Roulette",
            "className": "ModuleScript",
            "filePaths": [

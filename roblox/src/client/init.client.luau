@@ -10,6 +10,7 @@ local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
 local Home = require(script.Views.Home)
+local ProfileView = require(script.Views.Profile)
 local Common = require(script.Views.Common)
 
 -- De speelschermen. Elk bouwt zichzelf in het vak dat het krijgt; ze weten niets van
@@ -191,6 +192,7 @@ end
 
 -- ---------- de schermen vullen ----------
 local zetSaldoHome: ((number) -> ())? = nil
+local zetProfiel: ((any) -> ())? = nil
 
 for _, item in SCHERMEN do
 	local v = view(item.id)
@@ -203,6 +205,8 @@ for _, item in SCHERMEN do
 	local spel = SPELLEN[item.id]
 	if item.id == "home" then
 		zetSaldoHome = Home.build(vak, navigate)
+	elseif item.id == "profile" then
+		zetProfiel = ProfileView.build(vak)
 	elseif spel then
 		spel.build(vak)
 	else
@@ -227,6 +231,8 @@ local function toon(p: any)
 		local zet = zetSaldoHome
 		if zet then zet(b) end
 	end
+	local prof = zetProfiel
+	if prof then prof(p) end
 end
 
 -- De schermen laten hun meldingen door de schil lopen; die weet waar het meldingenvak zit.
