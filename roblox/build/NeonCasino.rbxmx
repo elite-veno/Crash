@@ -5311,7 +5311,9 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 	-- tekst mee en kan er dus niet zelf een padding onder krijgen.
 	local stripMarge = Instance.new("Frame")
 	stripMarge.Name = "SeasonGap"
-	stripMarge.Size = UDim2.new(1, 0, 0, 18) -- margin-bottom: 26px
+	-- `.season-strip { margin-bottom: 26px }`. Het blad zet er zelf al twaalf boven en
+	-- twaalf onder dit vak, dus er hoeven er nog twee bij.
+	stripMarge.Size = UDim2.new(1, 0, 0, 26 - (Theme.size.gap + 4) * 2)
 	stripMarge.BackgroundTransparency = 1
 	stripMarge.LayoutOrder = 3
 	stripMarge.Parent = blad
@@ -12768,6 +12770,13 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 	type Vakje = { vak: Frame, rand: UIStroke, icoon: TextLabel, naam: TextLabel }
 	local vakjes: { Vakje } = {}
 
+	-- Welke drie badges er in de vakjes staan, en welke je al hebt. Ze staan hier en niet in
+	-- de bijwerkfunctie, want de knoppen hieronder moeten er ook bij: badges oppakken en
+	-- afleggen doe je in de webversie op dit scherm.
+	local uitgelicht: { string } = {}
+	local behaald: { [string]: any } = {}
+	local tekenBadges: () -&gt; ()
+
 	for i = 1, 3 do
 		local vak = Instance.new("Frame")
 		vak.Name = "Slot" .. i
@@ -12800,6 +12809,23 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 		})
 
 		vakjes[i] = { vak = vak, rand = rand, icoon = icoon, naam = badgeNaam }
+
+		-- `CLICK A SLOT ABOVE TO REMOVE`: een gevuld vakje legt zijn badge weer af.
+		local knop = Instance.new("TextButton")
+		knop.Name = "Pick"
+		knop.Text = ""
+		knop.BackgroundTransparency = 1
+		knop.AutoButtonColor = false
+		knop.Size = UDim2.fromScale(1, 1)
+		knop.ZIndex = 3
+		knop.Parent = vak
+		knop.Activated:Connect(function()
+			if not uitgelicht[i] then return end
+			table.remove(uitgelicht, i)
+			Common.call("SetFeatured", uitgelicht)
+			tekenBadges()
+			Common.toast("BADGE TAKEN OFF", nil)
+		end)
 	end
 
 	-- ---------- de erelijst met gewonnen titels ----------
@@ -12964,27 +12990,39 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 		niveau.Size = UDim2.new(0, NIVEAU_BREED, 1, 0)
 
 		kaartjes[a.id] = { vak = vak, rand = rand, icoon = icoon, niveau = niveau }
+
+		-- `CLICK TO SHOW UP TO THREE`: een behaalde badge in een vrij vakje zetten.
+		local knop = Instance.new("TextButton")
+		knop.Name = "Pick"
+		knop.Text = ""
+		knop.BackgroundTransparency = 1
+		knop.AutoButtonColor = false
+		knop.Size = UDim2.fromScale(1, 1)
+		knop.ZIndex = 3
+		knop.Parent = vak
+		knop.Activated:Connect(function()
+			if not behaald[a.id] then
+				Common.toast("NOT UNLOCKED YET", "red")
+				return
+			end
+			if table.find(uitgelicht, a.id) then
+				Common.toast("ALREADY FEATURED", nil)
+				return
+			end
+			if #uitgelicht &gt;= 3 then
+				Common.toast("ALL THREE SLOTS ARE FULL", "red")
+				return
+			end
+			table.insert(uitgelicht, a.id)
+			Common.call("SetFeatured", uitgelicht)
+			tekenBadges()
+		end)
 	end
 
-	-- Het profiel binnenkrijgen en alles bijwerken.
-	return function(p: any)
-		if typeof(p) ~= "table" then return end
-		local open = if typeof(p.achievements) == "table" then p.achievements else {}
-
-		-- ---------- hero ----------
-		local mijnTitel = if typeof(p.title) == "string" and p.title ~= "" then p.title else nil
-		titel.Text = if mijnTitel then Season.titleLabel(mijnTitel) else "No title yet"
-		titel.TextColor3 = if mijnTitel then Theme.color.gold else Theme.color.muted
-
-		-- ---------- de drie vakjes ----------
-		local uitgelicht: { string } = {}
-		if typeof(p.featured) == "table" then
-			for _, id in p.featured do
-				if typeof(id) == "string" and Ach.BY_ID[id] and #uitgelicht &lt; 3 then
-					table.insert(uitgelicht, id)
-				end
-			end
-		end
+	-- De vakjes en het rek tekenen. Beide hangen aan dezelfde drie badges, dus ze worden in
+	-- één keer gedaan: zowel als er een profiel binnenkomt als wanneer je er zelf een
+	-- oppakt of aflegt.
+	function tekenBadges()
 		for i, v in vakjes do
 			local a = if uitgelicht[i] then Ach.BY_ID[uitgelicht[i]] else nil
 			if a then
@@ -13010,6 +13048,63 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 				v.rand.Transparency = 0.45 -- weer de gestreepte rand van een leeg vakje
 			end
 		end
+
+
+		-- ---------- het rek met badges ----------
+		-- Wat je hebt staat vooraan, daarbinnen goud voor zilver voor brons -- dezelfde
+		-- sortering als profRender(). De volgorde zet ik op LayoutOrder, dan hoeft er geen
+		-- kaartje verplaatst te worden.
+		for i, a in opVolgorde(behaald) do
+			local k = kaartjes[a.id]
+			if not k then continue end
+			k.vak.LayoutOrder = i
+			local heeft = behaald[a.id] ~= nil
+			local n = NIVEAU[a.tier]
+			k.icoon.Text = if heeft then a.icon else "\u{1F512}"
+			-- `.ach-card .ach-icon { opacity: 0.5 }`: alleen het icoon dooft, de tekst niet.
+			k.icoon.TextTransparency = if heeft then 0 else 0.5
+			k.vak.BackgroundColor3 = if heeft then Theme.color.panelLight else Theme.color.black
+			k.vak.BackgroundTransparency = if heeft then 0 else 0.8
+			k.rand.Color = if heeft and n then n.kleur else Theme.color.border
+			k.rand.Transparency = if heeft then (if n then n.doorzicht else 0) else 0.3
+			-- Alleen goud krijgt in de CSS een gekleurd niveaulabel; zilver en brons blijven grijs.
+			k.niveau.Text = string.upper(a.tier)
+			k.niveau.TextColor3 = if heeft and a.tier == "gold" then Theme.color.gold else Theme.color.muted
+
+			-- `.ach-card.shown`: een badge die je in een vakje hierboven hebt staan zegt niet zijn
+			-- rang maar "shown", in het goud. De CSS zet er ook een gouden lijn binnenin
+			-- (`box-shadow: inset 0 0 0 1px`); Roblox kent geen box-shadow, dus doet de rand van
+			-- de kaart dat hier -- die lag toch al op de rand van het vak.
+			if table.find(uitgelicht, a.id) then
+				k.niveau.Text = "SHOWN"
+				k.niveau.TextColor3 = Theme.color.gold
+				k.rand.Color = Theme.color.gold
+				k.rand.Transparency = 0
+			end
+		end
+	end
+
+	-- Het profiel binnenkrijgen en alles bijwerken.
+	return function(p: any)
+		if typeof(p) ~= "table" then return end
+		local open = if typeof(p.achievements) == "table" then p.achievements else {}
+
+		-- ---------- hero ----------
+		local mijnTitel = if typeof(p.title) == "string" and p.title ~= "" then p.title else nil
+		titel.Text = if mijnTitel then Season.titleLabel(mijnTitel) else "No title yet"
+		titel.TextColor3 = if mijnTitel then Theme.color.gold else Theme.color.muted
+
+		-- ---------- de drie vakjes ----------
+		table.clear(uitgelicht)
+		if typeof(p.featured) == "table" then
+			for _, id in p.featured do
+				if typeof(id) == "string" and Ach.BY_ID[id] and #uitgelicht &lt; 3 then
+					table.insert(uitgelicht, id)
+				end
+			end
+		end
+		behaald = open
+		tekenBadges()
 
 		-- ---------- de erelijst ----------
 		for _, k in titelRij:GetChildren() do
@@ -13067,38 +13162,6 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 		end
 		cijfers.Size = UDim2.new(1, 0, 0, rijHoogte(math.max(TOTALEN_REGELS, getoond)))
 
-		-- ---------- het rek met badges ----------
-		-- Wat je hebt staat vooraan, daarbinnen goud voor zilver voor brons -- dezelfde
-		-- sortering als profRender(). De volgorde zet ik op LayoutOrder, dan hoeft er geen
-		-- kaartje verplaatst te worden.
-		for i, a in opVolgorde(open) do
-			local k = kaartjes[a.id]
-			if not k then continue end
-			k.vak.LayoutOrder = i
-			local heeft = open[a.id] ~= nil
-			local n = NIVEAU[a.tier]
-			k.icoon.Text = if heeft then a.icon else "\u{1F512}"
-			-- `.ach-card .ach-icon { opacity: 0.5 }`: alleen het icoon dooft, de tekst niet.
-			k.icoon.TextTransparency = if heeft then 0 else 0.5
-			k.vak.BackgroundColor3 = if heeft then Theme.color.panelLight else Theme.color.black
-			k.vak.BackgroundTransparency = if heeft then 0 else 0.8
-			k.rand.Color = if heeft and n then n.kleur else Theme.color.border
-			k.rand.Transparency = if heeft then (if n then n.doorzicht else 0) else 0.3
-			-- Alleen goud krijgt in de CSS een gekleurd niveaulabel; zilver en brons blijven grijs.
-			k.niveau.Text = string.upper(a.tier)
-			k.niveau.TextColor3 = if heeft and a.tier == "gold" then Theme.color.gold else Theme.color.muted
-
-			-- `.ach-card.shown`: een badge die je in een vakje hierboven hebt staan zegt niet zijn
-			-- rang maar "shown", in het goud. De CSS zet er ook een gouden lijn binnenin
-			-- (`box-shadow: inset 0 0 0 1px`); Roblox kent geen box-shadow, dus doet de rand van
-			-- de kaart dat hier -- die lag toch al op de rand van het vak.
-			if table.find(uitgelicht, a.id) then
-				k.niveau.Text = "SHOWN"
-				k.niveau.TextColor3 = Theme.color.gold
-				k.rand.Color = Theme.color.gold
-				k.rand.Transparency = 0
-			end
-		end
 	end
 end
 

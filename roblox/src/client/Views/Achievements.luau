@@ -176,7 +176,9 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	-- tekst mee en kan er dus niet zelf een padding onder krijgen.
 	local stripMarge = Instance.new("Frame")
 	stripMarge.Name = "SeasonGap"
-	stripMarge.Size = UDim2.new(1, 0, 0, 18) -- margin-bottom: 26px
+	-- `.season-strip { margin-bottom: 26px }`. Het blad zet er zelf al twaalf boven en
+	-- twaalf onder dit vak, dus er hoeven er nog twee bij.
+	stripMarge.Size = UDim2.new(1, 0, 0, 26 - (Theme.size.gap + 4) * 2)
 	stripMarge.BackgroundTransparency = 1
 	stripMarge.LayoutOrder = 3
 	stripMarge.Parent = blad
