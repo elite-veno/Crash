@@ -167,6 +167,18 @@ def meet(n, ouderB, ouderH):
     raster = kind(n, "UIGridLayout")
     echteKinderen = [k for k in n["children"] if k["class"] not in LAYOUTS and zichtbaar(k)]
 
+    # AutomaticSize.X met een liggende UIListLayout erin: de breedte is de som van de
+    # kinderen plus de tussenruimte. Zonder dit klapt een knop die zijn tekst in een label
+    # heeft staan in plaats van in zijn eigen Text helemaal dicht.
+    if auto in ("X", "XY") and echteKinderen and lijst \
+            and lijst["props"].get("FillDirection") == "Horizontal":
+        gap = lijst["props"].get("Padding", {}).get("o", 0)
+        som = 0.0
+        for k in echteKinderen:
+            kb, _kh = meet(k, max(0.0, b - pl - pr), max(0.0, h - pt - pb))
+            som += kb
+        b = som + gap * max(0, len(echteKinderen) - 1) + pl + pr
+
     if auto in ("Y", "XY") and echteKinderen:
         binnenB = max(0.0, b - pl - pr)
         if lijst:

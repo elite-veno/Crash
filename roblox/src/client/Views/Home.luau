@@ -113,7 +113,8 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -> ()): Frame
 
 	local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
 	d.TextWrapped = true
-	d.Size = UDim2.new(1, 0, 0, 34)
+	d.LineHeight = 1.6                       -- .game-card-desc { line-height: 1.6 }
+	d.Size = UDim2.new(1, 0, 0, 36)          -- twee regels van 11 op 1,6
 	d.TextYAlignment = Enum.TextYAlignment.Top
 
 	-- .game-card-footer
@@ -154,31 +155,55 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -> ()): Frame
 	return f
 end
 
--- Een chip in de topbar: .home-chip.
+-- Een chip in de topbar: `.home-chip`. In de markup is dat een flexregel -- een icoon, de
+-- naam, en bij de VIP-zone een klein pilletje erachter. Dus geen tekst op de knop zelf maar
+-- een rij erin, anders staat het pilletje over de naam heen.
 local function topChip(ouder: Instance, tekst: string, ga: () -> (), goud: boolean?): (TextButton, TextLabel)
 	local b = Instance.new("TextButton")
 	b.Name = "HomeChip"
-	b.Text = tekst
-	b.Font = Theme.font.ui
-	b.TextSize = Theme.text.tiny
-	b.TextColor3 = if goud then Theme.color.gold else Theme.color.text
+	b.Text = ""
 	b.BackgroundColor3 = Theme.color.black
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
 	b.AutomaticSize = Enum.AutomaticSize.X
 	b.Size = UDim2.fromOffset(0, 32)
-	b.RichText = false
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b, if goud then Theme.color.gold else Theme.color.border)
 	UI.padding4(b, 0, 14, 0, 14)
+	local rij = UI.list(b, 8, Enum.FillDirection.Horizontal)
+	rij.VerticalAlignment = Enum.VerticalAlignment.Center
+	rij.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	b.Parent = ouder
 
-	local slotje = UI.label(b, "\u{1F512}", { size = Theme.text.tiny, align = Enum.TextXAlignment.Right })
-	slotje.AnchorPoint = Vector2.new(0, 0.5)
-	slotje.Position = UDim2.new(1, 2, 0.5, 0)
-	slotje.Size = UDim2.fromOffset(16, 16)
+	local naam = UI.label(b, tekst, {
+		size = Theme.text.tiny, color = if goud then Theme.color.gold else Theme.color.text,
+	})
+	naam.Name = "ChipLabel"
+	naam.LayoutOrder = 1
+	naam.AutomaticSize = Enum.AutomaticSize.X
+	naam.Size = UDim2.new(0, 0, 1, 0)
+
+	-- `.home-chip-badge`: een klein goud pilletje achter de naam. Er staat een slotje in
+	-- zolang de zone dicht is en OPEN zodra de pas geldt.
+	local slotje = Instance.new("TextLabel")
+	slotje.Name = "ChipBadge"
+	slotje.Text = "\u{1F512}"
+	slotje.Font = Theme.font.ui
+	slotje.TextSize = 10
+	slotje.TextColor3 = Theme.color.gold
+	slotje.BackgroundColor3 = Theme.color.gold
+	slotje.BackgroundTransparency = 0.88            -- rgba(224,181,85,0.12)
+	slotje.BorderSizePixel = 0
+	slotje.LayoutOrder = 2
+	slotje.Size = UDim2.fromOffset(0, 18)
+	slotje.AutomaticSize = Enum.AutomaticSize.X
+	slotje.RichText = false
 	slotje.Visible = false
+	UI.corner(slotje, Theme.radius.chip)
+	UI.padding4(slotje, 0, 6, 0, 6)
+	UI.stroke(slotje, Theme.color.gold).Transparency = 0.65   -- rgba(224,181,85,0.35)
+	slotje.Parent = b
 
 	b.Activated:Connect(ga)
 	b.MouseEnter:Connect(function()
@@ -319,7 +344,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 		size = Theme.text.small, color = Theme.color.muted,
 	})
 	local klok = UI.label(strip, "\u{2014}", {
-		size = 30, color = Theme.color.neon, font = Theme.font.num,
+		size = 26, color = Theme.color.neon, font = Theme.font.num,   -- .season-time
 	})
 	klok.Size = UDim2.new(1, 0, 0, 38)
 	UI.label(strip, "until the standings reset to zero \u{00B7} whoever gains the most takes the title and a VIP pass", {
@@ -338,9 +363,11 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	prijsLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 	type Prijs = { naam: string, wat: string, kleur: Color3 }
 	local PRIJZEN: { Prijs } = {
-		{ naam = "\u{265B} House Boss", wat = "VIP PASS + TITLE", kleur = Theme.color.gold },
-		{ naam = "\u{1F396} Challenger", wat = "TITLE", kleur = Theme.color.text },
-		{ naam = "\u{1F396} Podium", wat = "TITLE", kleur = Theme.color.gold },
+		-- De iconen en de namen uit RANKS, en de prijzen uit SPRINT_PRIZE. De naam staat in
+		-- `<b>`, dus in de tekstkleur; alleen het bedrag ernaast is goud (`.amount`).
+		{ naam = "\u{1F451} House Boss", wat = "VIP PASS + TITLE", kleur = Theme.color.text },
+		{ naam = "\u{1F948} Challenger", wat = "TITLE", kleur = Theme.color.text },
+		{ naam = "\u{1F949} Podium", wat = "TITLE", kleur = Theme.color.text },
 	}
 	for i, pr in PRIJZEN do
 		local vak = Instance.new("Frame")
@@ -375,7 +402,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	lbKop.BackgroundTransparency = 1
 	lbKop.LayoutOrder = 7
 	lbKop.Parent = blad
-	local _, lbTelling = UI.sectionHeading(lbKop, "LIVE LEADERBOARD", "\u{25CF} 1 ACTIVE")
+	local _, lbTelling = UI.sectionHeading(lbKop, "LIVE LEADERBOARD", "\u{25CF} \u{2014}")
 	lbTelling.TextColor3 = Theme.color.neon
 
 	local lbRij = Instance.new("Frame")
@@ -514,6 +541,16 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	local function vulLeaderboard()
 		local res = Common.call("Leaderboard")
 		if not res then return end
+		local actief = tonumber(res.active) or 0
+		lbTelling.Text = "\u{25CF} " .. actief .. " ACTIVE"
+
+		-- `.home-chip-badge`: het slotje wordt OPEN zodra de pas geldt, en de chip krijgt
+		-- de gouden rand van `.home-chip-vip.vip-open`.
+		local vipAan = res.vipActive == true
+		vipSlot.Text = if vipAan then "OPEN" else "\u{1F512}"
+		vipChip.BackgroundColor3 = if vipAan then Theme.color.gold else Theme.color.black
+		vipChip.BackgroundTransparency = if vipAan then 0.9 else Theme.alpha.buttonBg
+
 		-- `SPRINT n OF 4`; het seizoensnummer hoort in de regel eronder.
 		sprintKop.Text = Season.sprintHeading(tonumber(res.sprint) or 0)
 		klok.Text = Season.countdown(res.endsAt, res.now)

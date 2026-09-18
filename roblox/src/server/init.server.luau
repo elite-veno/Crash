@@ -90,6 +90,10 @@ Net.fn("Leaderboard").OnServerInvoke = function(speler, welke)
 		-- sprint, net als in de webversie waar ze uit dezelfde spelerstabel komen.
 		money = Ranking.topMoney(10),
 		ratio = Ranking.topRatio(10),
+		-- `n ACTIVE` naast LIVE LEADERBOARD. De webversie telt wie er de laatste drie
+		-- minuten gezien is, want daar deelt iedereen één database. Hier is het simpeler
+		-- en preciezer: wie er op dit moment op deze server zit.
+		active = #Players:GetPlayers(),
 		mine = if p then p.sprintProfit else 0,
 		vipActive = Profiles.vipActive(speler),
 	}
