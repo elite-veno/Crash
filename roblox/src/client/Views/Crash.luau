@@ -45,7 +45,9 @@ local FICHE_ZICHTBAAR = 26
 local FICHE_H = FICHE_ZICHTBAAR - 2
 -- `.history-bar` staat in de markup op `padding: 10px 14px` om die fiches heen. Daar telt
 -- de ruimte die een fiche echt inneemt, dus met zijn rand erbij.
-local BALK_H = 10 + FICHE_ZICHTBAAR + 10
+-- `.history-bar.panel { padding: 10px 14px }` om een fiche van 26, binnen een rand:
+-- 48 in border-box.
+local BALK_H = 10 + FICHE_ZICHTBAAR + 10 + UI.RAND * 2
 local SPELERS_H = 180    -- .players-section max-height
 local KOP_H = 30         -- .players-list h3 plus zijn margin-bottom van 10
 local REGEL_H = 24       -- .player-row: 11 pixels tekst met padding 6 boven en onder

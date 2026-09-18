@@ -52,7 +52,15 @@ def main():
 
     def plaats(n, x, y, b, h, uit, diepte=0):
         p = n["props"]
-        regels.append((diepte, str(p.get("Name", n["class"])), n["class"], x, y, b, h,
+        # AnchorPoint verschuift het vak; de tekenaar doet dat pas binnenin. Zonder deze
+        # correctie leest een vak dat aan de onderkant hangt als stond het onderaan de
+        # ouder -- en dan jaag je op een fout die er niet is.
+        anker = p.get("AnchorPoint")
+        ax, ay = x, y
+        if anker and anker.get("t") == "Vector2":
+            ax -= anker.get("x", 0) * b
+            ay -= anker.get("y", 0) * h
+        regels.append((diepte, str(p.get("Name", n["class"])), n["class"], ax, ay, b, h,
                        str(p.get("Text", ""))[:30]))
         return origineel(n, x, y, b, h, uit, diepte)
 

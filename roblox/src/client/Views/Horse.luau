@@ -38,7 +38,8 @@ local PODIUM_H = 18        -- .hr-podium min-height
 local PODIUM_GAT = 14      -- .hr-podium gap
 local STRIP_H = 26         -- .result-strip min-height
 local STRIP_GAT = 6        -- .result-strip gap
-local BORD_PAD = 14        -- `.panel.board` heeft hier in de markup `padding: 14px`
+-- `.panel.board` heeft hier in de markup `padding: 14px`, binnen een rand van een pixel.
+local BORD_PAD = 14 + UI.RAND
 
 local BAND = 26            -- hrDraw: `const top = 26`, de band voor de kopregel
 local TAG_X = 6            -- het naambordje: fillRect(6, y - 9, 76, 18)
@@ -180,7 +181,7 @@ function Horse.build(ouder: Instance): ()
 	-- met de tussenruimte van het bord ertussen.
 	local vak = Instance.new("Frame")
 	vak.Name = "HorseWrap"
-	vak.Size = UDim2.new(1, 0, 1, -(PODIUM_H + STRIP_H + 2 * Theme.size.asideGap))
+	vak.Size = UDim2.new(1, 0, 1, -(PODIUM_H + STRIP_H + 2 * Theme.size.boardGap))
 	vak.BackgroundColor3 = Theme.color.feltLight
 	vak.BorderSizePixel = 0
 	vak.ClipsDescendants = true
@@ -564,7 +565,7 @@ function Horse.build(ouder: Instance): ()
 		)
 		blok.BackgroundTransparency = 1
 		blok.Parent = rij
-		local blokLijst = UI.list(blok, 2)
+		local blokLijst = UI.list(blok, 0)
 		blokLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
 		local naam = UI.label(blok, h.name, { size = Theme.text.tiny, color = Theme.color.text })
@@ -574,7 +575,7 @@ function Horse.build(ouder: Instance): ()
 		-- labels naast elkaar, want één label kent maar één kleur.
 		local onder = Instance.new("Frame")
 		onder.Name = "Odds"
-		onder.Size = UDim2.new(1, 0, 0, 12)
+		onder.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.tiny))
 		onder.BackgroundTransparency = 1
 		onder.Parent = blok
 		local onderLijst = UI.list(onder, 0, Enum.FillDirection.Horizontal)

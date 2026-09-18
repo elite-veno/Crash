@@ -38,8 +38,8 @@ local KAART_RAND_DICHT = 0.8
 -- over vier regels. In de CSS rekt de kaart met de tekst mee en zijn de kaarten in een rij
 -- daarna even hoog; een UIGridLayout heeft één maat voor alle cellen, dus staat de hoogte
 -- van het tekstvak hier vast op die vier regels.
-local DESC_HOOG = 4 * 18   -- 11 * 1.6, naar boven afgerond
-local KAART_HOOG = 330
+local DESC_HOOG = 53       -- drie regels van 11 op line-height 1,6 (17,6), afgerond
+local KAART_HOOG = 314
 
 -- Een blok met een rand kan zijn marge niet zelf dragen: padding valt binnen de rand en
 -- maakt het paneel gewoon hoger. Zo'n blok krijgt daarom een omhulsel dat niets doet
@@ -156,7 +156,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 	local stand = UI.label(kopVak, "\u{1F512} Locked", {
 		size = Theme.text.card, color = Theme.color.text, font = Theme.font.uiMed,
 	})
-	stand.Size = UDim2.new(1, 0, 0, 24)
+	stand.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.card))
 
 	local uitleg = UI.label(kopVak, "", { size = Theme.text.body, color = Theme.color.muted })
 	uitleg.TextWrapped = true
@@ -179,8 +179,9 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		vak.Name = "Perk" .. i
 		vak.LayoutOrder = i
 		-- Drie gelijke kolommen: elk een derde, min zijn deel van de twee tussenruimtes.
-		vak.Size = UDim2.new(1 / 3, -8, 0, 0)
-		vak.AutomaticSize = Enum.AutomaticSize.Y
+		-- Ze staan in één grid-rij en zijn daardoor alle drie zo hoog als de hoogste; met
+		-- AutomaticSize zou elk vakje om zijn eigen tekst krimpen.
+		vak.Size = UDim2.new(1 / 3, -8, 0, 71)
 		vak.BackgroundColor3 = Theme.color.black
 		vak.BackgroundTransparency = 0.8   -- rgba(0,0,0,0.2)
 		vak.BorderSizePixel = 0
@@ -201,7 +202,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		tekstVak.AutomaticSize = Enum.AutomaticSize.Y
 		tekstVak.BackgroundTransparency = 1
 		tekstVak.Parent = vak
-		UI.list(tekstVak, 2)
+		UI.list(tekstVak, 0)
 
 		UI.label(tekstVak, perk[2], { size = Theme.text.label, font = Theme.font.uiMed })
 
@@ -307,7 +308,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		local titel = UI.label(body, k.label, {
 			size = Theme.text.card, color = Theme.color.neon, font = Theme.font.uiMed,
 		})
-		titel.Size = UDim2.new(1, 0, 0, Theme.text.card + 6)
+		titel.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.card))
 
 		local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
 		d.TextWrapped = true
@@ -318,9 +319,12 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		-- .game-card-footer
 		local voet = Instance.new("Frame")
 		voet.Name = "Footer"
-		voet.Size = UDim2.new(1, 0, 0, 22)
+		-- `.game-card-footer { margin-top: 14px }` boven een rij van 22; de lijst van de
+		-- body geeft er zes, dus staan de acht die ontbreken als padding erboven.
+		voet.Size = UDim2.new(1, 0, 0, 22 + (14 - 6))
 		voet.BackgroundTransparency = 1
 		voet.Parent = body
+		UI.padding4(voet, 14 - 6, 0, 0, 0)
 
 		local pil = UI.tag(voet, k.rtp, Theme.color.gold)
 

@@ -469,7 +469,8 @@ function Common.columns(
 	local bord = Instance.new("Frame")
 	bord.Name = "Board"
 	-- `.board` is ruimer dan `.panel`: 22 padding en 18 tussen zijn kinderen, niet 18 en 14.
-	local pad = if kaal then 0 else Theme.size.boardPad
+	-- De rand van `.panel.board` telt in de CSS mee in de maat; een UIStroke ligt erbuiten.
+	local pad = if kaal then 0 else Theme.size.boardPad + UI.RAND
 	bord.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
 	bord.Position = UDim2.fromOffset(pad, pad)
 	bord.BackgroundTransparency = 1
