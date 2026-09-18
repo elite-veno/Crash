@@ -1584,7 +1584,12 @@ function UI.label(parent: Instance, text: string, opts: LabelOpts?): TextLabel
 	return t
 end
 
--- .panel-title: neon, 11px, en 8 pixels lucht eronder.
+-- `.panel-title { font-size: 11px; margin-bottom: 8px }`: een regel van 14 met acht pixels
+-- lucht eronder, dus 22. Die acht zitten hier in de hoogte van het label zelf, want een
+-- paneel in de CSS heeft geen tussenruimte: elk blok draagt zijn eigen marge. De lijst van
+-- het paneel staat daarom op nul waar deze kop bovenaan staat.
+UI.PANEL_TITLE_MARGE = 8
+
 function UI.panelTitle(parent: Instance, text: string): TextLabel
 	local t = UI.label(parent, string.upper(text), {
 		size = Theme.text.small,
@@ -1592,7 +1597,8 @@ function UI.panelTitle(parent: Instance, text: string): TextLabel
 		font = Theme.font.uiMed,
 		name = "PanelTitle",
 	})
-	t.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
+	t.TextYAlignment = Enum.TextYAlignment.Top
 	return t
 end
 
@@ -7689,7 +7695,11 @@ function Common.columns(
 		-- een scherm daarna toevoegt -- want dat staat op nul.
 		local kop = Instance.new("Frame")
 		kop.Name = "Header"
-		kop.Size = UDim2.new(1, 0, 0, 34)
+		-- `.crash-header { padding: 10px 0 }` om de terugknop, en die is 32 in border-box:
+		-- een regel van 14 met acht lucht boven en onder plus twee randen. Samen 52. Hier
+		-- stond 34 -- de tien pixels lucht ontbraken aan beide kanten, en daardoor begon
+		-- alles in de zijkolom achttien pixels te hoog.
+		kop.Size = UDim2.new(1, 0, 0, 52)
 		kop.BackgroundTransparency = 1
 		kop.Parent = aside
 		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
@@ -7875,7 +7885,9 @@ local statsVakken: { { spel: string, rondes: TextLabel, won: TextLabel, lost: Te
 
 function Common.statsPanel(ouder: Instance, spel: string): Frame
 	local vak = UI.panel(ouder, "Stats")
-	UI.list(vak, 6)
+	-- Een paneel in de CSS heeft geen tussenruimte: de kop draagt zijn eigen acht pixels
+	-- marge, en de regels eronder staan er direct tegenaan.
+	UI.list(vak, 0)
 	UI.panelTitle(vak, "\u{25BA} statistics")
 
 	local regels = Common.statRows(vak)
@@ -7968,7 +7980,7 @@ end
 
 function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
 	local vak = UI.panel(ouder, "Odds")
-	UI.list(vak, 6)
+	UI.list(vak, 0)
 	UI.panelTitle(vak, "\u{25BA} " .. kop)
 	local t = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
 	t.RichText = true
@@ -8988,7 +9000,10 @@ function Crash.build(ouder: Instance): ()
 	rondeRegel.RichText = true
 	rondeRegel.TextWrapped = true
 	rondeRegel.AutomaticSize = Enum.AutomaticSize.Y
-	rondeRegel.Size = UDim2.new(1, 0, 0, 34)   -- twee regels; AutomaticSize rekt hem op
+	-- Geen bodem onder de hoogte: zolang er geen ronde loopt staat hier niets, en dan is
+	-- de regel nul hoog -- net als de lege tweede `.odds-note` in de markup. Met een bodem
+	-- van 34 hield hij ruimte bezet die de pagina niet heeft.
+	rondeRegel.Size = UDim2.new(1, 0, 0, 0)
 	rondeRegel.TextYAlignment = Enum.TextYAlignment.Top
 	rondeRegel.LineHeight = 1.7
 
@@ -8996,7 +9011,9 @@ function Crash.build(ouder: Instance): ()
 		local t = UI.label(oddsVak, "", { size = 10, color = Theme.color.muted, font = Theme.font.num })
 		t.TextWrapped = true
 		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.Size = UDim2.new(1, 0, 0, 14)
+		-- Ook hier geen bodem: de drie regels van het eerlijkheidsbewijs verschijnen pas
+		-- als de server een inzet en een zaadje heeft gestuurd.
+		t.Size = UDim2.new(1, 0, 0, 0)
 		t.TextYAlignment = Enum.TextYAlignment.Top
 		return t
 	end

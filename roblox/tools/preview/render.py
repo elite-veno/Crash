@@ -240,6 +240,9 @@ def meet(n, ouderB, ouderH):
             and n["class"] in ("TextLabel", "TextButton", "TextBox"):
         tekst = p.get("Text", "")
         maat = p.get("TextSize", 14)
+        if tekst == "":
+            # Een leeg label heeft geen regels, dus ook geen hoogte -- net als een lege div.
+            return beperk(n, b, pt + pb)
         stukken = ontleedRijk(tekst) if p.get("RichText") else [(tekst, None)]
         if p.get("TextWrapped"):
             regels = breekRegels(stukken, maat, p.get("Font", ""), max(1.0, b - pl - pr - 4))

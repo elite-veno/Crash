@@ -781,7 +781,10 @@ function Crash.build(ouder: Instance): ()
 	rondeRegel.RichText = true
 	rondeRegel.TextWrapped = true
 	rondeRegel.AutomaticSize = Enum.AutomaticSize.Y
-	rondeRegel.Size = UDim2.new(1, 0, 0, 34)   -- twee regels; AutomaticSize rekt hem op
+	-- Geen bodem onder de hoogte: zolang er geen ronde loopt staat hier niets, en dan is
+	-- de regel nul hoog -- net als de lege tweede `.odds-note` in de markup. Met een bodem
+	-- van 34 hield hij ruimte bezet die de pagina niet heeft.
+	rondeRegel.Size = UDim2.new(1, 0, 0, 0)
 	rondeRegel.TextYAlignment = Enum.TextYAlignment.Top
 	rondeRegel.LineHeight = 1.7
 
@@ -789,7 +792,9 @@ function Crash.build(ouder: Instance): ()
 		local t = UI.label(oddsVak, "", { size = 10, color = Theme.color.muted, font = Theme.font.num })
 		t.TextWrapped = true
 		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.Size = UDim2.new(1, 0, 0, 14)
+		-- Ook hier geen bodem: de drie regels van het eerlijkheidsbewijs verschijnen pas
+		-- als de server een inzet en een zaadje heeft gestuurd.
+		t.Size = UDim2.new(1, 0, 0, 0)
 		t.TextYAlignment = Enum.TextYAlignment.Top
 		return t
 	end

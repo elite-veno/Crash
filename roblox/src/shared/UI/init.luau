@@ -131,7 +131,12 @@ function UI.label(parent: Instance, text: string, opts: LabelOpts?): TextLabel
 	return t
 end
 
--- .panel-title: neon, 11px, en 8 pixels lucht eronder.
+-- `.panel-title { font-size: 11px; margin-bottom: 8px }`: een regel van 14 met acht pixels
+-- lucht eronder, dus 22. Die acht zitten hier in de hoogte van het label zelf, want een
+-- paneel in de CSS heeft geen tussenruimte: elk blok draagt zijn eigen marge. De lijst van
+-- het paneel staat daarom op nul waar deze kop bovenaan staat.
+UI.PANEL_TITLE_MARGE = 8
+
 function UI.panelTitle(parent: Instance, text: string): TextLabel
 	local t = UI.label(parent, string.upper(text), {
 		size = Theme.text.small,
@@ -139,7 +144,8 @@ function UI.panelTitle(parent: Instance, text: string): TextLabel
 		font = Theme.font.uiMed,
 		name = "PanelTitle",
 	})
-	t.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
+	t.TextYAlignment = Enum.TextYAlignment.Top
 	return t
 end
 

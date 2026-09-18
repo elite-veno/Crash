@@ -479,7 +479,11 @@ function Common.columns(
 		-- een scherm daarna toevoegt -- want dat staat op nul.
 		local kop = Instance.new("Frame")
 		kop.Name = "Header"
-		kop.Size = UDim2.new(1, 0, 0, 34)
+		-- `.crash-header { padding: 10px 0 }` om de terugknop, en die is 32 in border-box:
+		-- een regel van 14 met acht lucht boven en onder plus twee randen. Samen 52. Hier
+		-- stond 34 -- de tien pixels lucht ontbraken aan beide kanten, en daardoor begon
+		-- alles in de zijkolom achttien pixels te hoog.
+		kop.Size = UDim2.new(1, 0, 0, 52)
 		kop.BackgroundTransparency = 1
 		kop.Parent = aside
 		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
@@ -665,7 +669,9 @@ local statsVakken: { { spel: string, rondes: TextLabel, won: TextLabel, lost: Te
 
 function Common.statsPanel(ouder: Instance, spel: string): Frame
 	local vak = UI.panel(ouder, "Stats")
-	UI.list(vak, 6)
+	-- Een paneel in de CSS heeft geen tussenruimte: de kop draagt zijn eigen acht pixels
+	-- marge, en de regels eronder staan er direct tegenaan.
+	UI.list(vak, 0)
 	UI.panelTitle(vak, "\u{25BA} statistics")
 
 	local regels = Common.statRows(vak)
@@ -758,7 +764,7 @@ end
 
 function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
 	local vak = UI.panel(ouder, "Odds")
-	UI.list(vak, 6)
+	UI.list(vak, 0)
 	UI.panelTitle(vak, "\u{25BA} " .. kop)
 	local t = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
 	t.RichText = true
