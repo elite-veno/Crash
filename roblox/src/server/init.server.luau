@@ -60,6 +60,12 @@ end
 -- De gedeelde tafel loopt door, met of zonder spelers erbij.
 Crash.start()
 
+-- Het noodfonds is er alleen voor wie echt niets meer heeft. Elk spel dat geld kan
+-- vasthouden meldt zich hier aan; Games kent ze dan zonder ze te hoeven vereisen.
+Games.addInPlayCheck(Multi.inPlay)
+Games.addInPlayCheck(Blackjack.inPlay)
+Games.addInPlayCheck(Crash.inPlay)
+
 -- ---------- de aanvragen ----------
 -- Eén ingang per soort, met de naam van het spel erbij. Elke tak controleert zelf wat er
 -- binnenkomt; niets wordt op zijn woord geloofd.
@@ -128,6 +134,7 @@ Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
 	elseif spel == "bus" then uit = Multi.busStart(speler, inzet)
 	elseif spel == "blackjack" then uit = Blackjack.deal(speler, inzet)
 	elseif spel == "crash" then uit = Crash.bet(speler, inzet)
+	elseif spel == "safety" then uit = Games.safetyOpen(speler)
 	else uit = { ok = false, err = "onbekend spel" } end
 	stuurProfiel(speler)
 	return uit
@@ -140,6 +147,7 @@ Net.fn("Act").OnServerInvoke = function(speler, spel, zet)
 	elseif spel == "bus" then uit = Multi.busCall(speler, zet)
 	elseif spel == "scratch" then uit = Games.scratchReveal(speler, zet)
 	elseif spel == "blackjack" then uit = Blackjack.act(speler, zet)
+	elseif spel == "safety" then uit = Games.safetyStop(speler)
 	else uit = { ok = false, err = "onbekende zet" } end
 	stuurProfiel(speler)
 	return uit

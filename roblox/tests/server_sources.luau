@@ -163,6 +163,7 @@ local function heel(p: any): Profile
 		e.comeback = o.comeback == true
 		e.busFull = o.busFull == true
 		e.wasBroke = o.wasBroke == true
+		e.noodfonds = tonumber(o.noodfonds) or 0
 		for _, veld in {"max", "maxWinPer"} do
 			if typeof(o[veld]) == "table" then
 				for k, v in o[veld] do
@@ -573,6 +574,25 @@ function Profiles.record(speler: Player, spel: string, inzet: number, uit: numbe
 	end
 end
 
+-- Wat het noodfonds heeft opgeleverd. Staat los van record(), want er is geen inzet en dus
+-- geen ronde: het telt alleen mee voor de prestatie.
+function Profiles.noteSafetyNet(speler: Player, bedrag: number): ()
+	local p = levend[speler.UserId]
+	if not p then return end
+	if bedrag > p.extra.noodfonds then p.extra.noodfonds = bedrag end
+	local nieuwe = Achievements.check(stand(p), p.achievements)
+	if #nieuwe == 0 then return end
+	for _, id in nieuwe do
+		p.achievements[id] = os.time()
+	end
+	for _, f in ontgrendelHaken do
+		pcall(function(): any
+			f(speler, nieuwe)
+			return nil
+		end)
+	end
+end
+
 -- De drie badges die een speler aan anderen laat zien. Alleen prestaties die hij echt
 -- heeft, en hoogstens drie.
 function Profiles.setFeatured(speler: Player, lijst: any): boolean
@@ -721,6 +741,80 @@ end
 local function settle(speler: Player, spel: string, inzet: number, uit: number, mult: number, over: any): ()
 	if uit > 0 then Profiles.give(speler, uit) end
 	Profiles.record(speler, spel, inzet, uit, mult, over)
+end
+
+-- ---------- het noodfonds ----------
+-- Wie helemaal blut is kan niets meer. In de webversie is daar een klein spel voor: een
+-- streepje loopt heen en weer en je drukt op stop; hoe dichter bij het midden, hoe meer je
+-- krijgt. Tien dollar is gegarandeerd, veertig bij een perfecte stop.
+--
+-- De klok staat op de server, net als bij crash. De client stuurt alleen "nu", en waar het
+-- streepje op dat moment stond bepaalt de server zelf -- anders zou iedereen elke keer
+-- precies veertig pakken.
+local NOOD = { min = 10, max = 40, periode = 1.1 }
+local noodStart: { [number]: number } = {}
+
+local function nu(): number
+	return workspace:GetServerTimeNow()
+end
+
+-- Een driehoeksgolf: 0 naar 1 en terug, net als bkPos() in de webversie.
+local function noodPositie(verstreken: number): number
+	local fase = (verstreken % NOOD.periode) / NOOD.periode
+	return if fase < 0.5 then fase * 2 else 2 - fase * 2
+end
+
+-- Wie er nog geld in het spel heeft staan is niet blut, ook al leest zijn saldo nul: de
+-- inzet is afgeschreven maar nog niet beslist. Zonder deze controle is het noodfonds een
+-- geldpers -- zet alles in op mines, pak veertig dollar uit het fonds, stap uit, herhaal.
+-- De webversie kijkt er ook naar (roundInProgress() in bkAvailable).
+--
+-- De spellen melden zichzelf aan in plaats van dat Games ze opzoekt, anders vereisen
+-- Games en Crash elkaar over en weer.
+local inSpelChecks: { (Player) -> boolean } = {}
+function Games.addInPlayCheck(f: (Player) -> boolean): ()
+	table.insert(inSpelChecks, f)
+end
+
+function Games.inPlay(speler: Player): boolean
+	if open[speler.UserId] then return true end
+	for _, f in inSpelChecks do
+		if f(speler) then return true end
+	end
+	return false
+end
+
+function Games.safetyAvailable(speler: Player): boolean
+	local p = Profiles.get(speler)
+	if not p then return false end
+	return p.balance < Money.MIN_BET and not Games.inPlay(speler)
+end
+
+function Games.safetyOpen(speler: Player): any
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	if p.balance >= Money.MIN_BET then return { ok = false, err = "je hebt nog geld" } end
+	if Games.inPlay(speler) then return { ok = false, err = "je hebt nog een ronde open" } end
+	-- Twee keer openen is één ronde: anders zet je met de tweede klok de eerste stil en
+	-- kies je achteraf welke van de twee het dichtst bij het midden stond.
+	if noodStart[speler.UserId] then return { ok = false, err = "je hebt al een ronde open" } end
+	noodStart[speler.UserId] = nu()
+	return { ok = true, startsAt = noodStart[speler.UserId], period = NOOD.periode, now = nu() }
+end
+
+function Games.safetyStop(speler: Player): any
+	local t0 = noodStart[speler.UserId]
+	if not t0 then return { ok = false, err = "geen ronde" } end
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	noodStart[speler.UserId] = nil
+
+	local pos = noodPositie(nu() - t0)
+	local raak = math.max(0, 1 - math.abs(pos - 0.5) * 2)
+	local uit = Money.round2(NOOD.min + (NOOD.max - NOOD.min) * raak)
+	Profiles.give(speler, uit)
+	Profiles.noteSafetyNet(speler, uit)
+	return { ok = true, position = pos, accuracy = raak, payout = uit, balance = p.balance }
 end
 
 -- ---------- spellen in één beurt ----------
@@ -938,6 +1032,11 @@ local open: { [number]: Open } = {}
 
 function Multi.get(speler: Player): Open?
 	return open[speler.UserId]
+end
+
+-- Staat er geld van deze speler nog in een onbesliste ronde? Het noodfonds vraagt het.
+function Multi.inPlay(speler: Player): boolean
+	return open[speler.UserId] ~= nil
 end
 
 -- Loopt een speler weg met een ronde open, dan krijgt hij zijn inzet terug. Stil laten
@@ -1189,12 +1288,18 @@ type Ronde = {
 }
 
 local open: { [number]: Ronde } = {}
--- De schoen blijft tussen handen door staan, net als in de webversie: hij wordt pas
--- vervangen als er te weinig kaarten over zijn.
+-- Elke hand krijgt een verse schoen. De webversie deelt uit een schoen die blijft staan,
+-- maar daar ziet niemand anders je kaarten; hier zou een speler kunnen tellen wat er al
+-- uit is en daarna zijn inzet aanpassen. Vers delen haalt dat voordeel weg.
 local schoenen: { [number]: { Odds.Card } } = {}
 
 function Blackjack.get(speler: Player): Ronde?
 	return open[speler.UserId]
+end
+
+-- Een hand die nog loopt is geld dat nog in het spel staat; het noodfonds vraagt het.
+function Blackjack.inPlay(speler: Player): boolean
+	return open[speler.UserId] ~= nil
 end
 
 -- De hand afrekenen: de dealer speelt uit, en dan pas komt alles op tafel.
@@ -1553,6 +1658,15 @@ function Crash.bet(speler: Player, inzet: any): any
 	r.inzetten[speler.UserId] = { naam = speler.DisplayName, bet = bet }
 	duw()
 	return { ok = true, round = r.id, amount = bet, balance = p.balance }
+end
+
+-- Een inzet die nog niet beslist is: de vlucht loopt en er is nog niet uitgestapt. Het
+-- noodfonds vraagt het, want zo iemand staat wel op nul maar is niet blut.
+function Crash.inPlay(speler: Player): boolean
+	local r = ronde
+	if not r or r.fase == "crashed" then return false end
+	local i = r.inzetten[speler.UserId]
+	return i ~= nil and i.cashed == nil
 end
 
 function Crash.cashOut(speler: Player): any

@@ -25,12 +25,18 @@ type Ronde = {
 }
 
 local open: { [number]: Ronde } = {}
--- De schoen blijft tussen handen door staan, net als in de webversie: hij wordt pas
--- vervangen als er te weinig kaarten over zijn.
+-- Elke hand krijgt een verse schoen. De webversie deelt uit een schoen die blijft staan,
+-- maar daar ziet niemand anders je kaarten; hier zou een speler kunnen tellen wat er al
+-- uit is en daarna zijn inzet aanpassen. Vers delen haalt dat voordeel weg.
 local schoenen: { [number]: { Odds.Card } } = {}
 
 function Blackjack.get(speler: Player): Ronde?
 	return open[speler.UserId]
+end
+
+-- Een hand die nog loopt is geld dat nog in het spel staat; het noodfonds vraagt het.
+function Blackjack.inPlay(speler: Player): boolean
+	return open[speler.UserId] ~= nil
 end
 
 -- De hand afrekenen: de dealer speelt uit, en dan pas komt alles op tafel.

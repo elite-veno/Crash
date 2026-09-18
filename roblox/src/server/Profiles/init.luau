@@ -160,6 +160,7 @@ local function heel(p: any): Profile
 		e.comeback = o.comeback == true
 		e.busFull = o.busFull == true
 		e.wasBroke = o.wasBroke == true
+		e.noodfonds = tonumber(o.noodfonds) or 0
 		for _, veld in {"max", "maxWinPer"} do
 			if typeof(o[veld]) == "table" then
 				for k, v in o[veld] do
@@ -557,6 +558,25 @@ function Profiles.record(speler: Player, spel: string, inzet: number, uit: numbe
 	end
 	Achievements.record(p.extra, ronde, p.balance)
 
+	local nieuwe = Achievements.check(stand(p), p.achievements)
+	if #nieuwe == 0 then return end
+	for _, id in nieuwe do
+		p.achievements[id] = os.time()
+	end
+	for _, f in ontgrendelHaken do
+		pcall(function(): any
+			f(speler, nieuwe)
+			return nil
+		end)
+	end
+end
+
+-- Wat het noodfonds heeft opgeleverd. Staat los van record(), want er is geen inzet en dus
+-- geen ronde: het telt alleen mee voor de prestatie.
+function Profiles.noteSafetyNet(speler: Player, bedrag: number): ()
+	local p = levend[speler.UserId]
+	if not p then return end
+	if bedrag > p.extra.noodfonds then p.extra.noodfonds = bedrag end
 	local nieuwe = Achievements.check(stand(p), p.achievements)
 	if #nieuwe == 0 then return end
 	for _, id in nieuwe do

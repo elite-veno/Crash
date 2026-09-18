@@ -286,6 +286,13 @@ function Stub.wereld(opties)
 	w.Multi = eigenRequire(MultiScript)
 	w.Blackjack = eigenRequire(BlackjackScript)
 	w.Crash = eigenRequire(CrashScript)
+
+	-- Dezelfde aanmeldingen als in init.server.luau. Zonder deze regels zou het noodfonds
+	-- in de test niets van de andere spellen weten en zou de valsspeelweg die hij
+	-- dichthoudt hier gewoon openstaan.
+	w.Games.addInPlayCheck(w.Multi.inPlay)
+	w.Games.addInPlayCheck(w.Blackjack.inPlay)
+	w.Games.addInPlayCheck(w.Crash.inPlay)
 	return w
 end
 

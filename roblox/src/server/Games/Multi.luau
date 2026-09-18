@@ -37,6 +37,11 @@ function Multi.get(speler: Player): Open?
 	return open[speler.UserId]
 end
 
+-- Staat er geld van deze speler nog in een onbesliste ronde? Het noodfonds vraagt het.
+function Multi.inPlay(speler: Player): boolean
+	return open[speler.UserId] ~= nil
+end
+
 -- Loopt een speler weg met een ronde open, dan krijgt hij zijn inzet terug. Stil laten
 -- verdampen is het ergste wat je met andermans geld kunt doen.
 function Multi.refund(speler: Player): number

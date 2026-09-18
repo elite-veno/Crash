@@ -19,7 +19,7 @@ local function verseStand(): Ach.Stand
 end
 
 -- ---------- de lijst zelf ----------
-h.check("er zijn vierendertig prestaties", 34, #Ach.LIST)
+h.check("er zijn vijfendertig prestaties", 35, #Ach.LIST)
 do
 	local ids, iconen = {}, 0
 	local dubbel = 0

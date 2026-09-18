@@ -348,4 +348,149 @@ do
 	h.check("er is een winnend lot gevonden", true, gevonden)
 end
 
+-- ---------- het noodfonds ----------
+-- Het fonds is een geschenk: er staat geen inzet tegenover. Alles hangt er dus aan dat
+-- hij alleen opengaat voor wie echt niets meer heeft, en dat de server zelf bepaalt waar
+-- het streepje stond.
+local PERIODE = 1.1
+-- De tijd waarop het streepje op `pos` staat, op de heenweg van de driehoeksgolf.
+local function tijdVoor(pos: number): number
+	return pos / 2 * PERIODE
+end
+
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	h.check("met geld op zak gaat het fonds niet open", false, w.Games.safetyOpen(s).ok)
+	h.check("en hij is ook niet beschikbaar", false, w.Games.safetyAvailable(s))
+
+	p.balance = 0
+	h.check("blut is hij wel beschikbaar", true, w.Games.safetyAvailable(s))
+	local r = w.Games.safetyOpen(s)
+	h.check("en gaat hij open", true, r.ok)
+	h.check("de server geeft de periode mee", PERIODE, r.period)
+
+	-- Twee keer openen zou twee klokken geven; dan kies je achteraf de beste.
+	h.check("twee keer openen is geweigerd", false, w.Games.safetyOpen(s).ok)
+
+	-- Precies in het midden: de volle veertig.
+	w.wacht(tijdVoor(0.5))
+	local uit = w.Games.safetyStop(s)
+	h.check("een perfecte stop lukt", true, uit.ok)
+	h.check("het streepje stond in het midden", 0.5, w.Money.round2(uit.position))
+	h.check("dat is de volle veertig", 40, uit.payout)
+	h.check("en het staat op de rekening", 40, p.balance)
+	h.check("stoppen zonder ronde kan niet", false, w.Games.safetyStop(s).ok)
+end
+
+do
+	-- Aan de rand van de golf blijft de bodem van tien staan, nooit minder.
+	local w = wereld()
+	local s, p = meldEen(w)
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	-- Helemaal aan het begin staat het streepje op 0: zo ver van het midden als het gaat.
+	local uit = w.Games.safetyStop(s)
+	h.check("aan de rand is het de gegarandeerde tien", 10, uit.payout)
+	h.check("nooit minder dan de bodem", 10, p.balance)
+
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	w.wacht(PERIODE / 2)
+	local ander = w.Games.safetyStop(s)
+	h.check("de andere rand van de golf ook", 10, ander.payout)
+end
+
+do
+	-- Halverwege heen: het streepje op een kwart, dus de helft van de bonus erbovenop.
+	local w = wereld()
+	local s, p = meldEen(w)
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	w.wacht(tijdVoor(0.25))
+	local uit = w.Games.safetyStop(s)
+	h.check("halve nauwkeurigheid geeft de helft van de bonus", 25, uit.payout)
+	h.check("de nauwkeurigheid wordt meegegeven", 0.5, w.Money.round2(uit.accuracy))
+end
+
+do
+	-- De golf loopt door: na een hele periode staat het streepje weer waar het begon.
+	local w = wereld()
+	local s, p = meldEen(w)
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	w.wacht(PERIODE * 3 + tijdVoor(0.5))
+	h.check("drie perioden later telt alleen waar het streepje staat", 40, w.Games.safetyStop(s).payout)
+end
+
+do
+	-- Dit is de geldpers die de webversie met roundInProgress() dichthoudt: zet alles in,
+	-- sta daardoor op nul, pak het fonds, en stap daarna alsnog uit je ronde.
+	local w = wereld()
+	local s, p = meldEen(w)
+	p.balance = 100
+	w.Multi.minesStart(s, 100, 1)
+	h.check("de inzet is afgeschreven", 0, p.balance)
+	h.check("maar met een ronde open ben je niet blut", false, w.Games.safetyAvailable(s))
+	h.check("dus het fonds gaat niet open", false, w.Games.safetyOpen(s).ok)
+	w.Multi.minesCashOut(s)
+end
+
+do
+	-- Hetzelfde met een blackjackhand die nog loopt.
+	local w = wereld()
+	local s, p = meldEen(w)
+	p.balance = 100
+	w.Blackjack.deal(s, 100)
+	if w.Blackjack.inPlay(s) then
+		h.check("een lopende hand telt ook als geld in het spel", false, w.Games.safetyOpen(s).ok)
+	else
+		-- Een natural is meteen afgerekend; dan staat er niets meer open.
+		h.check("na een afgeronde hand is het fonds weer bereikbaar", true, p.balance > 0 or w.Games.safetyAvailable(s))
+	end
+end
+
+do
+	-- En met een inzet die in de lucht hangt.
+	local w = wereld()
+	local s, p = meldEen(w)
+	w.Crash.begin()
+	p.balance = 100
+	h.check("de inzet lukt", true, w.Crash.bet(s, 100).ok)
+	h.check("het saldo staat op nul", 0, p.balance)
+	w.Crash.takeOff()
+	h.check("maar een vlucht met je geld erin is geen blut", false, w.Games.safetyOpen(s).ok)
+	w.Crash.cashOut(s)
+end
+
+do
+	-- De prestatie hangt aan het hoogste bedrag dat je ooit uit het fonds haalde, niet aan
+	-- de optelsom: zo staat het ook in de webversie (Math.max in bkStop).
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	-- Vijfendertig dollar is de grens. Net eronder telt niet.
+	local netNiet = (34.9 - 10) / 30
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	w.wacht(tijdVoor(0.5 - (1 - netNiet) / 2))
+	local een = w.Games.safetyStop(s)
+	h.check("net onder de grens", true, een.payout < 35 and een.payout > 34)
+	h.check("de prestatie is nog niet open", nil, p.achievements["nood_precise"])
+
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	w.wacht(tijdVoor(0.5))
+	h.check("en dan een volle veertig", 40, w.Games.safetyStop(s).payout)
+	h.check("het hoogste bedrag is onthouden", 40, p.extra.noodfonds)
+	h.check("de prestatie gaat open", true, p.achievements["nood_precise"] ~= nil)
+
+	-- Een magere ronde daarna drukt het hoogste bedrag niet omlaag.
+	p.balance = 0
+	w.Games.safetyOpen(s)
+	w.Games.safetyStop(s)
+	h.check("een tientje daarna verlaagt het hoogste bedrag niet", 40, p.extra.noodfonds)
+end
+
 h.report("SERVER")

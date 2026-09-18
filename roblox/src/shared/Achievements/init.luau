@@ -22,6 +22,7 @@ export type Extra = {
 	horseStreak: number,
 	comeback: boolean,
 	busFull: boolean,
+	noodfonds: number,
 	wasBroke: boolean,
 	max: { [string]: number },
 	maxWinPer: { [string]: number },
@@ -126,6 +127,8 @@ Achievements.LIST = {
 	  test = function(s) return max(s, "horse") >= 8 end },
 	{ id = "hr_triple", icon = "\u{1F3C7}", tier = "silver", title = "Stable master", desc = "Win three races in a row",
 	  test = function(s) return s.extra.horseStreak >= 3 end },
+	{ id = "nood_precise", icon = "\u{1F39A}", tier = "silver", title = "Precision", desc = "Get $35 or more out of the safety net",
+	  test = function(s) return s.extra.noodfonds >= 35 end },
 	{ id = "sc_win", icon = "\u{1F39F}", tier = "bronze", title = "Scratched a prize", desc = "Win on a scratch card",
 	  test = function(s) return gewonnen(s, "scratch") >= 1 end },
 	{ id = "sc_diamond", icon = "\u{1F48E}", tier = "gold", title = "Three diamonds", desc = "Scratch open three diamonds (50x)",
@@ -154,7 +157,7 @@ function Achievements.fresh(): Extra
 		streak = 0, bestStreak = 0, bigWin = 0, crashAbove2 = 0, rouletteStraight = false,
 		towerLevel = 0, towerMaster = false, minesMines = 0, minesPerfect = false,
 		bjNatural = false, bjDouble = false, horseStreak = 0, comeback = false,
-		busFull = false, wasBroke = false, max = {}, maxWinPer = {},
+		busFull = false, wasBroke = false, noodfonds = 0, max = {}, maxWinPer = {},
 	}
 end
 
@@ -215,7 +218,8 @@ function Achievements.record(e: Extra, r: Ronde, saldoNa: number): Extra
 
 	-- De comeback: onder de vijftig gezeten hebben en daarna weer boven de duizend komen.
 	if saldoNa < 50 then e.wasBroke = true end
-	if e.wasBroke and saldoNa > 1000 then e.comeback = true end
+	-- De webversie gebruikt hier >=, niet >: precies op duizend uitkomen telt ook.
+	if e.wasBroke and saldoNa >= 1000 then e.comeback = true end
 	return e
 end
 

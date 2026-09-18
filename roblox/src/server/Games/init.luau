@@ -89,6 +89,80 @@ local function settle(speler: Player, spel: string, inzet: number, uit: number, 
 	Profiles.record(speler, spel, inzet, uit, mult, over)
 end
 
+-- ---------- het noodfonds ----------
+-- Wie helemaal blut is kan niets meer. In de webversie is daar een klein spel voor: een
+-- streepje loopt heen en weer en je drukt op stop; hoe dichter bij het midden, hoe meer je
+-- krijgt. Tien dollar is gegarandeerd, veertig bij een perfecte stop.
+--
+-- De klok staat op de server, net als bij crash. De client stuurt alleen "nu", en waar het
+-- streepje op dat moment stond bepaalt de server zelf -- anders zou iedereen elke keer
+-- precies veertig pakken.
+local NOOD = { min = 10, max = 40, periode = 1.1 }
+local noodStart: { [number]: number } = {}
+
+local function nu(): number
+	return workspace:GetServerTimeNow()
+end
+
+-- Een driehoeksgolf: 0 naar 1 en terug, net als bkPos() in de webversie.
+local function noodPositie(verstreken: number): number
+	local fase = (verstreken % NOOD.periode) / NOOD.periode
+	return if fase < 0.5 then fase * 2 else 2 - fase * 2
+end
+
+-- Wie er nog geld in het spel heeft staan is niet blut, ook al leest zijn saldo nul: de
+-- inzet is afgeschreven maar nog niet beslist. Zonder deze controle is het noodfonds een
+-- geldpers -- zet alles in op mines, pak veertig dollar uit het fonds, stap uit, herhaal.
+-- De webversie kijkt er ook naar (roundInProgress() in bkAvailable).
+--
+-- De spellen melden zichzelf aan in plaats van dat Games ze opzoekt, anders vereisen
+-- Games en Crash elkaar over en weer.
+local inSpelChecks: { (Player) -> boolean } = {}
+function Games.addInPlayCheck(f: (Player) -> boolean): ()
+	table.insert(inSpelChecks, f)
+end
+
+function Games.inPlay(speler: Player): boolean
+	if open[speler.UserId] then return true end
+	for _, f in inSpelChecks do
+		if f(speler) then return true end
+	end
+	return false
+end
+
+function Games.safetyAvailable(speler: Player): boolean
+	local p = Profiles.get(speler)
+	if not p then return false end
+	return p.balance < Money.MIN_BET and not Games.inPlay(speler)
+end
+
+function Games.safetyOpen(speler: Player): any
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	if p.balance >= Money.MIN_BET then return { ok = false, err = "je hebt nog geld" } end
+	if Games.inPlay(speler) then return { ok = false, err = "je hebt nog een ronde open" } end
+	-- Twee keer openen is één ronde: anders zet je met de tweede klok de eerste stil en
+	-- kies je achteraf welke van de twee het dichtst bij het midden stond.
+	if noodStart[speler.UserId] then return { ok = false, err = "je hebt al een ronde open" } end
+	noodStart[speler.UserId] = nu()
+	return { ok = true, startsAt = noodStart[speler.UserId], period = NOOD.periode, now = nu() }
+end
+
+function Games.safetyStop(speler: Player): any
+	local t0 = noodStart[speler.UserId]
+	if not t0 then return { ok = false, err = "geen ronde" } end
+	local p = Profiles.get(speler)
+	if not p then return { ok = false, err = "geen profiel" } end
+	noodStart[speler.UserId] = nil
+
+	local pos = noodPositie(nu() - t0)
+	local raak = math.max(0, 1 - math.abs(pos - 0.5) * 2)
+	local uit = Money.round2(NOOD.min + (NOOD.max - NOOD.min) * raak)
+	Profiles.give(speler, uit)
+	Profiles.noteSafetyNet(speler, uit)
+	return { ok = true, position = pos, accuracy = raak, payout = uit, balance = p.balance }
+end
+
 -- ---------- spellen in één beurt ----------
 
 function Games.roulette(speler: Player, inzetten: any): any

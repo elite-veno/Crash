@@ -190,6 +190,15 @@ function Crash.bet(speler: Player, inzet: any): any
 	return { ok = true, round = r.id, amount = bet, balance = p.balance }
 end
 
+-- Een inzet die nog niet beslist is: de vlucht loopt en er is nog niet uitgestapt. Het
+-- noodfonds vraagt het, want zo iemand staat wel op nul maar is niet blut.
+function Crash.inPlay(speler: Player): boolean
+	local r = ronde
+	if not r or r.fase == "crashed" then return false end
+	local i = r.inzetten[speler.UserId]
+	return i ~= nil and i.cashed == nil
+end
+
 function Crash.cashOut(speler: Player): any
 	local r = ronde
 	if not r then return { ok = false, err = "geen ronde" } end
