@@ -81,6 +81,40 @@ niet op een kopie ervan. Dat is de plek waar de valsspeelwegen getest worden: de
 mijnentegel twee keer insturen, een inzet van NaN, een call bij Ride the Bus die niet kan
 uitkomen, weggaan met een ronde open, en twee servers die dezelfde speler willen opslaan.
 
+## Naast de pagina leggen
+
+De port moet er pixel voor pixel uitzien als `crash.html`. Zonder Studio is dat toch te
+meten, want beide kanten zijn uit te rekenen:
+
+```
+bash tools/preview/alles.sh            # tekent elk scherm als PNG, zonder Studio
+cd tools/preview
+node meet_web.js <scherm> [kiezer ...]  # waar staat elk blok op de PAGINA
+python3 meet_rbx.py <scherm> [naam ...] # waar staat elk vak in de PORT
+```
+
+`meet_web.js` opent `crash.html` in een browser, zet hem in dezelfde stand als de
+schermafdrukken (zijbalk dicht, verbonden, met of zonder pas) en leest per blok top,
+hoogte, marge, padding en lettergrootte uit. `meet_rbx.py` draait de echte schermcode door
+dezelfde tekenaar als de plaatjes en geeft per vak x, top, breedte en hoogte. Beide rekenen
+op een doek van 1536 bij 1000, dus de getallen zijn regel voor regel naast elkaar te leggen
+en een verschil is aan te wijzen in plaats van te vermoeden.
+
+Twee dingen die je moet weten voor je iets een fout noemt:
+
+- **Een rand telt anders.** CSS rekent de rand mee in de hoogte die je opgeeft; een
+  `UIStroke` ligt buiten het vak. De afspraak hier is daarom: een vak met een streep krijgt
+  de maat die de CSS in border-box geeft, en waar het vak padding heeft komt `UI.RAND`
+  erbij. De streep valt dan een pixel buiten de lijn die de browser trekt, maar alles
+  eronder stapelt precies — en dat is waar een kolom panelen mee staat of valt.
+- **Een regel tekst is niet zo hoog als de letter.** De CSS zet nergens een `line-height`,
+  dus kiest de browser `normal`: wat het font zelf opgeeft, en dat springt onregelmatig.
+  `Theme.lineBox(maat, font)` heeft die hoogtes in de browser opgemeten staan, per maat,
+  voor de gewone letter en voor de mono.
+
+Wat Roblox niet kan en wat dus bewust afwijkt: `letter-spacing`, `box-shadow`, gestippelde
+randen, radiale verlopen en CSS-filters.
+
 ## Stand
 
 | stap | wat | staat |
