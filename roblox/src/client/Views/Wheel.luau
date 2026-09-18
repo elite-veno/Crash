@@ -32,7 +32,7 @@ local Wheel = {}
 local VAKKEN = #Odds.WHEEL         -- twintig
 local STAP = 360 / VAKKEN          -- achttien graden per vak
 local MIN_WRAP = 320               -- .wheel-wrap min-height (onder 900 pixels wordt dat 260)
-local HIST_H = 22                  -- .sl-hist: 11px tekst met 4 padding boven en onder
+local HIST_H = 24                  -- .sl-hist: 11px tekst (regelvak 14), 4 padding en 1 rand
 -- Tussen het rad en de uitslagenrij zit `.board { gap: 18px }` plus de eigen
 -- `.wheel-wrap { margin-bottom: 14px }`. Dat is bij elkaar 32, ook als de rij nog leeg is.
 local TUSSEN = 32

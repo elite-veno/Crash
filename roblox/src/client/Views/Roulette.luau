@@ -208,12 +208,15 @@ function Roulette.build(ouder: Instance): ()
 	local naaf = schijf(ring, STRAAL * 0.55 * 2, NAAF, "Hub")
 	naaf.ZIndex = 2
 	UI.stroke(naaf, GOUD_RAD, 2)
-	for i = 0, 3 do
+	-- Vier armen vanuit het midden. Twee balken door het hart, niet vier staafjes met een
+	-- ankerpunt aan hun kop: Roblox draait een vak om zijn eigen midden, dus zo'n staafje
+	-- zwaait om zijn halverwege-punt en komt naast de naaf terecht in plaats van eruit.
+	for i = 0, 1 do
 		local spaak = Instance.new("Frame")
 		spaak.Name = "Spoke" .. i
-		spaak.AnchorPoint = Vector2.new(0, 0.5)
+		spaak.AnchorPoint = Vector2.new(0.5, 0.5)
 		spaak.Position = UDim2.fromScale(0.5, 0.5)
-		spaak.Size = UDim2.fromOffset(STRAAL * 0.5, 3)
+		spaak.Size = UDim2.fromOffset(STRAAL * 1.1, 3)
 		spaak.Rotation = i * 90
 		spaak.BackgroundColor3 = GOUD_RAD
 		spaak.BorderSizePixel = 0
@@ -510,7 +513,8 @@ function Roulette.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen; de aangeklikte is neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "ChipSeg"
-	seg.Size = UDim2.new(1, 0, 0, 30)
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
+	seg.Size = UDim2.new(1, 0, 0, 32)
 	seg.BackgroundTransparency = 1
 	seg.Parent = veld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)
@@ -568,7 +572,7 @@ function Roulette.build(ouder: Instance): ()
 	draaien.Font = Theme.font.uiBold
 	UI.gradient(draaien, Theme.color.neon, Theme.color.neonDim, 135)
 
-	local knoprij = Common.row(vakBediening, 36)
+	local knoprij = Common.row(vakBediening, 36, 6)   -- .btn-row { gap: 6px }
 	UI.padding4(knoprij, 2, 0, 0, 0)   -- .btn-row margin-top 8, waarvan 6 uit de lijst komt
 	local wissen = UI.secondary(knoprij, "CLEAR")
 	wissen.Size = UDim2.new(0.5, -3, 0, 36)

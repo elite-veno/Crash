@@ -544,13 +544,14 @@ function Common.columns(
 end
 
 -- Een rij knoppen naast elkaar, gelijk verdeeld.
-function Common.row(ouder: Instance, hoogte: number?): Frame
+-- De standaardafstand is de 4 van `.chips`; `.btn-row` wil er 6, dus die is mee te geven.
+function Common.row(ouder: Instance, hoogte: number?, gat: number?): Frame
 	local f = Instance.new("Frame")
 	f.Name = "Row"
 	f.Size = UDim2.new(1, 0, 0, hoogte or 30)
 	f.BackgroundTransparency = 1
 	f.Parent = ouder
-	local l = UI.list(f, 4, Enum.FillDirection.Horizontal)
+	local l = UI.list(f, gat or 4, Enum.FillDirection.Horizontal)
 	l.VerticalAlignment = Enum.VerticalAlignment.Center
 	return f
 end
@@ -575,9 +576,12 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	kop.BackgroundTransparency = 1
 	kop.Parent = paneel
 	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
-	UI.label(kop, "$", {
-		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+	-- `.field-label .hint { color: var(--neon); opacity: 0.7 }`: het dollarteken is neon en
+	-- iets doorzichtig, niet grijs.
+	local hint = UI.label(kop, "$", {
+		size = Theme.text.small, color = Theme.color.neon, align = Enum.TextXAlignment.Right,
 	})
+	hint.TextTransparency = 0.3
 
 	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
 	local ficherij = Common.row(paneel, 24)

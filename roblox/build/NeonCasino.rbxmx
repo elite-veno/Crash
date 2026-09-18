@@ -7593,13 +7593,14 @@ function Common.columns(
 end
 
 -- Een rij knoppen naast elkaar, gelijk verdeeld.
-function Common.row(ouder: Instance, hoogte: number?): Frame
+-- De standaardafstand is de 4 van `.chips`; `.btn-row` wil er 6, dus die is mee te geven.
+function Common.row(ouder: Instance, hoogte: number?, gat: number?): Frame
 	local f = Instance.new("Frame")
 	f.Name = "Row"
 	f.Size = UDim2.new(1, 0, 0, hoogte or 30)
 	f.BackgroundTransparency = 1
 	f.Parent = ouder
-	local l = UI.list(f, 4, Enum.FillDirection.Horizontal)
+	local l = UI.list(f, gat or 4, Enum.FillDirection.Horizontal)
 	l.VerticalAlignment = Enum.VerticalAlignment.Center
 	return f
 end
@@ -7624,9 +7625,12 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	kop.BackgroundTransparency = 1
 	kop.Parent = paneel
 	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
-	UI.label(kop, "$", {
-		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Right,
+	-- `.field-label .hint { color: var(--neon); opacity: 0.7 }`: het dollarteken is neon en
+	-- iets doorzichtig, niet grijs.
+	local hint = UI.label(kop, "$", {
+		size = Theme.text.small, color = Theme.color.neon, align = Enum.TextXAlignment.Right,
 	})
+	hint.TextTransparency = 0.3
 
 	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
 	local ficherij = Common.row(paneel, 24)
@@ -12918,12 +12922,15 @@ function Roulette.build(ouder: Instance): ()
 	local naaf = schijf(ring, STRAAL * 0.55 * 2, NAAF, "Hub")
 	naaf.ZIndex = 2
 	UI.stroke(naaf, GOUD_RAD, 2)
-	for i = 0, 3 do
+	-- Vier armen vanuit het midden. Twee balken door het hart, niet vier staafjes met een
+	-- ankerpunt aan hun kop: Roblox draait een vak om zijn eigen midden, dus zo'n staafje
+	-- zwaait om zijn halverwege-punt en komt naast de naaf terecht in plaats van eruit.
+	for i = 0, 1 do
 		local spaak = Instance.new("Frame")
 		spaak.Name = "Spoke" .. i
-		spaak.AnchorPoint = Vector2.new(0, 0.5)
+		spaak.AnchorPoint = Vector2.new(0.5, 0.5)
 		spaak.Position = UDim2.fromScale(0.5, 0.5)
-		spaak.Size = UDim2.fromOffset(STRAAL * 0.5, 3)
+		spaak.Size = UDim2.fromOffset(STRAAL * 1.1, 3)
 		spaak.Rotation = i * 90
 		spaak.BackgroundColor3 = GOUD_RAD
 		spaak.BorderSizePixel = 0
@@ -13220,7 +13227,8 @@ function Roulette.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen; de aangeklikte is neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "ChipSeg"
-	seg.Size = UDim2.new(1, 0, 0, 30)
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
+	seg.Size = UDim2.new(1, 0, 0, 32)
 	seg.BackgroundTransparency = 1
 	seg.Parent = veld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)
@@ -13278,7 +13286,7 @@ function Roulette.build(ouder: Instance): ()
 	draaien.Font = Theme.font.uiBold
 	UI.gradient(draaien, Theme.color.neon, Theme.color.neonDim, 135)
 
-	local knoprij = Common.row(vakBediening, 36)
+	local knoprij = Common.row(vakBediening, 36, 6)   -- .btn-row { gap: 6px }
 	UI.padding4(knoprij, 2, 0, 0, 0)   -- .btn-row margin-top 8, waarvan 6 uit de lijst komt
 	local wissen = UI.secondary(knoprij, "CLEAR")
 	wissen.Size = UDim2.new(0.5, -3, 0, 36)
@@ -15269,7 +15277,7 @@ local Wheel = {}
 local VAKKEN = #Odds.WHEEL         -- twintig
 local STAP = 360 / VAKKEN          -- achttien graden per vak
 local MIN_WRAP = 320               -- .wheel-wrap min-height (onder 900 pixels wordt dat 260)
-local HIST_H = 22                  -- .sl-hist: 11px tekst met 4 padding boven en onder
+local HIST_H = 24                  -- .sl-hist: 11px tekst (regelvak 14), 4 padding en 1 rand
 -- Tussen het rad en de uitslagenrij zit `.board { gap: 18px }` plus de eigen
 -- `.wheel-wrap { margin-bottom: 14px }`. Dat is bij elkaar 32, ook als de rij nog leeg is.
 local TUSSEN = 32
