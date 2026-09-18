@@ -54,6 +54,13 @@ function Season.sprintNo(nu: number?): number
 end
 
 -- Uitslagen van voor de opening zouden anders als seizoen 0 of lager gelezen worden.
+-- De kop boven de seizoensbalk: `SPRINT n OF 4`. Het seizoensnummer staat daar niet bij --
+-- dat hoort in de regel eronder, zoals seasonRender() het zet.
+function Season.sprintHeading(sprint: number): string
+	return "SPRINT " .. Season.sprintNoOf(sprint) .. " OF " .. Season.SPRINTS_PER_SEASON
+end
+
+-- De lange vorm, met het seizoen erbij. Staat achter een titel: `Champion · SEASON 1 · SPRINT 2`.
 function Season.sprintLabel(sprint: number): string
 	local se = Season.seasonNoOf(sprint)
 	local kop = if se >= 1 then "SEASON " .. se else "PRESEASON"

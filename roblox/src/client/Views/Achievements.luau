@@ -257,7 +257,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	-- vullen -- net als renderSeasonStrip(), dat ook niets aan de server vraagt. De
 	-- ranglijst zet er daarna de tijd van de server overheen.
 	local function zetStrip(sprint: number, sprintEinde: number, seizoenEinde: number, sprintsOver: number, nu: number?)
-		sprintKop.Text = "SPRINT " .. Season.sprintNoOf(sprint) .. " OF 4"
+		sprintKop.Text = Season.sprintHeading(sprint)
 		klok.Text = Season.countdown(sprintEinde, nu)
 		seizoenRegel.Text = "SEASON " .. Season.seasonNoOf(sprint) .. " ends in "
 			.. Season.countdown(seizoenEinde, nu) .. " \u{00B7} "

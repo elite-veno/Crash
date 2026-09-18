@@ -344,6 +344,38 @@ function Common.safetyNet(): ()
 	end)
 end
 
+-- `.js-broke`: normaal weg, en goud zodra je blut bent. Staat in de saldokaart op het
+-- beginscherm en in het saldopaneel van elk speelscherm, dus hij staat hier één keer.
+--
+-- De lijstafstand in zo'n paneel is kleiner dan de `margin-top: 10` die de CSS wil, dus de
+-- knop draagt de pixels die ontbreken zelf.
+function Common.brokeButton(ouder: Instance, orde: number?): TextButton
+	local vak = Instance.new("Frame")
+	vak.Name = "BrokeWrap"
+	vak.Size = UDim2.new(1, 0, 0, 44)
+	vak.BackgroundTransparency = 1
+	if orde then vak.LayoutOrder = orde end
+	vak.Parent = ouder
+
+	local knop = UI.secondary(vak, "\u{1F4B8} BROKE? PLAY THE SAFETY NET")
+	knop.Name = "Broke"
+	knop.Position = UDim2.fromOffset(0, 8)
+	knop.TextColor3 = Theme.color.gold
+	local rand = knop:FindFirstChildOfClass("UIStroke")
+	if rand then rand.Color = Theme.color.gold end
+	knop.Activated:Connect(function()
+		Common.safetyNet()
+	end)
+	table.insert(noodKnoppen, knop)
+	-- Het vak volgt de knop: staat hij er niet, dan hoort die 44 pixels er ook niet te zijn.
+	knop:GetPropertyChangedSignal("Visible"):Connect(function()
+		vak.Visible = knop.Visible
+	end)
+	vak.Visible = false
+	knop.Visible = false
+	return knop
+end
+
 -- ---------- indeling ----------
 -- Het blad waar een scherm op gebouwd wordt: scrollt, en groeit met zijn inhoud mee.
 function Common.sheet(ouder: Instance): ScrollingFrame
@@ -481,30 +513,7 @@ function Common.columns(
 	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance, true)
 	table.insert(saldoLabels, bedrag)
 
-	-- `.js-broke`: normaal weg, en goud zodra je blut bent. De lijstafstand in dit paneel
-	-- is 2 en de CSS wil er 10, dus de knop draagt de acht die ontbreken zelf.
-	local noodVak = Instance.new("Frame")
-	noodVak.Name = "BrokeWrap"
-	noodVak.Size = UDim2.new(1, 0, 0, 44)
-	noodVak.BackgroundTransparency = 1
-	noodVak.Parent = saldoVak
-
-	local nood = UI.secondary(noodVak, "\u{1F4B8} BROKE? PLAY THE SAFETY NET")
-	nood.Name = "Broke"
-	nood.Position = UDim2.fromOffset(0, 8)
-	nood.TextColor3 = Theme.color.gold
-	local noodRand = nood:FindFirstChildOfClass("UIStroke")
-	if noodRand then noodRand.Color = Theme.color.gold end
-	nood.Activated:Connect(function()
-		Common.safetyNet()
-	end)
-	table.insert(noodKnoppen, nood)
-	-- Het vak volgt de knop: staat hij er niet, dan hoort die 44 pixels er ook niet te zijn.
-	nood:GetPropertyChangedSignal("Visible"):Connect(function()
-		noodVak.Visible = nood.Visible
-	end)
-	noodVak.Visible = false
-	nood.Visible = false
+	Common.brokeButton(saldoVak)
 
 	-- `.account-bar`: één gecentreerde regel met de naam in neon, zoals de markup van een
 	-- speelscherm hem heeft. Uitloggen vervalt in Roblox -- de speler is zijn eigen
