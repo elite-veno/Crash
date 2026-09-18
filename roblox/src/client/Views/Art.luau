@@ -321,10 +321,57 @@ function Art.wheel(ouder: Instance)
 	d.tekst(168, 52, "10\u{00D7}", 12, Theme.color.gold, Theme.font.num)
 end
 
+-- De twee VIP-tegels. Ze staan alleen op #vipView, want in de lobby zitten 777 en Ride the
+-- Bus achter de poort.
+
+function Art.slots(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("2a2112"), Color3.fromHex("16181f"))
+	local kast = d.rect(40, 35, 200, 90, Theme.color.bg, 8)
+	UI.stroke(kast, Theme.color.gold, 2)
+	for k = 0, 2 do
+		local venster = d.rect(56 + k * 58, 52, 52, 56, Theme.color.panel, 4)
+		UI.stroke(venster, Theme.color.gold, 1)
+		-- In de SVG staat de 7 op grondlijn y=92; hier is y het midden van het cijfer.
+		local zeven = d.tekst(82 + k * 58, 81, "7", 30, Theme.color.gold, Theme.font.num)
+		zeven.TextXAlignment = Enum.TextXAlignment.Center
+	end
+end
+
+function Art.bus(ouder: Instance)
+	local d = Art.canvas(ouder, Color3.fromHex("16222e"), Color3.fromHex("16181f"))
+
+	-- Een kaart met zijn opschrift erin, zodat de tekst met de kaart meedraait -- in de SVG
+	-- staat dezelfde rotate() op allebei.
+	local function kaart(x: number, tekst: string, inkt: Color3, vulling: Color3, randKleur: Color3, maat: number, draai: number)
+		local k = d.rect(x, 44, 52, 72, vulling, 5)
+		k.Rotation = draai
+		UI.stroke(k, randKleur, 1)
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.Text = tekst
+		t.TextSize = maat
+		t.Font = Theme.font.uiBold
+		t.TextColor3 = inkt
+		t.TextXAlignment = Enum.TextXAlignment.Center
+		t.RichText = false
+		t.Parent = k
+	end
+	kaart(52, "7\u{2665}", Theme.color.red, WIT, Color3.fromHex("aaaaaa"), 22, -9)
+	kaart(114, "K\u{2660}", Color3.fromHex("1a1a1a"), WIT, Color3.fromHex("aaaaaa"), 22, 0)
+	kaart(176, "?", Theme.color.gold, Theme.color.panel, Theme.color.gold, 26, 9)
+
+	-- De vier beurten onder de kaarten. De letter-spacing van 2 uit de SVG kent Roblox niet;
+	-- de spaties om de punten geven ongeveer dezelfde lucht.
+	local regel = d.tekst(140, 138, "RED \u{00B7} HIGHER \u{00B7} INSIDE \u{00B7} SUIT", 11, Theme.color.muted, Theme.font.num)
+	regel.Size = UDim2.fromOffset(240, 18)
+	regel.TextXAlignment = Enum.TextXAlignment.Center
+end
+
 Art.BY_ID = {
 	crash = Art.crash, roulette = Art.roulette, tower = Art.tower, mines = Art.mines,
 	plinko = Art.plinko, blackjack = Art.blackjack, horse = Art.horse,
-	scratch = Art.scratch, wheel = Art.wheel,
+	scratch = Art.scratch, wheel = Art.wheel, slots = Art.slots, bus = Art.bus,
 } :: { [string]: (Instance) -> () }
 
 return Art

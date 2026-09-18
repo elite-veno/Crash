@@ -6,6 +6,7 @@ UIGridLayout, UIPadding, AutomaticSize, AnchorPoint, UICorner, UIStroke, UIGradi
 rotatie. Het is geen exacte kopie van de engine -- tekstbreedte wordt geschat -- maar je ziet
 wel meteen of een paneel op de verkeerde plek staat of een bord te klein is.
 """
+import re
 import json
 import sys
 
@@ -41,6 +42,52 @@ def kinderen(n, klasse):
 def tekstBreedte(tekst, maat, font):
     f = 0.60 if str(font).startswith("Code") else 0.52
     return len(tekst) * maat * f
+
+
+def ontleedRijk(tekst):
+    """RichText opsplitsen in stukken (tekst, kleur-of-None). Alleen <font color> en <b>,
+    want meer gebruikt het project niet. Entiteiten gaan terug naar hun teken."""
+    stukken, i, kleurnu = [], 0, None
+    while i < len(tekst):
+        m = re.compile(r'<font\s+color="([^"]*)"\s*>|</font>|<b>|</b>').search(tekst, i)
+        if not m:
+            stukken.append((tekst[i:], kleurnu))
+            break
+        if m.start() > i:
+            stukken.append((tekst[i:m.start()], kleurnu))
+        if m.group(0).startswith("<font"):
+            kleurnu = m.group(1)
+        elif m.group(0) == "</font>":
+            kleurnu = None
+        i = m.end()
+    uit = []
+    for t, c in stukken:
+        t = (t.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+              .replace("&apos;", "'").replace("&amp;", "&"))
+        if t:
+            uit.append((t, c))
+    return uit
+
+
+def breekRegels(stukken, maat, font, breedte):
+    """Woordafbreking zoals TextWrapped: vul een regel tot hij niet meer past. Geeft per
+    regel een lijst stukken terug, zodat een gekleurd woord zijn kleur houdt."""
+    regels, regel, x = [], [], 0.0
+    for tekst, c in stukken:
+        for woord in re.split(r"(\s+)", tekst):
+            if not woord:
+                continue
+            w = tekstBreedte(woord, maat, font)
+            if woord.strip() == "" :
+                if regel:
+                    regel.append((woord, c)); x += w
+                continue
+            if x + w > breedte and regel:
+                regels.append(regel); regel, x = [], 0.0
+            regel.append((woord, c)); x += w
+    if regel:
+        regels.append(regel)
+    return regels or [[]]
 
 
 LAYOUTS = ("UIListLayout", "UIGridLayout", "UIPadding", "UICorner", "UIStroke", "UIGradient",
@@ -206,12 +253,47 @@ def plaats(n, x, y, b, h, uit, diepte=0):
             ty = y + h / 2 + maat * 0.36
         font = "monospace" if str(p.get("Font", "")).startswith("Code") else "Inter, sans-serif"
         gewicht = "600" if "Bold" in str(p.get("Font", "")) or "Med" in str(p.get("Font", "")) else "400"
-        veilig = (tekst.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
-        uit.append(
-            '<text x="%.1f" y="%.1f" font-family="%s" font-size="%.1f" font-weight="%s" '
-            'fill="%s" fill-opacity="%.2f" text-anchor="%s">%s</text>'
-            % (tx, ty, font, maat, gewicht, kleur(p.get("TextColor3"), "#ffffff"),
-               1 - p.get("TextTransparency", 0), anchor, veilig))
+        basis = kleur(p.get("TextColor3"), "#ffffff")
+        dek = 1 - p.get("TextTransparency", 0)
+        fontnaam = str(p.get("Font", ""))
+
+        # RichText: <font color> geeft een stuk zijn eigen kleur. Staat het uit, dan is de
+        # markup gewoon tekst -- precies zoals Roblox het dan ook laat zien.
+        stukken = ontleedRijk(tekst) if p.get("RichText") else [(tekst, None)]
+
+        # TextWrapped breekt op woorden binnen de breedte van het label.
+        if p.get("TextWrapped"):
+            regels = breekRegels(stukken, maat, fontnaam, max(1.0, b - 4))
+        else:
+            regels = [stukken]
+
+        regelhoogte = maat * (p.get("LineHeight", 1) or 1)
+        # Bij meer dan één regel schuift het blok als geheel, net als in Roblox.
+        totaal = regelhoogte * len(regels)
+        if yalign == "Top":
+            y0 = y + maat
+        elif yalign == "Bottom":
+            y0 = y + h - totaal + maat
+        else:
+            y0 = y + h / 2 - totaal / 2 + maat * 0.86
+
+        for r, regel in enumerate(regels):
+            ry = y0 + r * regelhoogte
+            regelB = sum(tekstBreedte(t, maat, fontnaam) for t, _ in regel)
+            if anchor == "start":
+                rx = x + 2
+            elif anchor == "middle":
+                rx = x + b / 2 - regelB / 2
+            else:
+                rx = x + b - 2 - regelB
+            for stuk, c in regel:
+                veilig = stuk.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                uit.append(
+                    '<text x="%.1f" y="%.1f" font-family="%s" font-size="%.1f" font-weight="%s" '
+                    'fill="%s" fill-opacity="%.2f" text-anchor="start" '
+                    'xml:space="preserve">%s</text>'
+                    % (rx, ry, font, maat, gewicht, c or basis, dek, veilig))
+                rx += tekstBreedte(stuk, maat, fontnaam)
 
     # ---------- de kinderen ----------
     # ClipsDescendants: alles buiten het vak wordt afgesneden. Zonder dit lijken de parten

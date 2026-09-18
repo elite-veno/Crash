@@ -45,6 +45,12 @@ function Color3.fromHex(h)
 	return kleur(math.floor(n / 65536) % 256 / 255, math.floor(n / 256) % 256 / 255, n % 256 / 255)
 end
 
+-- Color3:ToHex, zoals Roblox hem heeft: zes tekens, zonder hekje.
+function Color3:ToHex()
+	return string.format("%02X%02X%02X",
+		math.round(self.R * 255), math.round(self.G * 255), math.round(self.B * 255))
+end
+
 local ColorSequenceKeypoint = { new = function(t, c) return { Time = t, Value = c } end }
 local ColorSequence = {
 	new = function(a, b)

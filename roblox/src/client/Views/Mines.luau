@@ -9,9 +9,9 @@
 -- knop. Precies de volgorde uit de markup.
 --
 -- Wat Roblox niet heeft en de CSS wel: letter-spacing (de 1px uit `.seg button` is
--- weggelaten), box-shadow (de gloed om een aangeklikte tegel is een dikke gouden rand, de
--- klop van de uitstapknop een gouden rand die op en neer gaat) en `transform` (een tegel
--- komt bij hover niet omhoog; de neonrand blijft over).
+-- weggelaten), box-shadow (de gloed om een aangeklikte tegel is een los ringetje om de
+-- tegel heen, de klop van de uitstapknop een gouden rand die op en neer gaat) en
+-- `transform` (een tegel komt bij hover niet omhoog; de neonrand blijft over).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
@@ -59,12 +59,17 @@ local function veldKop(ouder: Instance, naam: string, hint: string): ()
 end
 
 -- .payout-line: naam links, waarde rechts in het cijferlettertype, haarlijntje eronder.
-local function payoutRegel(ouder: Instance, naam: string, kleur: Color3, orde: number): TextLabel
+-- 6 boven en 6 onder om een regel van 11 (die in de browser een regelvak van veertien
+-- wordt) plus het haarlijntje zelf: zevenentwintig hoog. De twee regels staan in de CSS
+-- pal tegen elkaar, dus ze komen in een eigen omhulsel zonder tussenruimte -- zie
+-- payoutBlok hieronder.
+local PAYOUT_HOOG = 27
+
+local function payoutRegel(ouder: Instance, naam: string, kleur: Color3): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, PAYOUT_HOOG)
 	rij.BackgroundTransparency = 1
-	rij.LayoutOrder = orde
 	rij.Parent = ouder
 
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.text, name = "Key" })
@@ -139,6 +144,7 @@ function Mines.build(ouder: Instance): ()
 
 	local tegels: { TextButton } = {}
 	local tegelRanden: { UIStroke } = {}
+	local tegelRingen: { Frame } = {}
 	local tegelSchalen: { UIScale } = {}
 	local teken: () -> ()
 
@@ -206,6 +212,23 @@ function Mines.build(ouder: Instance): ()
 		b.RichText = false
 		UI.corner(b, Theme.radius.panel)                  -- .tile border-radius 4
 		local rand = UI.stroke(b, Theme.color.border)
+
+		-- .tile.picked legt er een `box-shadow: 0 0 0 2px var(--gold)` omheen: een gouden
+		-- ring buiten de rand, die de rode rand van de mijn dus laat staan. Een tweede rand
+		-- op dezelfde knop kan Roblox niet, dus het is een leeg vlakje van twee pixels groter
+		-- aan elke kant met zijn eigen rand eromheen.
+		local ring = Instance.new("Frame")
+		ring.Name = "Ring"
+		ring.AnchorPoint = Vector2.new(0.5, 0.5)
+		ring.Position = UDim2.fromScale(0.5, 0.5)
+		ring.Size = UDim2.new(1, 4, 1, 4)
+		ring.BackgroundTransparency = 1
+		ring.BorderSizePixel = 0
+		ring.Visible = false
+		UI.corner(ring, Theme.radius.panel + 2)
+		UI.stroke(ring, Theme.color.gold, 2)
+		ring.Parent = b
+
 		local schaal = Instance.new("UIScale")
 		schaal.Parent = b
 		-- .tile.clickable:hover kleurt de rand neon; het optillen doet een lijstindeling niet.
@@ -221,6 +244,7 @@ function Mines.build(ouder: Instance): ()
 		b.Parent = raster
 		tegels[i] = b
 		tegelRanden[i] = rand
+		tegelRingen[i] = ring
 		tegelSchalen[i] = schaal
 	end
 
@@ -239,6 +263,7 @@ function Mines.build(ouder: Instance): ()
 		rand.Transparency = 0
 		b.Text = ""
 		b.Active = false
+		tegelRingen[i].Visible = false
 
 		if geopend[i] then
 			-- .tile.gem: de diamanten die je zelf hebt opgegraven.
@@ -256,9 +281,9 @@ function Mines.build(ouder: Instance): ()
 			b.BackgroundTransparency = VULLING
 			rand.Color = kleur
 			if i == raak then
-				-- .tile.picked: box-shadow 0 0 0 2px var(--gold), hier een dikke gouden rand.
-				rand.Color = Theme.color.gold
-				rand.Thickness = 2
+				-- .tile.picked houdt zijn eigen (rode) rand en krijgt de gouden ring erbuiten;
+				-- hij is ook de enige die niet naar .tile.dim zakt.
+				tegelRingen[i].Visible = true
 			else
 				-- .tile.dim: de rest van het veld blijft op de achtergrond.
 				b.TextTransparency = DOF
@@ -296,7 +321,8 @@ function Mines.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen, de gekozene in neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	seg.Size = UDim2.new(1, 0, 0, 30)   -- 11px tekst met padding 8 boven en onder
+	-- 8 boven en 8 onder om een regel van 11 (regelvak veertien) plus twee randen van 1.
+	seg.Size = UDim2.new(1, 0, 0, 32)
 	seg.BackgroundTransparency = 1
 	seg.Parent = mijnVeld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)
@@ -318,6 +344,9 @@ function Mines.build(ouder: Instance): ()
 		b.LayoutOrder = i
 		b.Size = UDim2.new(1 / #SNEL, -4 * (#SNEL - 1) / #SNEL, 1, 0)
 		b.RichText = false
+		-- Het cijfer staat midden in zijn hokje, zoals elke `.seg button`. UI.label zet in
+		-- dit project alles links uit, dus hier staat het er los bij om geen twijfel te laten.
+		b.TextXAlignment = Enum.TextXAlignment.Center
 		UI.corner(b, Theme.radius.chip)
 		local rand = UI.stroke(b, Theme.color.border)
 		b.MouseEnter:Connect(function()
@@ -341,13 +370,27 @@ function Mines.build(ouder: Instance): ()
 		segRanden[n] = rand
 	end
 
-	local huidigLabel = payoutRegel(paneel, "CURRENT WIN", Theme.color.neon, 11)
-	local volgendLabel = payoutRegel(paneel, "NEXT TILE", Theme.color.gold, 12)
+	-- De twee `.payout-line`-regels raken elkaar in de CSS: geen marge, geen tussenruimte,
+	-- het haarlijntje van de bovenste is meteen de bovenkant van de onderste. Het paneel
+	-- houdt zes pixels tussen zijn kinderen, dus de twee regels gaan samen in één blok dat
+	-- zelf niets tussen zijn kinderen laat. De twee pixels onderaan maken van die zes de
+	-- acht van `.btn-primary { margin-top: 8px }` onder het blok.
+	local payoutBlok = Instance.new("Frame")
+	payoutBlok.Name = "PayoutLines"
+	payoutBlok.Size = UDim2.new(1, 0, 0, PAYOUT_HOOG * 2 + 2)
+	payoutBlok.BackgroundTransparency = 1
+	payoutBlok.LayoutOrder = 11
+	payoutBlok.Parent = paneel
+	UI.list(payoutBlok, 0)
+
+	local huidigLabel = payoutRegel(payoutBlok, "CURRENT WIN", Theme.color.neon)
+	local volgendLabel = payoutRegel(payoutBlok, "NEXT TILE", Theme.color.gold)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local startKnop = UI.primary(paneel, "START")
 	startKnop.LayoutOrder = 13
 	startKnop.Font = Theme.font.uiBold
+	startKnop.TextXAlignment = Enum.TextXAlignment.Center
 	UI.gradient(startKnop, Theme.color.neon, Theme.color.neonDim, 135)
 
 	-- .btn-primary.btn-cashout: goud, en hij klopt één keer per seconde. Die klop is in de
@@ -355,6 +398,7 @@ function Mines.build(ouder: Instance): ()
 	local uitKnop = UI.primary(paneel, "CASH OUT")
 	uitKnop.LayoutOrder = 14
 	uitKnop.Font = Theme.font.uiBold
+	uitKnop.TextXAlignment = Enum.TextXAlignment.Center
 	uitKnop.BackgroundColor3 = Theme.color.gold
 	uitKnop.TextColor3 = Theme.color.bg
 	uitKnop.Visible = false
@@ -481,9 +525,11 @@ function Mines.build(ouder: Instance): ()
 
 	teken()
 
-	-- De twee panelen waar elke aside in de webversie mee afsluit.
+	-- De twee panelen waar elke aside in de webversie mee afsluit. De vetgedrukte stukken
+	-- in de `.odds-note` zijn in de CSS goud, maar twee kleuren in één regel zou RichText
+	-- vragen en dat staat in dit project uit, dus het is één kleur.
 	Common.statsPanel(bediening, "mines")
-	Common.oddsPanel(bediening, "odds", "25 tiles. Multiplier after k diamonds = 0.97 / chance(k safe in a row). RTP 97% at every cash-out. The mines are placed before your first click.")
+	Common.oddsPanel(bediening, "odds", "25 tiles. Multiplier after k diamonds = *0.97 / chance(k safe in a row)*. RTP *97%* at every cash-out. The mines are placed before your first click.")
 end
 
 return Mines

@@ -13,6 +13,11 @@
 -- Elk vak is daarom een waaier van smalle balkjes vanuit het midden (zie straal()), de wijzer
 -- is het teken ▼ in goud, en de spatiëring van `.odds-note` is weggelaten. De ronde buitenrand
 -- van een vak kan niet gestreept worden; alleen de twee rechte zijkanten krijgen hun lijntje.
+--
+-- Het rad wordt op de gemeten straal gebouwd en bij elke maatverandering opnieuw op maat
+-- gezet (pasStraal). Een UIScale over een vast rad zou korter zijn, maar dan hangt het beeld
+-- aan een schaalfactor die niet overal meegerekend wordt; de balkjesbreedte moet sowieso per
+-- straal opnieuw uit de boogformule komen, dus de maten staan hier gewoon in pixels.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
@@ -23,25 +28,29 @@ local Common = require(script.Parent.Common)
 
 local Wheel = {}
 
--- ---------- maten uit whDraw() ----------
--- Daar is R = min(w,h)/2 - 10, dus het vierkant om het rad is 2R + 20. Het rad wordt hier op
--- een vaste straal gebouwd en daarna met een UIScale op de maat van het bord gezet; opnieuw
--- honderdtwintig balkjes maken bij elke hoekverandering van het venster is zonde.
-local R = 200                      -- referentiestraal
-local WIEL = R * 2 + 20            -- het vierkant waar het rad in past
+-- ---------- maten uit whDraw() en de CSS ----------
 local VAKKEN = #Odds.WHEEL         -- twintig
 local STAP = 360 / VAKKEN          -- achttien graden per vak
-local NAAF = R * 0.18              -- c.arc(cx, cy, R * 0.18) -- het donkere hart
-local MIN_VAK = 260                -- .wheel-wrap min-height op de telefoon
+local MIN_WRAP = 320               -- .wheel-wrap min-height (onder 900 pixels wordt dat 260)
 local HIST_H = 22                  -- .sl-hist: 11px tekst met 4 padding boven en onder
+-- Tussen het rad en de uitslagenrij zit `.board { gap: 18px }` plus de eigen
+-- `.wheel-wrap { margin-bottom: 14px }`. Dat is bij elkaar 32, ook als de rij nog leeg is.
+local TUSSEN = 32
+local LABEL_IN = 20                -- c.fillText(label, R - 20, 0)
+local RAND = 5                     -- de velg loopt tot R + 5
+local NAAF_F = 0.18                -- c.arc(cx, cy, R * 0.18) -- het donkere hart
+local START_R = 200                -- straal voor het eerste beeld, tot meet() de echte weet
 
 -- Elk vak wordt opgebouwd uit zes balkjes naast elkaar. Dat is genoeg: bij drie graden per
 -- balkje is de bocht die eraf valt een kwart pixel diep, en dat zie je niet.
 local SPAKEN = 6
 local SUB = STAP / SPAKEN
--- Een balkje dat om het middelpunt draait dekt aan de buitenkant 2*asin(b / 2R) graden. Net
+
+-- Een balkje dat om het middelpunt draait dekt aan de buitenkant 2*asin(b / 2r) graden. Net
 -- zo breed maken als die stap, plus een pixel, anders schijnt er licht tussen de balkjes door.
-local SPAAK_B = math.ceil(2 * R * math.sin(math.rad(SUB / 2))) + 1
+local function spaakBreedte(r: number): number
+	return math.ceil(2 * r * math.sin(math.rad(SUB / 2))) + 1
+end
 
 -- whColor(): canvas kent geen CSS-variabelen, dus daar staan echte kleuren. Hier ook.
 type Kleur = { vul: Color3, tekst: Color3, rand: Color3 }
@@ -57,37 +66,54 @@ local function kleurVan(m: number): Kleur
 	return LEEG_VAK
 end
 
--- Een rond vlak: Roblox maakt van een vierkant een cirkel met een radius van een halve schaal.
-local function schijf(ouder: Instance, maat: number, kleur: Color3, naam: string): Frame
+-- Een rond vlak. De straal staat in pixels en niet als halve schaal: Roblox knipt een te
+-- grote CornerRadius bij tot de halve zijde, dus de helft van de diameter is precies rond.
+-- De hoek wordt bewaard omdat hij met de schijf mee moet groeien.
+type Schijf = { vlak: Frame, hoek: UICorner }
+local function schijf(ouder: Instance, diameter: number, kleur: Color3, naam: string): Schijf
 	local f = Instance.new("Frame")
 	f.Name = naam
 	f.AnchorPoint = Vector2.new(0.5, 0.5)
 	f.Position = UDim2.fromScale(0.5, 0.5)
-	f.Size = UDim2.fromOffset(maat, maat)
+	f.Size = UDim2.fromOffset(diameter, diameter)
 	f.BackgroundColor3 = kleur
 	f.BorderSizePixel = 0
-	local hoek = Instance.new("UICorner")
-	hoek.CornerRadius = UDim.new(0.5, 0)
-	hoek.Parent = f
 	f.Parent = ouder
-	return f
+	return { vlak = f, hoek = UI.corner(f, diameter / 2) }
 end
 
--- Een balkje dat vanuit het midden naar buiten wijst. De draaiing van een Frame gaat om het
--- ankerpunt, dus met het anker onderaan in het midden van het rad draait het balkje netjes
--- om de as. Bij hoek nul wijst het omhoog, en omhoog is -90 graden -- vandaar de +90.
-local function straal(ouder: Instance, hoek: number, breed: number, lang: number, kleur: Color3, laag: number): Frame
+local function zetSchijf(s: Schijf, diameter: number): ()
+	s.vlak.Size = UDim2.fromOffset(diameter, diameter)
+	s.hoek.CornerRadius = UDim.new(0, diameter / 2)
+end
+
+-- Een balkje dat vanuit het midden van het rad naar buiten wijst, over de hele straal.
+--
+-- Een Frame draait om zijn eigen middelpunt. Het balkje wordt daarom niet met zijn voet op
+-- de as gezet, maar met zijn hart op halve straal langs de richting waar het heen wijst: dan
+-- valt het draaipunt samen met het hart en staat het balkje na de draaiing precies goed.
+-- Onbedraaid wijst een Frame omhoog en omhoog is -90 graden, vandaar de +90; de richting die
+-- daar bij hoort is (cos hoek, sin hoek), dezelfde als waarmee de opschriften geplaatst zijn.
+type Spaak = { vlak: Frame, hoek: number, waaier: boolean }
+local function straal(ouder: Instance, hoek: number, kleur: Color3, laag: number, waaier: boolean): Spaak
 	local f = Instance.new("Frame")
-	f.Name = "Ray"
-	f.AnchorPoint = Vector2.new(0.5, 1)
-	f.Position = UDim2.fromScale(0.5, 0.5)
-	f.Size = UDim2.fromOffset(breed, lang)
+	f.Name = if waaier then "Ray" else "Edge"
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
 	f.Rotation = hoek + 90
 	f.BackgroundColor3 = kleur
 	f.BorderSizePixel = 0
 	f.ZIndex = laag
 	f.Parent = ouder
-	return f
+	return { vlak = f, hoek = hoek, waaier = waaier }
+end
+
+-- De maat en de plek van zo'n balkje bij een gegeven straal.
+local function zetStraal(s: Spaak, r: number, breed: number): ()
+	s.vlak.Size = UDim2.fromOffset(if s.waaier then breed else 1, r)
+	s.vlak.Position = UDim2.new(
+		0.5, math.cos(math.rad(s.hoek)) * r / 2,
+		0.5, math.sin(math.rad(s.hoek)) * r / 2
+	)
 end
 
 -- .sl-hist: het cijferlettertype, een randje, en neon zodra er iets uitbetaald is.
@@ -114,39 +140,34 @@ end
 
 function Wheel.build(ouder: Instance): ()
 	local bord, bediening = Common.columns(ouder, "WHEEL OF FORTUNE")
-	-- .board zet 18 pixels tussen het rad en de uitslagenrij; de gedeelde kolomhulp gebruikt 14.
 	local bordLijst = bord:FindFirstChildOfClass("UIListLayout")
-	if bordLijst then bordLijst.Padding = UDim.new(0, 18) end
+	if bordLijst then bordLijst.Padding = UDim.new(0, TUSSEN) end
 
 	-- ---------- het rad ----------
+	-- `.wheel-wrap` is zo breed als het bord en pakt de hoogte die overblijft; het rad zelf
+	-- staat in het midden daarvan, want whDraw() rekent met cx = w/2 en cy = h/2.
 	local wrap = Instance.new("Frame")
 	wrap.Name = "WheelWrap"
-	wrap.Size = UDim2.fromOffset(WIEL, WIEL)
+	wrap.Size = UDim2.new(1, 0, 0, MIN_WRAP)
 	wrap.BackgroundTransparency = 1
 	wrap.LayoutOrder = 1
 	wrap.Parent = bord
 
-	local rad = Instance.new("Frame")
-	rad.Name = "Wheel"
-	rad.AnchorPoint = Vector2.new(0.5, 0.5)
-	rad.Position = UDim2.fromScale(0.5, 0.5)
-	rad.Size = UDim2.fromOffset(WIEL, WIEL)
-	rad.BackgroundTransparency = 1
-	rad.Parent = wrap
-	local schaal = Instance.new("UIScale")
-	schaal.Parent = rad
-
-	-- De buitenrand: c.arc(cx, cy, R + 5) in --panel-light met een rand van 2.
-	local velg = schijf(rad, (R + 5) * 2, Theme.color.panelLight, "Rim")
-	UI.stroke(velg, Theme.color.border, 2)
-
-	-- Alleen deze ring draait; de naaf is rond en de wijzer hangt erbuiten, dus die blijven staan.
+	-- Alleen deze ring draait; de velg, de naaf en de wijzer horen bij het vaste deel.
 	local ring = Instance.new("Frame")
 	ring.Name = "Ring"
 	ring.Size = UDim2.fromScale(1, 1)
 	ring.BackgroundTransparency = 1
 	ring.ZIndex = 2
-	ring.Parent = rad
+
+	-- De buitenrand: c.arc(cx, cy, R + 5) in --panel-light met een rand van 2.
+	local velg = schijf(wrap, (START_R + RAND) * 2, Theme.color.panelLight, "Rim")
+	UI.stroke(velg.vlak, Theme.color.border, 2)
+	ring.Parent = wrap
+
+	-- De onderdelen die met de straal meegroeien, zodat pasStraal ze terug kan vinden.
+	local balkjes: { Spaak } = {}
+	local opschriften: { { tekst: TextLabel, mid: number } } = {}
 
 	for i, m in Odds.WHEEL do
 		local kleur = kleurVan(m)
@@ -154,18 +175,19 @@ function Wheel.build(ouder: Instance): ()
 		-- De waaier: zes balkjes die samen de punt vullen. Bij het midden liggen ze over
 		-- elkaar heen -- ze hebben dezelfde kleur, dus dat valt niet op.
 		for j = 1, SPAKEN do
-			straal(ring, begin + (j - 0.5) * SUB, SPAAK_B, R, kleur.vul, 1)
+			table.insert(balkjes, straal(ring, begin + (j - 0.5) * SUB, kleur.vul, 1, true))
 		end
 		-- De twee rechte zijkanten, c.stroke() met lineWidth 1. Een vak dat uitbetaalt krijgt
 		-- zijn lijntje bovenop dat van de donkere buren, zoals canvas dat ook doet: wie later
 		-- getekend wordt, wint.
 		local laag = if m > 0 then 3 else 2
-		straal(ring, begin, 1, R, kleur.rand, laag)
-		straal(ring, begin + STAP, 1, R, kleur.rand, laag)
+		table.insert(balkjes, straal(ring, begin, kleur.rand, laag, false))
+		table.insert(balkjes, straal(ring, begin + STAP, kleur.rand, laag, false))
 
 		-- Het opschrift staat langs de punt, op R - 20, en klapt op de linkerhelft om --
 		-- anders zou het daar op zijn kop staan. Het ankerpunt is ook het draaipunt, dus het
 		-- ligt in allebei de gevallen op dezelfde plek en de tekst loopt naar binnen weg.
+		-- De letters blijven 13 pixels, net als in whDraw(); alleen de afstand groeit mee.
 		local mid = begin + STAP / 2
 		local links = math.cos(math.rad(mid)) < 0
 		local t = UI.label(ring, if m > 0 then Money.fmt(m) .. "\u{00D7}" else "\u{00B7}", {
@@ -174,35 +196,48 @@ function Wheel.build(ouder: Instance): ()
 			name = "Seg",
 		})
 		t.AnchorPoint = Vector2.new(if links then 0 else 1, 0.5)
-		t.Position = UDim2.new(
-			0.5, math.cos(math.rad(mid)) * (R - 20),
-			0.5, math.sin(math.rad(mid)) * (R - 20)
-		)
 		t.Size = UDim2.fromOffset(70, 20)
 		t.Rotation = if links then mid + 180 else mid
 		t.ZIndex = 4
+		table.insert(opschriften, { tekst = t, mid = mid })
 	end
 
 	-- De naaf: een donkere schijf over het midden, waar alle punten samenkomen.
-	local naaf = schijf(rad, NAAF * 2, Theme.color.panel, "Hub")
-	naaf.ZIndex = 3
-	UI.stroke(naaf, Theme.color.border)
+	local naaf = schijf(wrap, START_R * NAAF_F * 2, Theme.color.panel, "Hub")
+	naaf.vlak.ZIndex = 3
+	UI.stroke(naaf.vlak, Theme.color.border)
 
 	-- De wijzer staat boven en wijst naar beneden het rad in. Een gevulde driehoek kan Roblox
-	-- niet tekenen, dus het is het teken ervoor, op de rand van het rad.
-	local wijzer = UI.label(rad, "\u{25BC}", {
+	-- niet tekenen, dus het is het teken ervoor, met zijn hart op de rand van het rad --
+	-- daar ligt in whDraw() ook het midden van de driehoek (cy - R - 8 tot cy - R + 8).
+	local wijzer = UI.label(wrap, "\u{25BC}", {
 		size = 24, color = Theme.color.gold, font = Theme.font.uiBold,
 		align = Enum.TextXAlignment.Center, name = "Pointer",
 	})
 	wijzer.AnchorPoint = Vector2.new(0.5, 0.5)
-	wijzer.Position = UDim2.new(0.5, 0, 0.5, -R)
 	wijzer.Size = UDim2.fromOffset(28, 28)
 	wijzer.ZIndex = 4
+
+	-- Alles wat van de straal afhangt op maat zetten.
+	local function pasStraal(r: number): ()
+		local b = spaakBreedte(r)
+		for _, s in balkjes do zetStraal(s, r, b) end
+		for _, o in opschriften do
+			o.tekst.Position = UDim2.new(
+				0.5, math.cos(math.rad(o.mid)) * (r - LABEL_IN),
+				0.5, math.sin(math.rad(o.mid)) * (r - LABEL_IN)
+			)
+		end
+		zetSchijf(velg, (r + RAND) * 2)
+		zetSchijf(naaf, r * NAAF_F * 2)
+		wijzer.Position = UDim2.new(0.5, 0, 0.5, -r)
+	end
+	pasStraal(START_R)
 
 	-- ---------- de uitslagenrij ----------
 	local histRij = Instance.new("Frame")
 	histRij.Name = "History"
-	histRij.Size = UDim2.new(1, 0, 0, HIST_H)
+	histRij.Size = UDim2.new(1, 0, 0, 0)
 	histRij.BackgroundTransparency = 1
 	histRij.LayoutOrder = 2
 	histRij.Parent = bord
@@ -211,6 +246,28 @@ function Wheel.build(ouder: Instance): ()
 	histLijst.SortOrder = Enum.SortOrder.LayoutOrder
 
 	local geschiedenis: { number } = {}
+
+	-- Het rad vult het bord: `flex: 1` in de hoogte, `width: 100%` in de breedte. De
+	-- uitslagenrij en de 32 pixels ertussen gaan er eerst af, en de straal is daarna
+	-- min(w, h) / 2 - 10, precies zoals whDraw() hem uitrekent.
+	local gemeten = -1
+	local function meet()
+		local vak = bord.AbsoluteSize
+		if vak.X <= 0 or vak.Y <= 0 then return end
+		-- Zolang er nog niet gedraaid is staat er niets in `.sl-history-row` en is die rij
+		-- nul hoog; de tussenruimte eronder telt in de webversie dan wél gewoon mee.
+		local hist = if #geschiedenis > 0 then HIST_H else 0
+		local hoog = math.max(MIN_WRAP, vak.Y - hist - TUSSEN)
+		local r = math.min(vak.X, hoog) / 2 - 10
+		histRij.Size = UDim2.new(1, 0, 0, hist)
+		wrap.Size = UDim2.new(1, 0, 0, hoog)
+		if math.abs(r - gemeten) < 0.5 then return end
+		gemeten = r
+		pasStraal(r)
+	end
+	bord:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	task.defer(meet)
+
 	local function toonGeschiedenis()
 		for _, kind in histRij:GetChildren() do
 			if kind:IsA("TextLabel") then kind:Destroy() end
@@ -218,23 +275,8 @@ function Wheel.build(ouder: Instance): ()
 		for i, m in geschiedenis do
 			histVakje(histRij, m, i)
 		end
+		meet()                                      -- de rij duwt het rad een stukje kleiner
 	end
-
-	-- Het rad vult het bord: `flex: 1` in de hoogte, `width: 100%` in de breedte, en vierkant
-	-- omdat de canvas de kleinste van de twee neemt. De uitslagenrij en de 18 pixels ertussen
-	-- gaan er eerst af.
-	local gemeten = -1
-	local function meet()
-		local vak = bord.AbsoluteSize
-		if vak.X <= 0 or vak.Y <= 0 then return end
-		local maat = math.max(MIN_VAK, math.min(vak.X, vak.Y - HIST_H - 18))
-		if math.abs(maat - gemeten) < 0.5 then return end
-		gemeten = maat
-		wrap.Size = UDim2.fromOffset(maat, maat)
-		schaal.Scale = maat / WIEL
-	end
-	bord:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
-	task.defer(meet)
 
 	-- ---------- de bediening links ----------
 	-- In de markup staan het inzetveld met zijn ficheknoppen en de speelknop in één `.panel`.
@@ -249,7 +291,7 @@ function Wheel.build(ouder: Instance): ()
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "wheel")
-	Common.oddsPanel(bediening, "odds", "Twenty equal segments: one 10.00x, two 2.00x, two 1.50x, two 1.20x and thirteen blanks. Together 19.4 / 20 = RTP 97%.")
+	Common.oddsPanel(bediening, "odds", "Twenty equal segments: one 10.00x, two 2.00x, two 1.50x, two 1.20x and thirteen blanks. Together 19.4 / 20 = RTP *97%*.")
 
 	-- ---------- draaien ----------
 	local hoek = 0        -- WH.angle, hier in graden: Rotation rekent net als de canvas met

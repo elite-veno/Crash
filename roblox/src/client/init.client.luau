@@ -367,6 +367,16 @@ toasts.Parent = inhoud
 local toastLijst = UI.list(toasts, 6)
 toastLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
+-- ---------- vensters ----------
+-- `.modal` hangt over alles heen, ook over de navigatiebalk. Het noodfonds gebruikt het.
+local vensters = Instance.new("Frame")
+vensters.Name = "Modals"
+vensters.Size = UDim2.fromScale(1, 1)
+vensters.BackgroundTransparency = 1
+vensters.ZIndex = 100
+vensters.Parent = root
+Common.setModalHost(vensters)
+
 -- ---------- routing ----------
 -- De balk verven: welk item actief is, welke gedimd, en waar de muis hangt. Eén functie,
 -- want hover en actief door elkaar heen zetten is precies hoe een highlight verdwijnt.

@@ -83,6 +83,14 @@ local function plek(m: Meetkunde, x: number, y: number, yBij: number?): UDim2
 	return UDim2.new(x / m.w, 0, y / m.h, yBij or 0)
 end
 
+-- Hoe groot iets op het bord is, in datzelfde stelsel. Een maat in kale pixels naast een
+-- plek in verhoudingen loopt uit elkaar zodra de gemeten maat niet die van het vak is: de
+-- bakjes komen dan dichter bij elkaar te staan dan ze breed zijn en schuiven over elkaar
+-- heen. Plek en maat allebei als verhouding houdt het bord in vorm, hoe groot het vak ook is.
+local function formaat(m: Meetkunde, breed: number, hoog: number): UDim2
+	return UDim2.fromScale(breed / m.w, hoog / m.h)
+end
+
 -- pkColor(): warm aan de randen, koel in het midden. De grens hangt aan de hoogste
 -- multiplier van de tabel, dus hij verschuift mee met het risico.
 local function bakKleur(mult: number, tabel: { number }): Color3
@@ -192,6 +200,9 @@ local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (s
 		b.BorderSizePixel = 0
 		b.AutoButtonColor = false
 		b.RichText = false
+		-- Roblox centreert knoptekst zelf al; expliciet gezet zodat de schermafdruk uit
+		-- tools/preview hetzelfde laat zien als het spel.
+		b.TextXAlignment = Enum.TextXAlignment.Center
 		b.Size = UDim2.new(1 / aantal, -gat, 1, 0)
 		UI.corner(b, Theme.radius.chip)
 		local rand = UI.stroke(b, Theme.color.border)
@@ -249,9 +260,7 @@ function Plinko.build(ouder: Instance): ()
 		-- overblijft, rekent het bord met het nominale formaat; de verhoudingen uit plek()
 		-- zetten hem dan alsnog over de volle breedte neer.
 		local gemeten = vak.AbsoluteSize
-		local maat = if typeof(gemeten) == "Vector2" and gemeten.X > 0 and (gemeten.Y - ONDER) > rijen
-			then gemeten
-			else NOMINAAL
+		local maat = if gemeten.X > 0 and (gemeten.Y - ONDER) > rijen then gemeten else NOMINAAL
 		if not altijd and maat == getekend then return end
 		getekend = maat
 
@@ -272,10 +281,12 @@ function Plinko.build(ouder: Instance): ()
 				p.Name = "Peg"
 				p.AnchorPoint = Vector2.new(0.5, 0.5)
 				p.Position = plek(m, m.cx + (j - (i + 2) / 2) * m.sx, y)
-				p.Size = UDim2.fromOffset(straal * 2, straal * 2)
+				p.Size = formaat(m, straal * 2, straal * 2)
 				p.BackgroundColor3 = PIN
 				p.BackgroundTransparency = PIN_DOORZICHT
 				p.BorderSizePixel = 0
+				-- Roblox knipt een te grote CornerRadius bij tot de halve zijde, dus deze
+				-- straal in pixels houdt de pin rond ook als het vak kleiner uitvalt.
 				UI.corner(p, straal)
 				p.Parent = vak
 				table.insert(pinnen, p)
@@ -292,7 +303,7 @@ function Plinko.build(ouder: Instance): ()
 			f.Name = "Bucket" .. b
 			f.AnchorPoint = Vector2.new(0.5, 0)
 			f.Position = plek(m, m.cx + (b - rijen / 2) * m.sx, m.bakY)
-			f.Size = UDim2.fromOffset(bw, m.bakH)
+			f.Size = formaat(m, bw, m.bakH)
 			f.BackgroundColor3 = bakKleur(mult, tabel)
 			f.BackgroundTransparency = BAK_DOORZICHT
 			f.BorderSizePixel = 0
@@ -353,7 +364,7 @@ function Plinko.build(ouder: Instance): ()
 		local gloed = Instance.new("Frame")
 		gloed.Name = "Ball"
 		gloed.AnchorPoint = Vector2.new(0.5, 0.5)
-		gloed.Size = UDim2.fromOffset((straal + 5) * 2, (straal + 5) * 2)
+		gloed.Size = formaat(m, (straal + 5) * 2, (straal + 5) * 2)
 		gloed.BackgroundColor3 = Theme.color.neon
 		gloed.BackgroundTransparency = Theme.glow.transparency
 		gloed.BorderSizePixel = 0
@@ -365,7 +376,7 @@ function Plinko.build(ouder: Instance): ()
 		bal.Name = "Core"
 		bal.AnchorPoint = Vector2.new(0.5, 0.5)
 		bal.Position = UDim2.fromScale(0.5, 0.5)
-		bal.Size = UDim2.fromOffset(straal * 2, straal * 2)
+		bal.Size = UDim2.fromScale(straal / (straal + 5), straal / (straal + 5))
 		bal.BackgroundColor3 = Theme.color.neon
 		bal.BorderSizePixel = 0
 		UI.corner(bal, straal)
@@ -423,9 +434,10 @@ function Plinko.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local paneel = betBox.panel
 
-	-- Een `.field-group`: de 8 boven is de margin-bottom van het blok erboven, de 8 onder
-	-- die van deze groep zelf (14 min de 6 uit de lijst).
-	local function veldGroep(orde: number): Frame
+	-- Een `.field-group` heeft alleen `margin-bottom: 14`. Het paneel zet zelf al 6 pixels
+	-- tussen zijn kinderen, dus elke groep legt er 8 onder bij. Het inzetblok erboven komt
+	-- uit Common.betBox en heeft die 8 niet, dus de eerste groep zet ze ook boven zichzelf.
+	local function veldGroep(orde: number, eerste: boolean?): Frame
 		local f = Instance.new("Frame")
 		f.Name = "FieldGroup"
 		f.Size = UDim2.new(1, 0, 0, 0)
@@ -434,11 +446,11 @@ function Plinko.build(ouder: Instance): ()
 		f.LayoutOrder = orde
 		f.Parent = paneel
 		UI.list(f, 6)
-		UI.padding4(f, 8, 0, 8, 0)
+		UI.padding4(f, if eerste then 8 else 0, 0, 8, 0)
 		return f
 	end
 
-	local rijenVeld = veldGroep(10)
+	local rijenVeld = veldGroep(10, true)
 	veldKop(rijenVeld, "ROWS")
 	local _, rijKnop = segRij(rijenVeld, #RIJEN, 2)
 	local rijKnoppen: { [number]: { knop: TextButton, rand: UIStroke } } = {}
@@ -448,12 +460,25 @@ function Plinko.build(ouder: Instance): ()
 	local _, riskKnop = segRij(risicoVeld, #RISICO, 2)
 	local riskKnoppen: { [string]: { knop: TextButton, rand: UIStroke } } = {}
 
-	local maxLabel = payoutRegel(paneel, "MAX MULTIPLIER", 12)
+	-- De maxregel raakt in de CSS de knop eronder met de 8 van `.btn-primary`. Het paneel
+	-- geeft er 6, dus de regel gaat in een blokje dat er 2 onder legt.
+	local uitbetaling = Instance.new("Frame")
+	uitbetaling.Name = "Payout"
+	uitbetaling.Size = UDim2.new(1, 0, 0, 0)
+	uitbetaling.AutomaticSize = Enum.AutomaticSize.Y
+	uitbetaling.BackgroundTransparency = 1
+	uitbetaling.LayoutOrder = 12
+	uitbetaling.Parent = paneel
+	UI.list(uitbetaling, 0)
+	UI.padding4(uitbetaling, 0, 0, 2, 0)
+
+	local maxLabel = payoutRegel(uitbetaling, "MAX MULTIPLIER", 1)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local dropKnop = UI.primary(paneel, "DROP")
 	dropKnop.LayoutOrder = 13
 	dropKnop.Font = Theme.font.uiBold
+	dropKnop.TextXAlignment = Enum.TextXAlignment.Center
 	UI.gradient(dropKnop, Theme.color.neon, Theme.color.neonDim, 135)
 
 	-- pkRender(): de gekozen knoppen aanzetten en de hoogste multiplier bijwerken.
@@ -557,7 +582,7 @@ function Plinko.build(ouder: Instance): ()
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "plinko")
-	Common.oddsPanel(bediening, "odds", "Every row is a fair 50/50. The payout table is normalised to RTP 97% per row count and risk level. Higher risk means bigger outliers and more small losses.")
+	Common.oddsPanel(bediening, "odds", "Every row is a fair 50/50. The payout table is normalised to RTP *97%* per row count and risk level. Higher risk means bigger outliers and more small losses.")
 end
 
 return Plinko

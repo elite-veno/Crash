@@ -35,7 +35,7 @@ local TAFEL_GAT = 22       -- .bj-table gap
 local HAND_GAT = 8         -- .hand gap
 local LABEL_GAT = 12       -- .hand-label gap
 local PIL_MIN = 32         -- .hand-label .val min-width
-local PIL_H = 19           -- 11px tekst met padding 2 boven en onder
+local PIL_H = 20           -- 11px tekst (regel 14) met padding 2 en rand 1 boven en onder
 local KAART_B = 66         -- .card width
 local KAART_H = 96         -- .card height
 local KAART_GAT = 8        -- .cards gap
@@ -44,7 +44,16 @@ local RUG_RAND = 4         -- .card.back border: 4px solid
 local RUG_BAND = 6         -- de bandbreedte uit het repeating-linear-gradient
 local BERICHT_H = 32       -- .bj-message min-height
 local ACTIE_GAT = 6        -- .bj-actions gap
-local ACTIE_H = 38         -- .btn-secondary: 11px tekst met padding 12 boven en onder
+local ACTIE_MARGE = 8      -- .bj-actions margin-top
+local ACTIE_H = 40         -- .btn-secondary: 11px tekst (regel 14), padding 12 en rand 1
+-- Boven DEAL zit twee keer lucht: de margin-bottom van de `.field-group` met het inzetveld
+-- en de margin-top van `.btn-primary` zelf. Samen 22, en dat is meer dan de 6 die de lijst
+-- van het paneel ertussen zet -- vandaar dat de knop hier in een eigen vakje hangt.
+local DEAL_MARGE = 14 + 8  -- .field-group margin-bottom + .btn-primary margin-top
+
+-- .btn-primary:disabled is opacity 0.6 en .btn-secondary:disabled 0.35. UI.setEnabled kent
+-- dat verschil niet en dimt alles even hard, dus DEAL wordt hier zelf gezet.
+local DEAL_DOF = 0.4       -- 1 - 0.6
 
 -- De kleuren van een speelkaart staan in de CSS als losse hex in `.card` en `.card.back`,
 -- niet als variabele. Ze horen dus hier en niet in het Theme; Theme.color.card is een tint
@@ -96,7 +105,7 @@ end
 -- vlak van vier pixels kleiner erin.
 --
 -- Roblox kent geen repeating-linear-gradient. De strepen zijn daarom balkjes van 6 breed
--- die 45 graden gedraaid staan, met 6 ertussen; het groene vlak snijdt af wat erbuiten valt.
+-- die schuin staan, met 6 ertussen; het groene vlak snijdt af wat erbuiten valt.
 local function rugVlak(ouder: Instance, volgorde: number): Frame
 	local f = Instance.new("Frame")
 	f.Name = "CardBack"
@@ -133,7 +142,11 @@ local function rugVlak(ouder: Instance, volgorde: number): Frame
 			math.round(hoogte / 2)
 		)
 		streep.Size = UDim2.fromOffset(RUG_BAND, lengte)
-		streep.Rotation = 45
+		-- `linear-gradient(45deg, ...)` loopt naar rechtsboven, dus de banden zelf liggen
+		-- daar haaks op: van linksboven naar rechtsonder. Roblox draait met de klok mee,
+		-- net als de webversie, en dat is voor een staand balkje juist de andere diagonaal
+		-- -- vandaar min 45 en niet plus 45.
+		streep.Rotation = -45
 		streep.BackgroundColor3 = RUG_LICHT
 		streep.BorderSizePixel = 0
 		streep.Parent = binnen
@@ -199,7 +212,9 @@ local function maakHand(ouder: Instance, naam: string, volgorde: number): (Frame
 	kaarten.BackgroundTransparency = 1
 	kaarten.Parent = hand
 	local kaartLijst = UI.list(kaarten, KAART_GAT, Enum.FillDirection.Horizontal)
-	kaartLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+	-- Een kaart is 96 hoog en het vak minstens 100; in de CSS blijft zo'n kaart met
+	-- `align-items: stretch` gewoon boven in de regel hangen, dus hier ook.
+	kaartLijst.VerticalAlignment = Enum.VerticalAlignment.Top
 	kaartLijst.Wraps = true
 	local kaartHoogte = Instance.new("UISizeConstraint")
 	kaartHoogte.MinSize = Vector2.new(0, KAARTEN_H)
@@ -265,12 +280,23 @@ function Blackjack.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local paneel = betBox.panel
 
+	-- De fiches sluiten de `.field-group` af; daarna komt DEAL. Een UIPadding op een knop
+	-- schuift alleen de tekst op, niet de knop, dus de lucht erboven zit in een vakje
+	-- eromheen; de 6 die de lijst van het paneel al geeft gaat eraf.
+	local dealVak = Instance.new("Frame")
+	dealVak.Name = "DealSlot"
+	dealVak.Size = UDim2.new(1, 0, 0, 0)
+	dealVak.AutomaticSize = Enum.AutomaticSize.Y
+	dealVak.BackgroundTransparency = 1
+	dealVak.LayoutOrder = 10
+	dealVak.Parent = paneel
+	UI.padding4(dealVak, DEAL_MARGE - 6, 0, 0, 0)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	--
 	-- In de webversie heet deze knop JOIN THE TABLE zodra je aan de gedeelde tafel zit; die
 	-- tafel bestaat in deze poort niet, dus hij houdt de naam uit de markup zelf: DEAL.
-	local dealKnop = UI.primary(paneel, "DEAL")
-	dealKnop.LayoutOrder = 10
+	local dealKnop = UI.primary(dealVak, "DEAL")
 	dealKnop.Font = Theme.font.uiBold
 	UI.gradient(dealKnop, Theme.color.neon, Theme.color.neonDim, 135)
 
@@ -284,7 +310,9 @@ function Blackjack.build(ouder: Instance): ()
 	acties.LayoutOrder = 11
 	acties.Parent = paneel
 	UI.list(acties, ACTIE_GAT)
-	UI.padding4(acties, 8, 0, 0, 0)
+	-- `.bj-actions` heeft margin-top 8. Het paneel van betBox zet zijn onderdelen al met 6
+	-- uit elkaar, dus er hoeft hier nog 2 bij om op diezelfde 8 uit te komen.
+	UI.padding4(acties, ACTIE_MARGE - 6, 0, 0, 0)
 
 	local bovenRij = Instance.new("Frame")
 	bovenRij.Name = "Row"
@@ -315,10 +343,19 @@ function Blackjack.build(ouder: Instance): ()
 		if rand then rand.Transparency = if aan then 0 else 0.65 end
 	end
 
+	-- DEAL aan- of uitzetten met de 0.6 van `.btn-primary:disabled`. UI.setEnabled dimt elke
+	-- knop even hard, en dat maakt de grote groene knop veel donkerder dan op de site.
+	-- Active uit is genoeg om de hover-kleur tegen te houden; die kijkt daarnaar.
+	local function zetDeal(aan: boolean)
+		dealKnop.Active = aan
+		dealKnop.TextTransparency = if aan then 0 else DEAL_DOF
+		dealKnop.BackgroundTransparency = if aan then 0 else DEAL_DOF
+	end
+
 	-- De knoppen blijven staan en gaan uit, zoals `disabled` in de webversie: DEAL kan
 	-- alleen tussen twee handen door, de andere drie alleen als je aan zet bent.
 	local function zetKnoppen(kanDubbelen: boolean)
-		UI.setEnabled(dealKnop, not actief)
+		zetDeal(not actief)
 		zetActie(hitKnop, actief)
 		zetActie(standKnop, actief)
 		zetActie(doubleKnop, actief and kanDubbelen)
@@ -451,7 +488,7 @@ function Blackjack.build(ouder: Instance): ()
 	-- vetgedrukte stukken (3:2 en 1%) zijn in de CSS goud, maar twee kleuren in één regel
 	-- zou RichText vragen en dat staat in dit project uit, dus het is één kleur.
 	Common.statsPanel(bediening, "blackjack")
-	Common.oddsPanel(bediening, "rules", "6 decks, continuously shuffled (a fresh shoe every hand). Dealer stands on all 17s. Blackjack pays 3:2 and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around 1%.")
+	Common.oddsPanel(bediening, "rules", "6 decks, continuously shuffled (a fresh shoe every hand). Dealer stands on all 17s. Blackjack pays *3:2* and a dealer blackjack is checked straight away. Double on any first two cards. No split, no insurance. House edge around *1%*.")
 end
 
 return Blackjack

@@ -136,13 +136,16 @@ function Roulette.build(ouder: Instance): ()
 	topLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	topLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
-	-- Het rad van 300 plus de uitslagkolom van 200 met 24 ertussen is 524 breed. Past dat
+	-- Het rad van 300 plus de uitslagkolom met 24 ertussen moet naast elkaar passen. Past dat
 	-- niet, dan gaat de uitslag eronder staan -- dat is wat .rl-top onder de 900 pixels doet.
+	-- De kolom is zo breed als de bol tot de geschiedenisstrook hem verder opduwt; die
+	-- breedte staat hier al klaar omdat meetTop eerder gemaakt wordt dan de kolom zelf.
+	local kolomBreed = 110
 	local gestapeld: boolean? = nil
 	local function meetTop()
 		local breed = top.AbsoluteSize.X
 		if breed <= 0 then return end
-		local smal = breed < WIEL + 24 + 200
+		local smal = breed < WIEL + 24 + kolomBreed
 		if smal == gestapeld then return end
 		gestapeld = smal
 		topLijst.FillDirection = if smal then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
@@ -242,7 +245,12 @@ function Roulette.build(ouder: Instance): ()
 	-- ---------- .rl-result en de strook met de laatste getallen ----------
 	local kolom = Instance.new("Frame")
 	kolom.Name = "Result"
-	kolom.Size = UDim2.fromOffset(200, 0)
+	-- De uitslagkolom heeft in de webversie geen vaste breedte: hij is zo breed als zijn
+	-- inhoud, dus 110 (de bol) zolang de strook leeg is. Een vaste 200 duwde het rad scheef,
+	-- want .rl-top centreert het rad en deze kolom samen. AutomaticSize.X kan hier niet:
+	-- een kind van een lijst meet dan als nul en het rad schuift over de bol heen. De
+	-- breedte wordt daarom bij elke uitslag uitgerekend, in toonGeschiedenis.
+	kolom.Size = UDim2.fromOffset(110, 0)
 	kolom.AutomaticSize = Enum.AutomaticSize.Y
 	kolom.BackgroundTransparency = 1
 	kolom.LayoutOrder = 2
@@ -258,23 +266,25 @@ function Roulette.build(ouder: Instance): ()
 	bol.Font = Theme.font.num
 	bol.TextSize = 54
 	bol.TextColor3 = Theme.color.muted
+	-- .rl-result centreert zijn cijfer in beide richtingen.
+	bol.TextXAlignment = Enum.TextXAlignment.Center
+	bol.TextYAlignment = Enum.TextYAlignment.Center
 	bol.RichText = false
 	UI.corner(bol, 55)
 	local bolRand = UI.stroke(bol, Theme.color.border, 3)
 	bol.Parent = kolom
 
+	-- .result-strip is een flexrij van 6 tussenruimte. Hij mag afbreken, maar omdat de
+	-- kolom op zijn inhoud meegroeit komt het daar nooit van; een rij volstaat dus.
 	local strook = Instance.new("Frame")
 	strook.Name = "History"
 	strook.Size = UDim2.new(1, 0, 0, 0)
 	strook.AutomaticSize = Enum.AutomaticSize.Y
 	strook.BackgroundTransparency = 1
 	strook.Parent = kolom
-	local strookRaster = Instance.new("UIGridLayout")
-	strookRaster.CellSize = UDim2.fromOffset(28, 28)
-	strookRaster.CellPadding = UDim2.fromOffset(6, 6)
-	strookRaster.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	strookRaster.SortOrder = Enum.SortOrder.LayoutOrder
-	strookRaster.Parent = strook
+	local strookLijst = UI.list(strook, 6, Enum.FillDirection.Horizontal)
+	strookLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	strookLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 	local strookMin = Instance.new("UISizeConstraint")
 	strookMin.MinSize = Vector2.new(0, 26)   -- .result-strip min-height
 	strookMin.Parent = strook
@@ -297,15 +307,26 @@ function Roulette.build(ouder: Instance): ()
 			UI.corner(d, 14)
 			if k == "black" then UI.stroke(d, HIST_ZWART_RAND, 1) end
 		end
+		-- De kolom is zo breed als zijn breedste kind: de bol van 110, of de strook zodra
+		-- daar meer dan drie getallen in staan. Zo blijft rad plus kolom samen gecentreerd,
+		-- net als in .rl-top.
+		local n = #geschiedenis
+		kolomBreed = math.max(110, if n > 0 then n * 28 + (n - 1) * 6 else 0)
+		kolom.Size = UDim2.fromOffset(kolomBreed, 0)
+		meetTop()
 	end
 
 	-- ---------- .rl-board: het inzetvlak ----------
 	-- Het bord is 760 breed; past dat niet, dan krimpt alles gelijkmatig mee. De webversie
 	-- geeft het onder 900 pixels een schuifbalk, maar schuiven in een Roblox-paneel is
 	-- lastiger dan een bord dat gewoon kleiner wordt.
+	-- De houder is precies zo hoog als het bord zelf, zonder de lucht voor de fiches: in de
+	-- webversie hangen die buiten het raster en tellen ze niet mee voor de hoogte. Telde de
+	-- lucht wel mee, dan werd het gecentreerde geheel twintig pixels hoger en schoof het rad
+	-- zichtbaar omhoog.
 	local houder = Instance.new("Frame")
 	houder.Name = "BoardHolder"
-	houder.Size = UDim2.new(1, 0, 0, BORD_H + LUCHT * 2)
+	houder.Size = UDim2.new(1, 0, 0, BORD_H)
 	houder.BackgroundTransparency = 1
 	houder.LayoutOrder = 2
 	houder.Parent = bord
@@ -315,7 +336,7 @@ function Roulette.build(ouder: Instance): ()
 	local groep = Instance.new("CanvasGroup")
 	groep.Name = "Board"
 	groep.AnchorPoint = Vector2.new(0.5, 0)
-	groep.Position = UDim2.fromScale(0.5, 0)
+	groep.Position = UDim2.new(0.5, 0, 0, -LUCHT)
 	groep.Size = UDim2.fromOffset(BORD_B + LUCHT * 2, BORD_H + LUCHT * 2)
 	groep.BackgroundTransparency = 1
 	groep.BorderSizePixel = 0
@@ -327,11 +348,16 @@ function Roulette.build(ouder: Instance): ()
 	local function meetBord()
 		local breed = houder.AbsoluteSize.X
 		if breed <= 0 then return end
-		local s = math.min(1, breed / (BORD_B + LUCHT * 2))
+		-- Krimpen gebeurt op de bordbreedte zelf; de lucht eromheen is overloop voor de
+		-- fiches en mag er, net als in de webversie, buiten hangen.
+		local s = math.min(1, breed / BORD_B)
 		if math.abs(s - gemeten) < 0.001 then return end
 		gemeten = s
 		schaal.Scale = s
-		houder.Size = UDim2.new(1, 0, 0, (BORD_H + LUCHT * 2) * s)
+		-- De groep begint een lucht hoger dan de houder, zodat het eerste vak precies op
+		-- de bovenrand van de houder valt. Die verschuiving krimpt mee met de schaal.
+		groep.Position = UDim2.new(0.5, 0, 0, -LUCHT * s)
+		houder.Size = UDim2.new(1, 0, 0, BORD_H * s)
 	end
 	houder:GetPropertyChangedSignal("AbsoluteSize"):Connect(meetBord)
 	task.defer(meetBord)
@@ -378,6 +404,9 @@ function Roulette.build(ouder: Instance): ()
 		b.Font = Theme.font.uiBold                       -- .rl-cell font-weight 700
 		b.TextSize = if buiten then Theme.text.tiny else 13
 		b.TextColor3 = if buiten then Theme.color.text else Theme.color.white
+		-- .rl-cell is een flexvak met justify-content en align-items op center.
+		b.TextXAlignment = Enum.TextXAlignment.Center
+		b.TextYAlignment = Enum.TextYAlignment.Center
 		b.BackgroundColor3 = kleur
 		b.BackgroundTransparency = if buiten and kleur == Theme.color.black then 0.45 else 0
 		b.BorderSizePixel = 0
@@ -507,6 +536,8 @@ function Roulette.build(ouder: Instance): ()
 		b.Font = Theme.font.ui
 		b.TextSize = Theme.text.tiny
 		b.TextColor3 = Theme.color.text
+		-- Een knop centreert zijn opschrift; .seg button laat dat zo.
+		b.TextXAlignment = Enum.TextXAlignment.Center
 		b.BackgroundColor3 = Theme.color.black
 		b.BackgroundTransparency = Theme.alpha.buttonBg
 		b.BorderSizePixel = 0
@@ -546,7 +577,7 @@ function Roulette.build(ouder: Instance): ()
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "roulette")
-	Common.oddsPanel(bediening, "payouts", "Straight number 35:1 \u{00B7} Dozen / column 2:1 \u{00B7} Red / black / even / odd / 1-18 / 19-36 1:1. One zero, so RTP 97.3% on every bet.")
+	Common.oddsPanel(bediening, "payouts", "Straight number *35:1* \u{00B7} Dozen / column *2:1* \u{00B7} Red / black / even / odd / 1-18 / 19-36 *1:1*. One zero, so RTP *97.3%* on every bet.")
 
 	zetFiche(fiche)
 

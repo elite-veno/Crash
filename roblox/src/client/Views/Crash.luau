@@ -28,7 +28,10 @@ local GROEI = 0.103995
 local GRAS = 40          -- GRASS_HEIGHT
 local STAPPEN = 50       -- updatePathPoints() tekent de baan in vijftig stukjes
 local WOLKEN = 8         -- initClouds()
-local SPRIETEN = 48      -- het gras zelf staat per 6 pixels; zoveel Frames is te veel
+local SPRIETEN = 180     -- drawGrass() zet een spriet per 6 pixels; op een lucht van ruim
+                         -- duizend breed zijn dat er zoveel
+local DONKER = 77        -- en per 14 pixels een donkerder, hoger sprietje
+local BLOEMEN = 14       -- drawGrass() zet een bloem per 80 pixels
 local HISTORIE = 15      -- state.history.length > 15 -> pop()
 local WINSTEN = 20       -- zoveel regels passen er in de feed voordat hij begint te schuiven
 local TAFEL = 50         -- de gedeelde tafel haalt er vijftig op (limit=50)
@@ -38,6 +41,9 @@ local RIJGAT = 14
 local BALK_H = 42        -- .history-bar: padding 10 boven en onder om een fiche van 22
 local SPELERS_H = 180    -- .players-section max-height
 local KOP_H = 30         -- .players-list h3 plus zijn margin-bottom van 10
+local REGEL_H = 24       -- .player-row: 11 pixels tekst met padding 6 boven en onder
+local NOTITIE_H = 20     -- de lege regel: één regel van 11 op line-height 1.7
+local LUCHT_MIN = 320    -- .game-area { min-height: 320px }
 
 -- De kleuren die alleen op dit scherm voorkomen; de rest komt uit Theme.
 local KLEUR = {
@@ -257,26 +263,45 @@ function Crash.build(ouder: Instance): ()
 	grasRand.Parent = grasvak
 	UI.gradient(grasRand, KLEUR.grasLicht, KLEUR.grasDonker)
 
-	-- De sprietjes staan in de webversie per zes pixels. Eén Frame per spriet zou er bij een
-	-- breed venster honderden zijn, dus ze staan hier op vaste plekken die meerekken.
+	-- drawGrass() maakt twee rondes: lichte sprietjes per zes pixels, en daar tussendoor per
+	-- veertien een donkerder sprietje dat hoger is. De lichte zijn in het origineel altijd
+	-- precies 4 hoog -- `4 + ((x * 7) % 7)` met x per zes is een vast getal -- en het zijn de
+	-- donkere, van 5 tot 10, die de rafelrand geven. Beide rondes staan hier dus apart; met
+	-- alleen de lichte wordt het een kam van gelijke tandjes.
+	--
+	-- Ze hangen op een schaalpositie en rekken met de lucht mee in plaats van bij elke
+	-- maatverandering opnieuw gebouwd te worden; de aantallen zijn die van een lucht van
+	-- ruwweg elfhonderd breed, de maat die dit scherm op een monitor krijgt.
 	for i = 0, SPRIETEN - 1 do
-		local deel = i / SPRIETEN
-		local h = 4 + (i * 7) % 7
 		local spriet = Instance.new("Frame")
 		spriet.AnchorPoint = Vector2.new(0.5, 1)
-		spriet.Position = UDim2.new(deel, 0, 0, 1)
-		spriet.Size = UDim2.fromOffset(2, h)
-		spriet.BackgroundColor3 = if i % 3 == 0 then KLEUR.grasSpriet else KLEUR.grasLicht
+		spriet.Position = UDim2.new(i / SPRIETEN, 0, 0, 1)
+		spriet.Size = UDim2.fromOffset(2, 4)
+		spriet.BackgroundColor3 = KLEUR.grasLicht
 		spriet.BorderSizePixel = 0
+		-- het paar uit het origineel leunt uit elkaar: de eerste naar rechts, de tweede terug
 		spriet.Rotation = if i % 2 == 0 then -6 else 5
 		spriet.ZIndex = 3
 		spriet.Parent = grasvak
 	end
-	-- de bloemetjes uit drawGrass(): om en om goud en wit
-	for i = 0, 7 do
+	for j = 0, DONKER - 1 do
+		-- dezelfde reeks als het origineel: x loopt van 2 met stappen van 14
+		local x = 2 + j * 14
+		local spriet = Instance.new("Frame")
+		spriet.AnchorPoint = Vector2.new(0.5, 1)
+		spriet.Position = UDim2.new(x / (DONKER * 14), 0, 0, 1)
+		spriet.Size = UDim2.fromOffset(2, 5 + (x * 11) % 6)
+		spriet.BackgroundColor3 = KLEUR.grasSpriet
+		spriet.BorderSizePixel = 0
+		spriet.Rotation = 8   -- de -1 in x over zijn hoogte
+		spriet.ZIndex = 3
+		spriet.Parent = grasvak
+	end
+	-- de bloemetjes uit drawGrass(): om en om goud en wit, in het origineel per tachtig pixels
+	for i = 0, BLOEMEN - 1 do
 		local bloem = Instance.new("Frame")
 		bloem.AnchorPoint = Vector2.new(0.5, 0.5)
-		bloem.Position = UDim2.new(i / 8 + 0.06, 0, 0, 8 + (i * 7) % 6)
+		bloem.Position = UDim2.new(i / BLOEMEN + 0.03, 0, 0, 8 + (i * 7) % 6)
 		bloem.Size = UDim2.fromOffset(4, 4)
 		bloem.BackgroundColor3 = if i % 2 == 0 then Theme.color.gold else Theme.color.white
 		bloem.BorderSizePixel = 0
@@ -357,7 +382,10 @@ function Crash.build(ouder: Instance): ()
 	-- ---------- wat er over de lucht heen staat ----------
 	-- Een groot wit cijfer met een donkere rand en een schaduw eronder: dat is wat
 	-- `-webkit-text-stroke: 2px` en `text-shadow: 0 4px 0 rgba(0,0,0,0.3)` doen. De schaduw
-	-- is een tweede label erachter, want text-shadow bestaat hier niet.
+	-- is een tweede label erachter, want text-shadow bestaat hier niet. De tweede schaduw
+	-- uit dezelfde regel, `0 0 30px rgba(255,255,255,0.8)`, is een gloed zonder verspringing;
+	-- die valt weg, want een UIStroke heeft een harde rand en zou een witte ring om de
+	-- cijfers trekken in plaats van een waas.
 	local function witCijfer(ouderVak: Instance, maat: number, randKleur: Color3, volgorde: number): (TextLabel, TextLabel, UIStroke)
 		local vak = Instance.new("Frame")
 		vak.LayoutOrder = volgorde
@@ -453,9 +481,28 @@ function Crash.build(ouder: Instance): ()
 	spelersRij.Name = "PlayersSection"
 	spelersRij.AnchorPoint = Vector2.new(0, 1)
 	spelersRij.Position = UDim2.fromScale(0, 1)
-	spelersRij.Size = UDim2.new(1, 0, 0, SPELERS_H)
+	spelersRij.Size = UDim2.new(1, 0, 0, 14 + KOP_H + NOTITIE_H + 14)
 	spelersRij.BackgroundTransparency = 1
 	spelersRij.Parent = hoofd
+
+	-- .players-section is in het raster een rij `auto` met een max-height van 180: hij is zo
+	-- hoog als zijn inhoud en niet hoger, en wat overblijft is lucht. Met twee lege lijsten
+	-- is dat een kop en één regel, niet de volle 180 -- daar zit het grootste verschil met
+	-- een vaste hoogte. Beide lijsten geven door hoe hoog hun inhoud is; het hoogste wint.
+	local tafelHoog, winstHoog = NOTITIE_H, NOTITIE_H
+	local function meetSpelers()
+		-- de paneelmarge van 14 boven en onder, plus de kop met zijn marge van 10
+		local wens = math.min(14 + KOP_H + math.max(tafelHoog, winstHoog) + 14, SPELERS_H)
+		-- De lucht is de rij `1fr` en heeft voorrang: op een laag venster krimpt de onderste
+		-- rij mee tot er weer 320 pixels overblijven om in te vliegen.
+		local h = hoofd.AbsoluteSize.Y
+		if h > 0 then
+			wens = math.max(14 + KOP_H + NOTITIE_H + 14,
+				math.min(wens, h - (BALK_H + RIJGAT + RIJGAT + LUCHT_MIN)))
+		end
+		spelersRij.Size = UDim2.new(1, 0, 0, wens)
+		lucht.Size = UDim2.new(1, 0, 1, -(BALK_H + RIJGAT + wens + RIJGAT))
+	end
 
 	-- .players-list h3 .count: neon tekst op een neongroen vlak met een rand in --border.
 	-- Bij de feed staat er een .live-dot in, dus de pil is een rijtje van stip plus tekst.
@@ -492,7 +539,10 @@ function Crash.build(ouder: Instance): ()
 			stip = s
 		end
 
-		local t = UI.label(pil, tekst, { size = Theme.text.small, color = Theme.color.neon })
+		-- De pil staat in de <h3> en erft dus diens vette letter.
+		local t = UI.label(pil, tekst, {
+			size = Theme.text.small, color = Theme.color.neon, font = Theme.font.uiBold,
+		})
 		t.LayoutOrder = 2
 		t.Size = UDim2.new(0, 0, 1, 0)
 		t.AutomaticSize = Enum.AutomaticSize.X
@@ -514,7 +564,9 @@ function Crash.build(ouder: Instance): ()
 		kop.Size = UDim2.new(1, 0, 0, KOP_H - 10)
 		kop.BackgroundTransparency = 1
 		kop.Parent = paneel
-		local k = UI.label(kop, titel, { size = Theme.text.small, color = Theme.color.muted })
+		local k = UI.label(kop, titel, {
+			size = Theme.text.small, color = Theme.color.muted, font = Theme.font.uiBold,
+		})
 		k.Size = UDim2.new(1, -70, 1, 0)
 		k.TextYAlignment = Enum.TextYAlignment.Center
 		k.TextTruncate = Enum.TextTruncate.AtEnd
@@ -624,19 +676,33 @@ function Crash.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local zetPaneel = betBox.panel
 
+	-- De UIListLayout van Common.betBox houdt overal 6 pixels aan -- dat is de `margin-top`
+	-- van .chips. Waar de CSS meer vraagt komt er een leeg vakje bij, want één lijst kan
+	-- geen twee verschillende gaten. Hier de `margin-bottom: 14px` van .field-group.
+	local function ruimte(naam: string, hoogte: number)
+		local v = Instance.new("Frame")
+		v.Name = naam
+		v.Size = UDim2.new(1, 0, 0, hoogte)
+		v.BackgroundTransparency = 1
+		v.Parent = zetPaneel
+	end
+	ruimte("GapStake", 14 - 6)
+
 	-- .toggle-row: de schakelaar plus zijn etiket, samen aan te klikken.
 	local schakelRij = Instance.new("TextButton")
 	schakelRij.Name = "ToggleRow"
 	schakelRij.Text = ""
 	schakelRij.AutoButtonColor = false
 	schakelRij.BackgroundTransparency = 1
-	schakelRij.Size = UDim2.new(1, 0, 0, 40)   -- 20 hoog met padding 10 boven en onder
+	-- .toggle-row is 40 hoog (20 met padding 10 boven en onder) en er zit geen marge onder.
+	-- De lijst zet er zelf 6 achter, dus het vak is 34 en de schakelaar hangt op zijn eigen
+	-- 10 van boven: samen weer 40 tot het volgende veld.
+	schakelRij.Size = UDim2.new(1, 0, 0, 34)
 	schakelRij.Parent = zetPaneel
 
 	local schakelaar = Instance.new("Frame")
 	schakelaar.Name = "Switch"
-	schakelaar.AnchorPoint = Vector2.new(0, 0.5)
-	schakelaar.Position = UDim2.new(0, 0, 0.5, 0)
+	schakelaar.Position = UDim2.fromOffset(0, 10)
 	schakelaar.Size = UDim2.fromOffset(38, 20)
 	schakelaar.BackgroundColor3 = Theme.color.black
 	schakelaar.BackgroundTransparency = Theme.alpha.inputBg
@@ -657,8 +723,8 @@ function Crash.build(ouder: Instance): ()
 	local schakelEtiket = UI.label(schakelRij, "AUTO CASHOUT", {
 		size = Theme.text.small, color = Theme.color.muted,
 	})
-	schakelEtiket.Position = UDim2.fromOffset(48, 0)   -- 38 breed plus de gap van 10
-	schakelEtiket.Size = UDim2.new(1, -48, 1, 0)
+	schakelEtiket.Position = UDim2.fromOffset(48, 10)   -- 38 breed plus de gap van 10
+	schakelEtiket.Size = UDim2.new(1, -48, 0, 20)
 	schakelEtiket.TextYAlignment = Enum.TextYAlignment.Center
 
 	-- #autoField staat op `opacity: 0.4` tot de schakelaar om gaat. Een CanvasGroup doet
@@ -684,6 +750,10 @@ function Crash.build(ouder: Instance): ()
 	local autoVeld = UI.numberBox(autoVak, "2.00")
 	autoVeld.TextEditable = false     -- pointer-events: none zolang de schakelaar uit staat
 
+	-- #autoField sluit af met dezelfde `margin-bottom: 14px` en .btn-primary zet er zijn
+	-- eigen `margin-top: 8px` bovenop.
+	ruimte("GapAuto", 14 + 8 - 6)
+
 	local knop = UI.primary(zetPaneel, "PLACE BET")
 	-- .btn-bet: verloop van 135 graden, neon naar neon-dim. De knop wisselt van kleur met
 	-- de fase, net als de klassen btn-bet, btn-cashout en btn-waiting.
@@ -694,12 +764,13 @@ function Crash.build(ouder: Instance): ()
 	-- ---------- statistieken, kansen en het bewijs ----------
 	Common.statsPanel(bediening, "crash")
 	local oddsVak = Common.oddsPanel(bediening, "odds",
-		"RTP 97%. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x. Auto cash-out pays exactly at your target.")
+		"RTP *97%*. The chance a flight reaches Mx is 0.97 / M. Around 3% of rounds crash straight away at 1.00x. Auto cash-out pays exactly at your target.")
 
-	-- #mpFair: de tweede .odds-note in hetzelfde paneel. In de CSS is "Shared round #n" goud
-	-- en de rest grijs; twee kleuren in één regel zou RichText vragen, en dat staat in dit
-	-- project uit omdat er spelersnamen langs komen. Dus één kleur.
+	-- #mpFair: de tweede .odds-note in hetzelfde paneel. In de CSS staat "Shared round #n"
+	-- vet en dus goud, de rest grijs. Common.accent maakt daar RichText van en ontsmet de
+	-- tekst onderweg, zodat aanzetten hier niets opent.
 	local rondeRegel = UI.label(oddsVak, "", { size = Theme.text.tiny, color = Theme.color.muted })
+	rondeRegel.RichText = true
 	rondeRegel.TextWrapped = true
 	rondeRegel.AutomaticSize = Enum.AutomaticSize.Y
 	rondeRegel.Size = UDim2.new(1, 0, 0, 34)   -- twee regels; AutomaticSize rekt hem op
@@ -755,6 +826,8 @@ function Crash.build(ouder: Instance): ()
 		wis(tafelLijst)
 		local lijst = if stand and stand.bets then stand.bets else {}
 		tafelTelling.Text = string.format("%d", #lijst)
+		tafelHoog = if #lijst == 0 then NOTITIE_H else math.min(#lijst, TAFEL) * REGEL_H
+		meetSpelers()
 		if #lijst == 0 then
 			legeRegel(tafelLijst, "Nobody has bet on this round yet. Be the first.")
 			return
@@ -785,6 +858,8 @@ function Crash.build(ouder: Instance): ()
 	-- eronder hoort te staan. Elke cashout telt één keer mee, per ronde bijgehouden.
 	local function toonWinsten()
 		wis(winstLijst)
+		winstHoog = if #winsten == 0 then NOTITIE_H else #winsten * REGEL_H
+		meetSpelers()
 		if #winsten == 0 then
 			legeRegel(winstLijst, "No wins yet. Yours will show up here for everyone.")
 			return
@@ -845,9 +920,9 @@ function Crash.build(ouder: Instance): ()
 			local t = tostring(s)
 			return if #t > 32 then string.sub(t, 1, 32) .. "\u{2026}" else t
 		end
-		rondeRegel.Text = string.format(
-			"Shared round #%d \u{00B7} the server drew the crash point before betting opened.",
-			tonumber(stand.id) or 0)
+		rondeRegel.Text = Common.accent(string.format(
+			"*Shared round #%d* \u{00B7} the server drew the crash point before betting opened.",
+			tonumber(stand.id) or 0))
 		commitRegel.Text = "commit " .. (if stand.commit then kort(stand.commit) else "\u{2014}")
 		zaadRegel.Text = "seed " .. (if stand.seed then kort(stand.seed) else "revealed when the flight is over")
 		-- De regel met het crashpunt komt er pas bij als het zaad vrijgegeven is.
@@ -1050,17 +1125,8 @@ function Crash.build(ouder: Instance): ()
 	lucht:GetPropertyChangedSignal("AbsoluteSize"):Connect(meetLucht)
 	task.defer(meetLucht)
 
-	-- .players-section heeft een max-height van 180, geen vaste hoogte: op een laag venster
-	-- krimpt hij mee, zodat er lucht overblijft om in te vliegen.
-	local function meetHoofd()
-		local h = hoofd.AbsoluteSize.Y
-		if h <= 0 then return end
-		local spelers = math.clamp(math.floor(h * 0.3), 110, SPELERS_H)
-		spelersRij.Size = UDim2.new(1, 0, 0, spelers)
-		lucht.Size = UDim2.new(1, 0, 1, -(BALK_H + RIJGAT + spelers + RIJGAT))
-	end
-	hoofd:GetPropertyChangedSignal("AbsoluteSize"):Connect(meetHoofd)
-	task.defer(meetHoofd)
+	hoofd:GetPropertyChangedSignal("AbsoluteSize"):Connect(meetSpelers)
+	task.defer(meetSpelers)
 
 	-- ---------- de overlay ----------
 	local function toonMult(m: number, gecrasht: boolean)

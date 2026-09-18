@@ -71,7 +71,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, 26)   -- 6 boven, 11px regel, 6 onder, plus het haarlijntje
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -110,7 +110,9 @@ function Tower.build(ouder: Instance): ()
 	breedte.Parent = toren
 
 	-- ---------- de stand van de ronde ----------
-	local diff = "easy"
+	-- `class="on"` staat in de markup op MED, en TW.diff begint in de webversie ook op
+	-- 'medium'. Dat bepaalt meteen het bord: drie tegels per verdieping, niet vier.
+	local diff = "medium"
 	local actief = false
 	local niveau = 0                                -- hoeveel verdiepingen gehaald zijn
 	local inzet = 0                                 -- wat er in deze ronde op staat
@@ -189,6 +191,9 @@ function Tower.build(ouder: Instance): ()
 		b.LayoutOrder = i
 		b.Size = UDim2.new(0.2, -3.2, 1, 0)   -- vijf kolommen met vier keer 4 pixels lucht
 		b.RichText = false
+		-- Roblox centreert knoptekst zelf al; expliciet gezet zodat de schermafdruk uit
+		-- tools/preview hetzelfde laat zien als het spel.
+		b.TextXAlignment = Enum.TextXAlignment.Center
 		UI.corner(b, Theme.radius.chip)
 		local rand = UI.stroke(b, Theme.color.border)
 		b.MouseEnter:Connect(function()
@@ -207,13 +212,27 @@ function Tower.build(ouder: Instance): ()
 		segRanden[naam] = rand
 	end
 
-	local huidigLabel = payoutRegel(paneel, "CURRENT WIN", Theme.color.neon, 11)
-	local volgendLabel = payoutRegel(paneel, "NEXT FLOOR", Theme.color.gold, 12)
+	-- De twee `.payout-line`s raken elkaar in de CSS: geen marge, alleen het haarlijntje
+	-- ertussen. Het paneel zet zelf 6 pixels tussen zijn kinderen, dus ze gaan samen in een
+	-- eigen blok met ruimte nul. De 2 eronder maakt van die 6 de 8 van `.btn-primary`.
+	local uitbetaling = Instance.new("Frame")
+	uitbetaling.Name = "Payout"
+	uitbetaling.Size = UDim2.new(1, 0, 0, 0)
+	uitbetaling.AutomaticSize = Enum.AutomaticSize.Y
+	uitbetaling.BackgroundTransparency = 1
+	uitbetaling.LayoutOrder = 11
+	uitbetaling.Parent = paneel
+	UI.list(uitbetaling, 0)
+	UI.padding4(uitbetaling, 0, 0, 2, 0)
+
+	local huidigLabel = payoutRegel(uitbetaling, "CURRENT WIN", Theme.color.neon, 1)
+	local volgendLabel = payoutRegel(uitbetaling, "NEXT FLOOR", Theme.color.gold, 2)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local startKnop = UI.primary(paneel, "START THE CLIMB")
 	startKnop.LayoutOrder = 13
 	startKnop.Font = Theme.font.uiBold
+	startKnop.TextXAlignment = Enum.TextXAlignment.Center
 	UI.gradient(startKnop, Theme.color.neon, Theme.color.neonDim, 135)
 
 	-- .btn-primary.btn-cashout: goud, en hij klopt één keer per seconde. Die klop is in de
@@ -221,6 +240,7 @@ function Tower.build(ouder: Instance): ()
 	local uitKnop = UI.primary(paneel, "CASH OUT")
 	uitKnop.LayoutOrder = 14
 	uitKnop.Font = Theme.font.uiBold
+	uitKnop.TextXAlignment = Enum.TextXAlignment.Center
 	uitKnop.BackgroundColor3 = Theme.color.gold
 	uitKnop.TextColor3 = Theme.color.bg
 	uitKnop.Visible = false
@@ -375,6 +395,7 @@ function Tower.build(ouder: Instance): ()
 				b.Active = false
 				b.LayoutOrder = k
 				b.RichText = false
+				b.TextXAlignment = Enum.TextXAlignment.Center
 				b.Size = UDim2.new(1 / d.tiles, -TEGEL_GAT * (d.tiles - 1) / d.tiles, 1, 0)
 				UI.corner(b, Theme.radius.panel)   -- .tile border-radius 4
 				local rand = UI.stroke(b, Theme.color.border)
@@ -405,18 +426,21 @@ function Tower.build(ouder: Instance): ()
 
 		for r = 1, Odds.TOWER_LEVELS do
 			local groep = rijGroepen[r]
-			local aanBeurt = actief and r == niveau + 1
 			local gehaald = r <= niveau
-			-- Voor de start staat de hele toren vol in beeld, precies als in twRender().
-			groep.GroupTransparency = if aanBeurt or (not actief and not over) then RIJ_AAN
+			-- twRender() zet `.tower-row.active` op de verdieping die aan de beurt is, en
+			-- vóór de eerste inzet op álle verdiepingen. Dat is één klasse, dus het geldt
+			-- ook voor de multiplier ernaast: niet alleen de rij is dan vol in beeld, de
+			-- hele kolom staat in neon in plaats van goud.
+			local rijAan = if actief then r == niveau + 1 else not over
+			groep.GroupTransparency = if rijAan then RIJ_AAN
 				elseif gehaald then RIJ_KLAAR
 				else RIJ_DOF
 
 			local mult = multLabels[r]
 			mult.Text = Money.fmt(Odds.towerMultiplier(diff, r)) .. "\u{00D7}"
 			-- .tower-row.active .tower-mult: het cijferlettertype, en neon in plaats van goud.
-			mult.Font = if aanBeurt then Theme.font.num else Theme.font.ui
-			mult.TextColor3 = if aanBeurt then Theme.color.neon else Theme.color.gold
+			mult.Font = if rijAan then Theme.font.num else Theme.font.ui
+			mult.TextColor3 = if rijAan then Theme.color.neon else Theme.color.gold
 
 			for k, b in tegels[r] do
 				local rand = b:FindFirstChildOfClass("UIStroke")
@@ -440,12 +464,9 @@ function Tower.build(ouder: Instance): ()
 			-- Uitstappen kan pas als er een verdieping staat; tot dan is de knop dood.
 			UI.setEnabled(uitKnop, niveau > 0)
 			uitKnop.BackgroundTransparency = if niveau > 0 then 0 else 0.4
-			if niveau > 0 then
-				klop:Play()
-			else
-				klop:Pause()
-				klopRand.Transparency = 1
-			end
+			-- @keyframes pulse-gold hangt aan .btn-cashout zelf, niet aan :enabled: in de
+			-- webversie klopt de knop dus ook terwijl hij nog "PICK A TILE" zegt.
+			klop:Play()
 		else
 			huidigLabel.Text = "\u{2014}"
 			volgendLabel.Text = Money.fmt(Odds.towerMultiplier(diff, 1)) .. "\u{00D7}"
@@ -488,7 +509,7 @@ function Tower.build(ouder: Instance): ()
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "tower")
-	Common.oddsPanel(bediening, "odds", "Every floor has fixed odds. Multiplier = 0.97 x (tiles / safe)^floor, so RTP 97% at every point you cash out. The whole tower is fixed before your first click.")
+	Common.oddsPanel(bediening, "odds", "Every floor has fixed odds. Multiplier = *0.97 x (tiles / safe)^floor*, so RTP *97%* at every point you cash out. The whole tower is fixed before your first click.")
 end
 
 return Tower

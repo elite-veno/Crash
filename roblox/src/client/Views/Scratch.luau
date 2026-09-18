@@ -12,7 +12,9 @@
 --
 -- Wat Roblox niet heeft: letter-spacing (de 1px uit `.sc-prize .sy` is weggelaten), de
 -- box-shadow onder de knoppen, en de gloedring om een winnend vakje -- daarvoor staat hier
--- alleen de neonrand. De klop van `.btn-cashout` is een gouden rand die op en neer gaat.
+-- alleen de neonrand. De klop van `.btn-cashout` is een gouden rand die op en neer gaat, en
+-- de `tilePop` van een net opengekrast vakje zit in de lettergrootte in plaats van in het
+-- vakje zelf: een cel van een UIGridLayout heeft zijn maat niet zelf in de hand.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
@@ -42,9 +44,15 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 -- Geeft allebei de labels terug, want hier verandert ook de naam mee: TO GO zolang je
 -- krast, RESULT zodra het lot af is.
 local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLabel, TextLabel)
+	-- De regel zelf is 27 hoog: 11px tekst met padding 6 boven en onder plus de haarlijn.
+	-- De 8 pixels erboven zijn de `margin-bottom: 14px` van `.field-group` min de 6 die de
+	-- UIListLayout van het paneel er al tussen zet; één lijst kan maar één tussenruimte.
+	local LUCHT = 8
+	local HOOG = 27
+
 	local rij = Instance.new("Frame")
 	rij.Name = "PayoutLine"
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, LUCHT + HOOG)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -54,10 +62,11 @@ local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLa
 		size = Theme.text.small, color = Theme.color.gold, font = Theme.font.num,
 		align = Enum.TextXAlignment.Right, name = "Value",
 	})
-	-- De 6 pixels padding boven en onder uit .payout-line: de tekst staat midden in de rij,
-	-- de haarlijn eronder sluit hem af.
+	-- De 6 pixels padding boven en onder uit .payout-line: de tekst staat midden in de regel,
+	-- onder de lucht, en de haarlijn onderaan sluit hem af.
 	for _, t in { k, v } do
-		t.Size = UDim2.fromScale(1, 1)
+		t.Position = UDim2.fromOffset(0, LUCHT)
+		t.Size = UDim2.new(1, 0, 0, HOOG)
 		t.TextYAlignment = Enum.TextYAlignment.Center
 	end
 
@@ -74,20 +83,26 @@ local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLa
 end
 
 -- .sc-prize: drie keer het symbool links, de multiplier rechts in goud. Twaalf pixels --
--- het paneel staat in de markup op 10, maar deze regel zet zijn eigen maat.
+-- het paneel staat in de markup op 10, maar deze regel zet zijn eigen maat. De regel is
+-- precies zo hoog als die tekst (16), zodat de 6 uit `.sc-legend` de enige lucht blijft.
 local function prijsRegel(ouder: Instance, symbolen: string, mult: string, orde: number): ()
 	local rij = Instance.new("Frame")
 	rij.Name = "Prize"
-	rij.Size = UDim2.new(1, 0, 0, 18)
+	rij.Size = UDim2.new(1, 0, 0, 16)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
 
-	UI.label(rij, symbolen, { size = Theme.text.body, color = Theme.color.text, name = "Sym" })
-	UI.label(rij, mult, {
+	local sym = UI.label(rij, symbolen, { size = Theme.text.body, color = Theme.color.text, name = "Sym" })
+	local mu = UI.label(rij, mult, {
 		size = Theme.text.body, color = Theme.color.gold, font = Theme.font.num,
 		align = Enum.TextXAlignment.Right, name = "Mult",
 	})
+	-- UI.label geeft zichzelf tekstgrootte + 6; hier vult hij de regel, anders zakt hij
+	-- er onderuit en staat de tekst niet meer in het midden.
+	for _, t in { sym, mu } do
+		t.Size = UDim2.fromScale(1, 1)
+	end
 end
 
 function Scratch.build(ouder: Instance): ()
@@ -144,6 +159,19 @@ function Scratch.build(ouder: Instance): ()
 	local randen: { UIStroke } = {}
 	local teken: () -> ()
 
+	-- `.tile.pop`: 0.7 -> 1.12 -> 1 in een kwart seconde. Een cel van een UIGridLayout kan
+	-- niet zelf groeien, dus krimpt het symbool en veert het terug; Back-Out geeft dezelfde
+	-- doorschieter als het middenbeeld van de keyframes.
+	local function pop(i: number)
+		local b = vakjes[i]
+		b.TextSize = math.floor(SYMBOOL * 0.7)
+		TweenService:Create(
+			b,
+			TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ TextSize = SYMBOOL }
+		):Play()
+	end
+
 	local function kras(i: number)
 		if bezig or not actief or symbolen[i] then return end
 		bezig = true
@@ -153,6 +181,7 @@ function Scratch.build(ouder: Instance): ()
 		symbolen[i] = res.symbol
 		if not res.done then
 			teken()
+			pop(i)
 			return
 		end
 
@@ -175,6 +204,7 @@ function Scratch.build(ouder: Instance): ()
 			end
 		end
 		teken()
+		pop(i)
 
 		-- Dezelfde twee meldingen als scSettle() in de webversie.
 		if res.payout > inzet then
@@ -191,6 +221,9 @@ function Scratch.build(ouder: Instance): ()
 		b.Font = Theme.font.ui
 		b.TextSize = SYMBOOL
 		b.TextColor3 = Theme.color.text
+		-- `.tile` is een flexvak dat zijn inhoud in beide richtingen centreert.
+		b.TextXAlignment = Enum.TextXAlignment.Center
+		b.TextYAlignment = Enum.TextYAlignment.Center
 		b.BackgroundColor3 = Theme.color.black
 		b.BackgroundTransparency = Theme.alpha.buttonBg
 		b.BorderSizePixel = 0
@@ -264,7 +297,7 @@ function Scratch.build(ouder: Instance): ()
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "scratch")
-	Common.oddsPanel(bediening, "odds", "Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP 97%, chance of a prize 21.6%.")
+	Common.oddsPanel(bediening, "odds", "Nine cells; three matching symbols pay. The card is fixed the moment you buy it, so scratching only reveals what was already drawn. RTP *97%*, chance of a prize *21.6%*.")
 
 	-- ---------- tekenen ----------
 	-- Eén plek die de negen vakjes, de uitslagregel en de twee knoppen op de stand zet,

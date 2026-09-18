@@ -4,6 +4,9 @@
 -- uitzien en zich hetzelfde gedragen -- precies zoals bindBet() en takeBet() dat in de
 -- webversie doen.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -19,6 +22,20 @@ local ga: ((string) -> ())? = nil
 -- Elk speelscherm heeft links een saldopaneel, net als in de webversie. Ze staan hier
 -- allemaal in, zodat één bericht van de server ze in één keer bijwerkt.
 local saldoLabels: { TextLabel } = {}
+-- De noodfondsknop staat in datzelfde paneel en hoort alleen te verschijnen als je blut
+-- bent, dus hij wordt met het saldo mee bijgewerkt.
+local noodKnoppen: { TextButton } = {}
+local modalHost: Instance? = nil
+
+local function verversNood(): ()
+	-- De webversie kijkt ook of er nog een ronde loopt (roundInProgress). Dat weet alleen
+	-- de server zeker, want daar staat de stand; de knop gaat hier dus af op het saldo, en
+	-- als er toch nog geld in het spel staat weigert de server het fonds en zegt dat.
+	local blut = saldo < Money.MIN_BET
+	for _, b in noodKnoppen do
+		if b.Parent then b.Visible = blut end
+	end
+end
 
 function Common.setBalance(n: number): ()
 	saldo = n
@@ -26,6 +43,7 @@ function Common.setBalance(n: number): ()
 	for _, l in saldoLabels do
 		if l.Parent then l.Text = tekst end
 	end
+	verversNood()
 end
 
 function Common.setNavigate(f: (string) -> ()): ()
@@ -43,6 +61,11 @@ end
 
 function Common.setToaster(f: (string, UI.ToastKind?) -> ()): ()
 	melder = f
+end
+
+-- Waar een venster over het hele scherm in mag hangen; de schil wijst het aan.
+function Common.setModalHost(f: Instance): ()
+	modalHost = f
 end
 
 function Common.toast(tekst: string, soort: UI.ToastKind?): ()
@@ -66,6 +89,222 @@ function Common.call(kanaal: string, ...): any
 		return nil
 	end
 	return res
+end
+
+-- ---------- het noodfonds ----------
+-- Het spelletje voor wie blut is: een streepje loopt heen en weer over een balk en je
+-- drukt op stop. Tien dollar is gegarandeerd, veertig bij een stop precies in het midden.
+--
+-- De client tekent alleen. De server heeft de klok en bepaalt waar het streepje stond toen
+-- "stop" binnenkwam; wat hier op het scherm staat is een weergave van diezelfde golf, niet
+-- de bron ervan. Loopt het beeld een frame achter, dan is de uitslag nog steeds die van de
+-- server.
+local NOOD_PERIODE = 1.1
+
+-- Dezelfde driehoeksgolf als bkPos() in de webversie: 0 naar 1 en terug.
+local function noodPositie(verstreken: number): number
+	local fase = (verstreken % NOOD_PERIODE) / NOOD_PERIODE
+	return if fase < 0.5 then fase * 2 else 2 - fase * 2
+end
+
+function Common.safetyNet(): ()
+	local host = modalHost
+	if not host then return end
+	-- Twee vensters tegelijk zou twee klokken geven; de server weigert het ook.
+	if host:FindFirstChild("BrokeModal") then return end
+
+	local start = Common.call("bet", "safety")
+	if not start then return end
+
+	-- .modal: over alles heen, met een donkere waas erachter.
+	local waas = Instance.new("TextButton")
+	waas.Name = "BrokeModal"
+	waas.Text = ""
+	waas.AutoButtonColor = false
+	waas.Size = UDim2.fromScale(1, 1)
+	waas.BackgroundColor3 = Theme.color.black
+	waas.BackgroundTransparency = 0.25
+	waas.BorderSizePixel = 0
+	waas.ZIndex = 100
+	waas.Parent = host
+
+	-- .modal-panel: width min(420px, 100%), padding 24.
+	local vak = UI.panel(waas, "Panel")
+	vak.AnchorPoint = Vector2.new(0.5, 0.5)
+	vak.Position = UDim2.fromScale(0.5, 0.5)
+	vak.Size = UDim2.new(0, 420, 0, 0)
+	vak.AutomaticSize = Enum.AutomaticSize.Y
+	vak.ZIndex = 101
+	UI.padding(vak, 24)
+	UI.list(vak, 0)
+
+	UI.panelTitle(vak, "\u{25BA} SAFETY NET").Size = UDim2.new(1, 0, 0, Theme.text.small + 12)
+
+	local uitleg = UI.label(vak,
+		"You are broke. Stop the marker as close to the middle as you can. $10 is guaranteed; a perfect stop is worth $40.",
+		{ size = Theme.text.tiny, color = Theme.color.muted })
+	uitleg.TextWrapped = true
+	uitleg.Size = UDim2.new(1, 0, 0, 34)
+
+	local hint = UI.label(vak, "Hit SPACE or tap STOP.", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	hint.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 6)
+
+	-- .bk-bar: 34 hoog, met 18 lucht erboven en 10 eronder.
+	local balkVak = Instance.new("Frame")
+	balkVak.Name = "BarWrap"
+	balkVak.Size = UDim2.new(1, 0, 0, 34 + 18 + 10)
+	balkVak.BackgroundTransparency = 1
+	balkVak.ZIndex = 101
+	balkVak.Parent = vak
+
+	local balk = Instance.new("Frame")
+	balk.Name = "Bar"
+	balk.Position = UDim2.fromOffset(0, 18)
+	balk.Size = UDim2.new(1, 0, 0, 34)
+	balk.BackgroundColor3 = Theme.color.black
+	balk.BorderSizePixel = 0
+	balk.ClipsDescendants = true
+	balk.ZIndex = 101
+	UI.corner(balk, Theme.radius.panel)
+	UI.stroke(balk)
+	balk.Parent = balkVak
+
+	-- Hetzelfde verloop als in de CSS: rood aan de randen, goud ertussen, neon in het
+	-- midden. Waar je stopt is dus af te lezen aan de kleur eronder.
+	local verloop = Instance.new("UIGradient")
+	verloop.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00, Color3.fromHex("3a0a14")),
+		ColorSequenceKeypoint.new(0.30, Color3.fromHex("6a4a00")),
+		ColorSequenceKeypoint.new(0.48, Theme.color.neon),
+		ColorSequenceKeypoint.new(0.52, Theme.color.neon),
+		ColorSequenceKeypoint.new(0.70, Color3.fromHex("6a4a00")),
+		ColorSequenceKeypoint.new(1.00, Color3.fromHex("3a0a14")),
+	})
+	verloop.Parent = balk
+
+	-- .bk-bar::after: het witte streepje dat het midden markeert.
+	local midden = Instance.new("Frame")
+	midden.Name = "Centre"
+	midden.AnchorPoint = Vector2.new(0.5, 0)
+	midden.Position = UDim2.fromScale(0.5, 0)
+	midden.Size = UDim2.new(0, 2, 1, 0)
+	midden.BackgroundColor3 = Theme.color.white
+	midden.BackgroundTransparency = 0.2
+	midden.BorderSizePixel = 0
+	midden.ZIndex = 102
+	midden.Parent = balk
+
+	-- .bk-marker: zes breed, twee buiten de balk aan weerszijden.
+	local streep = Instance.new("Frame")
+	streep.Name = "Marker"
+	streep.AnchorPoint = Vector2.new(0.5, 0)
+	streep.Position = UDim2.new(0, 0, 0, 16)
+	streep.Size = UDim2.new(0, 6, 0, 38)
+	streep.BackgroundColor3 = Theme.color.white
+	streep.BorderSizePixel = 0
+	streep.ZIndex = 103
+	UI.corner(streep, 2)
+	streep.Parent = balkVak
+
+	-- .bk-scale: $10 -- $40 -- $10 onder de balk.
+	local schaal = Instance.new("Frame")
+	schaal.Name = "Scale"
+	schaal.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 14)
+	schaal.BackgroundTransparency = 1
+	schaal.ZIndex = 101
+	schaal.Parent = vak
+	for i, tekst in { "$10", "$40", "$10" } do
+		local l = UI.label(schaal, tekst, { size = Theme.text.tiny, color = Theme.color.muted })
+		l.Size = UDim2.fromScale(1 / 3, 1)
+		l.Position = UDim2.fromScale((i - 1) / 3, 0)
+		l.TextXAlignment = if i == 1 then Enum.TextXAlignment.Left
+			elseif i == 2 then Enum.TextXAlignment.Center
+			else Enum.TextXAlignment.Right
+		l.ZIndex = 101
+	end
+
+	-- .bk-result: de uitslag, 22px neon, met de hoogte alvast gereserveerd zodat het
+	-- venster niet opspringt als hij verschijnt.
+	local uitslag = UI.label(vak, "", {
+		size = 22, color = Theme.color.neon, font = Theme.font.uiMed,
+		align = Enum.TextXAlignment.Center,
+	})
+	uitslag.Size = UDim2.new(1, 0, 0, 38)
+
+	local stopKnop = UI.primary(vak, "STOP")
+	local sluitKnop = UI.secondary(vak, "CLOSE")
+	sluitKnop.Visible = false
+
+	local loopt = true
+	-- De server heeft gezegd wanneer de ronde begon, op zijn eigen klok. Die klok is hier
+	-- ook te lezen -- Roblox houdt hem gelijk -- dus het streepje op het scherm staat waar
+	-- de server het heeft staan, en niet ergens in de buurt daarvan.
+	local t0 = tonumber(start.startsAt) or workspace:GetServerTimeNow()
+	local verstrekenBijStop = 0
+
+	local function teken(verstreken: number)
+		streep.Position = UDim2.new(noodPositie(verstreken), 0, 0, 16)
+	end
+	teken(workspace:GetServerTimeNow() - t0)
+
+	local verbinding: RBXScriptConnection? = nil
+	verbinding = RunService.RenderStepped:Connect(function()
+		teken(if loopt then workspace:GetServerTimeNow() - t0 else verstrekenBijStop)
+	end)
+
+	local function sluit()
+		loopt = false
+		if verbinding then verbinding:Disconnect() end
+		waas:Destroy()
+	end
+
+	local function stop()
+		if not loopt then return end
+		loopt = false
+		local r = Common.call("act", "safety")
+		if not r then
+			-- De server heeft de ronde hoe dan ook gesloten; blijven staan met een
+			-- streepje dat niet meer telt zou misleiden.
+			sluit()
+			return
+		end
+		-- Het streepje springt naar waar de server zegt dat het stond. Dat is de enige
+		-- stand die geld waard is, dus die hoort de speler te zien.
+		verstrekenBijStop = (tonumber(r.position) or 0) / 2 * NOOD_PERIODE
+		teken(verstrekenBijStop)
+		uitslag.Text = "+$" .. Money.fmt(r.payout)
+		stopKnop.Visible = false
+		sluitKnop.Visible = true
+		hint.Visible = false
+		if r.balance then Common.setBalance(r.balance) end
+		Common.toast(string.format("SAFETY NET +$%s \u{B7} %d%% ACCURACY",
+			Money.fmt(r.payout), math.round((tonumber(r.accuracy) or 0) * 100)), "gold")
+	end
+
+	stopKnop.Activated:Connect(stop)
+	sluitKnop.Activated:Connect(sluit)
+	-- Buiten het venster klikken sluit het, maar niet terwijl het streepje nog loopt: dan
+	-- zou een misklik je ronde kosten. Zo doet de webversie het ook.
+	waas.Activated:Connect(function()
+		if not loopt then sluit() end
+	end)
+
+	-- De spatiebalk stopt het streepje, net als in de webversie.
+	local toets: RBXScriptConnection? = nil
+	toets = UserInputService.InputBegan:Connect(function(input, bezig)
+		if bezig then return end
+		if not waas.Parent then
+			if toets then toets:Disconnect() end
+			return
+		end
+		if input.KeyCode ~= Enum.KeyCode.Space then return end
+		if loopt then stop() end
+	end)
+	waas.Destroying:Connect(function()
+		if toets then toets:Disconnect() end
+	end)
 end
 
 -- ---------- indeling ----------
@@ -95,7 +334,15 @@ end
 --
 -- Boven in de aside staat de kop van het spel (`← LOBBY` plus de naam) en daaronder het
 -- saldopaneel, precies de volgorde uit de markup.
-function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame)
+--
+-- De terugknop wijst standaard naar de lobby. De twee VIP-spellen (777 en Ride the Bus)
+-- hebben in de markup `data-route="vip"` en `← VIP ZONE`; die geven het hier mee.
+function Common.columns(
+	ouder: Instance,
+	titel: string?,
+	terugNaar: string?,
+	terugTekst: string?
+): (Frame, ScrollingFrame)
 	local breedte = Theme.size.asideWidth
 	local vak = Instance.new("Frame")
 	vak.Name = "GameView"
@@ -153,10 +400,17 @@ function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame
 		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
 		kopIndeling.VerticalAlignment = Enum.VerticalAlignment.Center
 
-		local terug = UI.backButton(kop)
+		local terug = UI.backButton(kop, terugTekst)
 		terug.LayoutOrder = 1
+		if terugTekst then
+			-- `.back-btn` heeft geen vaste breedte maar padding van 8 om 12; met een
+			-- langere tekst dan "← LOBBY" moet de knop dus meegroeien.
+			terug.AutomaticSize = Enum.AutomaticSize.X
+			terug.Size = UDim2.fromOffset(0, 30)
+			UI.padding4(terug, 0, 12, 0, 12)
+		end
 		terug.Activated:Connect(function()
-			Common.navigate("home")
+			Common.navigate(terugNaar or "home")
 		end)
 
 		local naam = UI.label(kop, string.upper(titel), {
@@ -176,6 +430,43 @@ function Common.columns(ouder: Instance, titel: string?): (Frame, ScrollingFrame
 	kopje.Size = UDim2.new(1, 0, 0, 16)
 	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance, true)
 	table.insert(saldoLabels, bedrag)
+
+	-- `.js-broke`: normaal weg, en goud zodra je blut bent. De lijstafstand in dit paneel
+	-- is 2 en de CSS wil er 10, dus de knop draagt de acht die ontbreken zelf.
+	local noodVak = Instance.new("Frame")
+	noodVak.Name = "BrokeWrap"
+	noodVak.Size = UDim2.new(1, 0, 0, 44)
+	noodVak.BackgroundTransparency = 1
+	noodVak.Parent = saldoVak
+
+	local nood = UI.secondary(noodVak, "\u{1F4B8} BROKE? PLAY THE SAFETY NET")
+	nood.Name = "Broke"
+	nood.Position = UDim2.fromOffset(0, 8)
+	nood.TextColor3 = Theme.color.gold
+	local noodRand = nood:FindFirstChildOfClass("UIStroke")
+	if noodRand then noodRand.Color = Theme.color.gold end
+	nood.Activated:Connect(function()
+		Common.safetyNet()
+	end)
+	table.insert(noodKnoppen, nood)
+	-- Het vak volgt de knop: staat hij er niet, dan hoort die 44 pixels er ook niet te zijn.
+	nood:GetPropertyChangedSignal("Visible"):Connect(function()
+		noodVak.Visible = nood.Visible
+	end)
+	noodVak.Visible = false
+	nood.Visible = false
+
+	-- `.account-bar`: één gecentreerde regel met de naam in neon, zoals de markup van een
+	-- speelscherm hem heeft. Uitloggen vervalt in Roblox -- de speler is zijn eigen
+	-- account -- dus die twee spans blijven weg. De regel is hoger dan de tekst omdat de
+	-- CSS er tien pixels lucht boven zet en de lijstafstand hier twee is.
+	local naamVak = UI.label(saldoVak, Players.LocalPlayer.DisplayName, {
+		size = Theme.text.tiny, color = Theme.color.neon, align = Enum.TextXAlignment.Center,
+	})
+	naamVak.Name = "AccountBar"
+	naamVak.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 14)
+	naamVak.TextYAlignment = Enum.TextYAlignment.Bottom
+	verversNood()
 
 	-- Onder de 900 pixels gaat de aside erboven staan; dan is het bord nog steeds groot.
 	local smalNu: boolean? = nil
@@ -309,6 +600,8 @@ function Common.statsPanel(ouder: Instance, spel: string): Frame
 	-- Bij crash heet het BEST, bij de rest BEST MULT -- net als in renderStats.
 	local best = Common.statRow(vak, if spel == "crash" then "BEST" else "BEST MULT", "\u{2014}")
 	best.TextColor3 = Theme.color.gold
+	local bestRij = best.Parent :: Frame
+	bestRij.Visible = spel == "crash"
 	local winst = Common.statRow(vak, "PROFIT", "+$0.00")
 	winst.TextColor3 = Theme.color.neon
 
@@ -329,6 +622,13 @@ function Common.setProfile(p: any): ()
 			v.lost.Text = string.format("%d", tonumber(st.lost) or 0)
 			local beste = tonumber(st.highest) or 0
 			v.best.Text = if beste > 0 then Money.fmt(beste) .. "\u{00D7}" else "\u{2014}"
+			-- Bij crash staat de regel er altijd, met een streepje zolang er niets is. Bij
+			-- de andere spellen komt hij pas als er een multiplier te melden valt; zo staat
+			-- het in renderStats, en zonder dit staat er overal een lege regel te veel.
+			local rij = v.best.Parent
+			if rij and rij:IsA("GuiObject") then
+				rij.Visible = v.spel == "crash" or beste > 0
+			end
 			local w = tonumber(st.profit) or 0
 			v.winst.Text = (if w >= 0 then "+$" else "-$") .. Money.fmt(math.abs(w))
 			v.winst.TextColor3 = if w >= 0 then Theme.color.neon else Theme.color.red
@@ -336,13 +636,55 @@ function Common.setProfile(p: any): ()
 	end
 end
 
--- .odds-note: het uitlegblokje onder ODDS of PAYOUTS. De vetgedrukte stukken zijn in de
--- CSS goud; die staan hier tussen sterretjes en worden goud gekleurd.
+-- .odds-note: het uitlegblokje onder ODDS of PAYOUTS. In de CSS zijn de <b>-stukken goud;
+-- die staan hier tussen sterretjes.
+--
+-- Roblox kleurt een stuk tekst alleen met RichText, en dat staat in dit project overal
+-- uit omdat spelersnamen langs labels komen. Hier gaat het aan, maar dan met alles wat
+-- naar opmaak ruikt eerst onschadelijk gemaakt: wat er ook binnenkomt, het wordt als
+-- tekst getoond en nooit als markup uitgevoerd.
+local function veilig(tekst: string): string
+	local uit = string.gsub(tekst, "&", "&amp;")
+	uit = string.gsub(uit, "<", "&lt;")
+	uit = string.gsub(uit, ">", "&gt;")
+	uit = string.gsub(uit, '"', "&quot;")
+	uit = string.gsub(uit, "'", "&apos;")
+	return uit
+end
+
+local GOUD = "#" .. Theme.color.gold:ToHex()
+
+-- Sterretjes eromheen betekent goud, net als <b> in de webversie. Wat tussen de sterretjes
+-- staat wordt net zo goed ontsmet als de rest.
+local function opmaak(tekst: string): string
+	local uit = {}
+	local i = 1
+	while true do
+		local van, tot = string.find(tekst, "%*[^%*]+%*", i)
+		if not van then break end
+		table.insert(uit, veilig(string.sub(tekst, i, van - 1)))
+		table.insert(uit, '<font color="' .. GOUD .. '">'
+			.. veilig(string.sub(tekst, van + 1, (tot :: number) - 1)) .. "</font>")
+		i = (tot :: number) + 1
+	end
+	table.insert(uit, veilig(string.sub(tekst, i)))
+	return table.concat(uit)
+end
+
+-- Ook los te gebruiken, voor een regel die niet in een kansenpaneel staat. Zet RichText
+-- op het label aan en laat de tekst hier langs; dan is een gouden stuk geen reden om de
+-- ontsmetting over te slaan.
+function Common.accent(tekst: string): string
+	return opmaak(tekst)
+end
+
 function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
 	local vak = UI.panel(ouder, "Odds")
 	UI.list(vak, 6)
 	UI.panelTitle(vak, "\u{25BA} " .. kop)
-	local t = UI.label(vak, tekst, { size = Theme.text.tiny, color = Theme.color.muted })
+	local t = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
+	t.RichText = true
+	t.Text = opmaak(tekst)
 	t.TextWrapped = true
 	t.AutomaticSize = Enum.AutomaticSize.Y
 	t.Size = UDim2.new(1, 0, 0, 0)
@@ -366,7 +708,7 @@ end
 -- het waardelabel terug, zodat het scherm het kan bijwerken.
 function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabel
 	local rij = Instance.new("Frame")
-	rij.Size = UDim2.new(1, 0, 0, 20)
+	rij.Name = "StatRow"
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)

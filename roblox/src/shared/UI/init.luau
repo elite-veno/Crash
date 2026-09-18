@@ -206,7 +206,9 @@ function UI.primary(parent: Instance, text: string): Button
 	b.BackgroundColor3 = Theme.color.neon
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(1, 0, 0, 48)
+	-- 16 padding boven en onder om een regel van 15: op de site is de knop 51 hoog,
+	-- nagemeten aan een schermafdruk ervan.
+	b.Size = UDim2.new(1, 0, 0, 51)
 	UI.corner(b, Theme.radius.button)
 	hover(b, function()
 		b.BackgroundColor3 = Theme.color.neonDim
