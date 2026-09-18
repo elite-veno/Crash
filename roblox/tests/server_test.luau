@@ -747,22 +747,97 @@ do
 			r.speler = { { r = "5", s = "\u{2660}" }, { r = "6", s = "\u{2665}" } }
 			local na = w.Blackjack.act(s, "hit")
 			local totaal = (w.Odds.bjValue(na.player or {}))
-			if totaal == 21 then
+			if totaal == 21 and not zag21 then
 				zag21 = true
 				h.check("op eenentwintig is de hand afgerekend", true, na.done == true)
 				h.check("en er staat niets meer open", nil, w.Blackjack.get(s))
-			elseif totaal < 21 then
+			elseif totaal < 21 and not zagMinder then
 				zagMinder = true
 				h.check("onder eenentwintig loopt de hand door", false, na.done == true)
 				h.check("en de hand staat nog open", true, w.Blackjack.get(s) ~= nil)
 				w.Blackjack.act(s, "stand")
-			else
+			elseif w.Blackjack.get(s) then
 				w.Blackjack.refund(s)
 			end
 		end
 	end
 	h.check("er is een hand van precies eenentwintig gezien", true, zag21)
 	h.check("en een hand die eronder bleef", true, zagMinder)
+end
+
+-- ---------- crash: het doel bijstellen terwijl de ronde loopt ----------
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+	w.Crash.begin()
+	p.balance = 100
+	w.Crash.bet(s, 100)
+	h.check("zonder doel begonnen", nil, w.Crash.state().bets[1].auto)
+
+	local gezet = w.Crash.setAuto(s, 3)
+	h.check("een doel bijzetten lukt", true, gezet.ok)
+	h.check("en staat in het beeld", 3, w.Crash.state().bets[1].auto)
+
+	h.check("weer uitzetten lukt ook", true, w.Crash.setAuto(s, nil).ok)
+	h.check("en dan staat er geen doel meer", nil, w.Crash.state().bets[1].auto)
+
+	-- Wat de client stuurt gaat door dezelfde zeef als bij het inzetten.
+	w.Crash.setAuto(s, "straks")
+	h.check("tekst wordt geen doel", nil, w.Crash.state().bets[1].auto)
+	w.Crash.setAuto(s, 0 / 0)
+	h.check("NaN wordt geen doel", nil, w.Crash.state().bets[1].auto)
+	w.Crash.setAuto(s, 1)
+	h.check("onder 1,01 wordt geen doel", nil, w.Crash.state().bets[1].auto)
+end
+
+do
+	-- Een doel onder de multiplier van dit moment is al voorbij. Dan is het hetzelfde als
+	-- op de knop drukken: meteen afrekenen op de stand van nu, niet op het lagere doel.
+	-- Zo levert laag zetten nooit minder op dan zelf uitstappen.
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	-- Een ronde zoeken die ver genoeg komt, zodat de tak hieronder altijd draait.
+	local crashAt = 0
+	for _ = 1, 500 do
+		w.Crash.begin()
+		crashAt = w.Crash.huidigCrashPunt()
+		if crashAt > 3 then break end
+		w.Crash.takeOff()
+		w.Crash.blowUp()
+	end
+	h.check("er is een ronde gevonden die ver genoeg komt", true, crashAt > 3)
+
+	p.balance = 100
+	w.Crash.bet(s, 100)
+	w.Crash.takeOff()
+	w.wacht(10)   -- de vlucht is een eind op weg
+
+	local nu = math.min(w.Crash.multAt(10), crashAt)
+	if nu > 1.2 then
+		local uit = w.Crash.setAuto(s, 1.01)
+		h.check("een doel dat al voorbij is rekent meteen af", true, uit.ok)
+		h.check("en wel op de stand van nu, niet op 1,01", true, (uit.mult or 0) > 1.01)
+		h.check("dus meer dan het lage doel zou geven", true, (uit.payout or 0) > 101)
+	end
+end
+
+do
+	-- Een inzet die al beslist is kun je niet meer bijstellen.
+	local w = wereld()
+	local s, p = meldEen(w)
+	w.Crash.begin()
+	p.balance = 100
+	w.Crash.bet(s, 100)
+	w.Crash.takeOff()
+	w.Crash.cashOut(s)
+	h.check("na uitstappen is er niets meer bij te stellen", false, w.Crash.setAuto(s, 5).ok)
+
+	-- En zonder inzet ook niet.
+	local w2 = wereld()
+	local s2 = meldEen(w2)
+	w2.Crash.begin()
+	h.check("zonder inzet kan het niet", false, w2.Crash.setAuto(s2, 5).ok)
 end
 
 h.report("SERVER")

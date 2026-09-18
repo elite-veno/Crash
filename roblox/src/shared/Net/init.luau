@@ -20,6 +20,7 @@ Net.FUNCTIONS = {
 	"Lobby",        -- (actie, gegevens) -> de lobby
 	"RoundState",   -- (spel) -> de stand van een gedeelde ronde, voor wie net binnenkomt
 	"NewOdds",      -- (spel) -> een nieuw paardenveld, voordat er wordt ingezet
+	"SetAuto",      -- (doel) -> automatisch uitstappen bijstellen tijdens een crashronde
 }
 
 Net.EVENTS = {

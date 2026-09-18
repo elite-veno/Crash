@@ -33,7 +33,7 @@ local SPRIETEN = 180     -- drawGrass() zet een spriet per 6 pixels; op een luch
 local DONKER = 77        -- en per 14 pixels een donkerder, hoger sprietje
 local BLOEMEN = 14       -- drawGrass() zet een bloem per 80 pixels
 local HISTORIE = 15      -- state.history.length > 15 -> pop()
-local WINSTEN = 20       -- zoveel regels passen er in de feed voordat hij begint te schuiven
+local WINSTEN = 10       -- de feed haalt er tien op (`...&limit=10` in feedPull)
 local TAFEL = 50         -- de gedeelde tafel haalt er vijftig op (limit=50)
 
 -- main.crash-main: grid-template-rows: auto 1fr auto met gap 14.
@@ -847,7 +847,9 @@ function Crash.build(ouder: Instance): ()
 				then Money.fmt(b.cashed) .. "\u{00D7}"
 				elseif verloren then "\u{2715}"
 				else "\u{2014}"
-			spelerRij(tafelLijst, i, b.naam, "$" .. Money.fmt(b.bet), mult, {
+			-- `mpPlayers()`: je eigen regel heet YOU, niet je naam.
+			local naam = if b.id == mijnId then "YOU" else b.naam
+			spelerRij(tafelLijst, i, naam, "$" .. Money.fmt(b.bet), mult, {
 				zelf = b.id == mijnId,
 				gecashed = b.cashed ~= nil,
 				verloren = verloren,
@@ -1011,13 +1013,26 @@ function Crash.build(ouder: Instance): ()
 		end
 	end
 
+	-- Het doel bijstellen terwijl je al ingezet hebt. In de webversie leest de lus elke
+	-- frame de schakelaar en het getal, dus daar kun je hem tijdens de vlucht nog omzetten
+	-- of uitzetten. Hier staat het doel op de server, dus die moet het horen.
+	local function stuurDoel()
+		local mijn = mijnInzet()
+		if not mijn or mijn.cashed then return end
+		task.spawn(function()
+			Common.call("SetAuto", if autoAan then autoDoel() else nil)
+		end)
+	end
+
 	schakelRij.Activated:Connect(function()
 		autoAan = not autoAan
 		zetSchakelaar()
+		stuurDoel()
 	end)
 
 	autoVeld.FocusLost:Connect(function()
 		autoVeld.Text = Money.fmt(autoDoel())
+		stuurDoel()
 	end)
 
 	-- ---------- de vlucht tekenen ----------
@@ -1171,8 +1186,11 @@ function Crash.build(ouder: Instance): ()
 		-- naam één keer, want de server duwt de hele tafel bij elke verandering opnieuw.
 		if typeof(s.bets) == "table" then
 			for _, b in s.bets do
-				if b.cashed and not gezien[b.naam] then
-					gezien[b.naam] = true
+				-- Op nummer, niet op naam: twee spelers met dezelfde weergavenaam zouden
+				-- anders samenvallen tot één regel en de tweede zijn winst niet zien.
+				local sleutel = tostring(b.id)
+				if b.cashed and not gezien[sleutel] then
+					gezien[sleutel] = true
 					table.insert(winsten, 1, {
 						naam = b.naam, bet = b.bet, mult = b.cashed, zelf = b.id == mijnId,
 					})
@@ -1190,7 +1208,36 @@ function Crash.build(ouder: Instance): ()
 			toonHistorie()
 		end
 
+		-- Wat er met je eigen inzet gebeurde, in woorden. Zonder dit gaat een ronde
+		-- voorbij zonder dat er iets wordt gezegd: je inzet is weg of je bent er door de
+		-- server uitgestapt, en het scherm zwijgt erover.
+		local vorige = if stand then stand.bets else nil
+		local was: any = nil
+		if typeof(vorige) == "table" then
+			for _, b in vorige do
+				if b.id == mijnId then
+					was = b
+					break
+				end
+			end
+		end
 		stand = s
+		local nu = mijnInzet()
+		if nu and was then
+			if nu.cashed and not was.cashed then
+				-- De server heeft automatisch uitgestapt; de knop deed dat niet, want die
+				-- zegt het zelf al.
+				Common.toast("+$" .. Money.fmt(nu.payout or 0)
+					.. " @ " .. Money.fmt(nu.cashed) .. "\u{00D7}", "green")
+			end
+		end
+		if s.phase == "crashed" and nu and not nu.cashed and not gezien["#verlies"] then
+			gezien["#verlies"] = true
+			-- `LOST $x @ yx` in rood, net als mpSettle in de webversie.
+			Common.toast("LOST $" .. Money.fmt(nu.bet)
+				.. " @ " .. Money.fmt(s.crashAt or 1) .. "\u{00D7}", "red")
+		end
+
 		toonSpelers()
 		toonWinsten()
 		toonFairness()

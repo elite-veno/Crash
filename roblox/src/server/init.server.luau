@@ -122,6 +122,13 @@ Net.fn("RoundState").OnServerInvoke = function(speler, spel)
 	return { ok = false, err = "geen gedeelde tafel" }
 end
 
+-- Automatisch uitstappen bijstellen terwijl de ronde loopt.
+Net.fn("SetAuto").OnServerInvoke = function(speler, doel)
+	local uit = Crash.setAuto(speler, doel)
+	stuurProfiel(speler)
+	return uit
+end
+
 -- NEW ODDS: een nieuw veld voor wie het huidige niet bevalt.
 Net.fn("NewOdds").OnServerInvoke = function(speler, spel)
 	if spel == "horse" then return Games.horseNewOdds(speler) end

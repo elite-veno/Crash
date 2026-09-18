@@ -1550,6 +1550,8 @@ local Crash = {}
 -- Dezelfde getallen als de webversie: acht seconden inzetten, drie seconden nagenieten,
 -- en een multiplier die met e^(0,103995 t) oploopt.
 local INZETVENSTER = 8
+-- Hoe vaak er tijdens de vlucht gekeken wordt of iemands doel gehaald is.
+local AUTO_TIK = 0.05
 local NAPAUZE = 3
 local GROEI = 0.103995
 
@@ -1731,22 +1733,6 @@ function Crash.autoSettle(m: number): ()
 	if iets then duw() end
 end
 
--- De doelen die deze ronde gehaald worden, van laag naar hoog, met het tijdstip erbij.
--- Een doel boven het crashpunt haalt het niet en staat er dus niet bij.
-local function autoPlan(r: Ronde): { { id: number, doel: number, op: number } }
-	local plan = {}
-	for id, i in r.inzetten do
-		local doel = i.auto
-		if doel and not i.cashed and doel <= r.crashAt then
-			table.insert(plan, { id = id, doel = doel, op = r.opent + Crash.durationFor(doel) })
-		end
-	end
-	table.sort(plan, function(a, b)
-		return a.op < b.op
-	end)
-	return plan
-end
-
 function Crash.blowUp(): ()
 	local r = ronde
 	if not r or r.fase ~= "flying" then return end
@@ -1762,10 +1748,16 @@ local function lus()
 		local r = ronde :: Ronde
 		task.wait(math.max(0, r.opent - nu()))
 		Crash.takeOff()
-		-- Onderweg de automatische uitstappers afrekenen, elk op zijn eigen moment.
-		for _, d in autoPlan(r) do
-			task.wait(math.max(0, d.op - nu()))
-			Crash.autoSettle(d.doel)
+		-- Onderweg de automatische uitstappers afrekenen. Kijken in plaats van vooruit
+		-- plannen, want een speler mag zijn doel tijdens de vlucht nog omzetten; een plan
+		-- dat bij de start is gemaakt zou dat missen.
+		--
+		-- Hoe fijn er gekeken wordt doet niets met het bedrag: er wordt afgerekend op het
+		-- doel, niet op de stand van dat moment. Het scheelt alleen een fractie in wanneer.
+		while nu() < r.eindigt do
+			task.wait(AUTO_TIK)
+			if ronde ~= r or r.fase ~= "flying" then break end
+			Crash.autoSettle(math.min(Crash.multAt(nu() - r.opent), r.crashAt))
 		end
 		task.wait(math.max(0, r.eindigt - nu()))
 		Crash.blowUp()
@@ -1819,6 +1811,32 @@ function Crash.inPlay(speler: Player): boolean
 	if not r or r.fase == "crashed" then return false end
 	local i = r.inzetten[speler.UserId]
 	return i ~= nil and i.cashed == nil
+end
+
+-- Het doel bijstellen terwijl de ronde loopt. In de webversie leest de lus elke frame de
+-- schakelaar en het getal, dus daar kun je hem tijdens de vlucht nog omzetten of uitzetten;
+-- dat hoort hier ook te kunnen.
+--
+-- Ligt het nieuwe doel onder de multiplier van dit moment, dan is het al voorbij: dan is
+-- het hetzelfde als op de knop drukken, en wordt er meteen op de huidige stand afgerekend.
+-- Zo levert laag zetten nooit minder op dan zelf uitstappen.
+function Crash.setAuto(speler: Player, autoDoel: any): any
+	local r = ronde
+	if not r then return { ok = false, err = "geen ronde" } end
+	local i = r.inzetten[speler.UserId]
+	if not i then return { ok = false, err = "geen inzet in deze ronde" } end
+	if i.cashed or i.geboekt then return { ok = false, err = "deze inzet is al beslist" } end
+
+	local doel = schoonDoel(autoDoel)
+	i.auto = doel
+	if doel and r.fase == "flying" then
+		local m = math.min(Crash.multAt(nu() - r.opent), r.crashAt)
+		if doel <= m then
+			return Crash.cashOut(speler)
+		end
+	end
+	duw()
+	return { ok = true, auto = doel }
 end
 
 function Crash.cashOut(speler: Player): any
