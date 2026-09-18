@@ -95,6 +95,7 @@ Theme.text = {
 	small    = 11,   -- .panel-title, .balance-label, .nav-section-label
 	body     = 12,   -- .nav-label, .home-subtitle
 	label    = 13,
+	toast    = 13,   -- .toast
 	button   = 15,   -- .btn-primary
 	input    = 16,   -- input[type=number]
 	card     = 18,   -- .game-card-title

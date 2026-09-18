@@ -73,6 +73,38 @@ function Common.setModalHost(f: Instance): ()
 	modalHost = f
 end
 
+-- frBadge(): het aantal vriendschapsverzoeken op de FRIENDS-regel in de balk. Het scherm
+-- Friends telt ze, de schil tekent ze -- die kent de balk.
+local vriendTeller: ((number) -> ())? = nil
+
+function Common.setFriendCounter(f: (number) -> ()): ()
+	vriendTeller = f
+end
+
+function Common.setFriendRequests(n: number): ()
+	local f = vriendTeller
+	if f then f(n) end
+end
+
+-- ---------- een ronde die niet onderbroken mag worden ----------
+-- De VIP-spellen zijn dicht zodra de pas afloopt, maar een rit die al loopt moet je kunnen
+-- uitspelen. Zou de schil je er middenin uit gooien, dan blijft die ronde op de server
+-- openstaan: je kunt er niet meer bij, je kunt niets anders beginnen, en je inzet staat
+-- vast. De webversie maakt er dezelfde uitzondering voor (`!(route === 'bus' && BU.active)`).
+local ritOpen: { [string]: boolean } = {}
+
+function Common.setRideOpen(spel: string, open: boolean): ()
+	if open then
+		ritOpen[spel] = true
+	else
+		ritOpen[spel] = nil
+	end
+end
+
+function Common.rideOpen(spel: string): boolean
+	return ritOpen[spel] == true
+end
+
 function Common.toast(tekst: string, soort: UI.ToastKind?): ()
 	local f = melder
 	if f then f(tekst, soort) end

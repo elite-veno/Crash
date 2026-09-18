@@ -54,7 +54,9 @@ root.BorderSizePixel = 0
 root.Parent = gui
 
 -- ---------- de schermen ----------
-type Scherm = { id: string, label: string, icon: string, groep: string, badge: string? }
+-- `groep` is nil voor een scherm dat wel bestaat maar niet in de balk staat: de twee
+-- VIP-spellen zijn alleen vanaf de zone zelf te bereiken, net als in de markup.
+type Scherm = { id: string, label: string, icon: string, groep: string?, badge: string? }
 
 local SCHERMEN: { Scherm } = {
 	{ id = "home",         label = "HOME",          icon = "home", groep = "PLAY" },
@@ -67,11 +69,19 @@ local SCHERMEN: { Scherm } = {
 	{ id = "scratch",      label = "SCRATCH CARDS", icon = "scratch", groep = "PLAY", badge = "LIVE" },
 	{ id = "wheel",        label = "WHEEL",         icon = "wheel", groep = "PLAY", badge = "LIVE" },
 	{ id = "horse",        label = "HORSE RACE",    icon = "horse", groep = "PLAY", badge = "LIVE" },
-	{ id = "slots",        label = "777",           icon = "slots", groep = "VIP",  badge = "VIP" },
-	{ id = "bus",          label = "RIDE THE BUS",  icon = "bus", groep = "VIP",  badge = "VIP" },
+	-- 777 en Ride the Bus staan bewust NIET in de balk: geen groep, dus geen regel. In de
+	-- markup heeft de zijbalk twee kopjes, PLAY en ACCOUNT, en veertien items; de twee
+	-- VIP-spellen hebben er geen eigen regel en zijn alleen vanaf de zone zelf te bereiken.
+	-- Daarom blijft VIP ZONE oplichten zolang je er een speelt. De schermen worden hier wel
+	-- gebouwd -- ze moeten immers te spelen zijn.
+	{ id = "slots",        label = "777",           icon = "slots" },
+	{ id = "bus",          label = "RIDE THE BUS",  icon = "bus" },
 	{ id = "profile",      label = "PROFILE",       icon = "profile", groep = "ACCOUNT" },
-	{ id = "vip",          label = "VIP ZONE",      icon = "vip", groep = "ACCOUNT" },
-	{ id = "friends",      label = "FRIENDS",       icon = "friends", groep = "ACCOUNT" },
+	{ id = "vip",          label = "VIP ZONE",      icon = "vip", groep = "ACCOUNT", badge = "\u{1F512}" },
+	-- De telling staat in de markup op `hidden` met een 0 erin, en licht pas op als er een
+	-- verzoek wacht. Hier wacht er nooit een: vriendschappen zijn van Roblox, dus je stuurt
+	-- en accepteert ze daar. De badge zit er wel, op nul, precies zoals hij daar staat.
+	{ id = "friends",      label = "FRIENDS",       icon = "friends", groep = "ACCOUNT", badge = "0" },
 	{ id = "achievements", label = "ACHIEVEMENTS",  icon = "achievements", groep = "ACCOUNT" },
 }
 
@@ -197,6 +207,9 @@ local hoverOp: string? = nil
 local verfBalk: () -> ()
 local navLabels: { TextLabel } = {}
 local navBadges: { TextLabel } = {}
+-- Twee badges veranderen tijdens het spelen: het slotje bij VIP ZONE wordt OPEN zodra de
+-- pas geldt, en FRIENDS telt hoeveel verzoeken er op je wachten.
+local navBadgePerId: { [string]: TextLabel } = {}
 local groepLabels: { TextLabel } = {}
 local navigate: (string) -> ()
 
@@ -217,7 +230,9 @@ local function navItem(item: Scherm, volgorde: number)
 	local b = Instance.new("TextButton")
 	b.Name = item.id
 	b.Text = ""
-	b.Size = UDim2.new(1, 0, 0, Theme.text.body + Theme.size.navPadY * 2)
+	-- `.nav-item { padding: 14px 20px }` om een `.nav-icon` van 24 bij 24: 24 + 14 + 14.
+	-- Het icoon is hoger dan de regel tekst ernaast, dus dat bepaalt de hoogte.
+	b.Size = UDim2.new(1, 0, 0, Theme.size.navIcon + Theme.size.navPadY * 2)
 	b.BackgroundColor3 = Theme.color.neon
 	b.BackgroundTransparency = 1
 	b.BorderSizePixel = 0
@@ -261,7 +276,9 @@ local function navItem(item: Scherm, volgorde: number)
 	table.insert(navLabels, label)
 
 	if item.badge then
-		local kleur = if item.badge == "VIP" then Theme.color.gold else Theme.color.neon
+		-- LIVE is neon; het slotje bij de zone en de telling bij FRIENDS zijn goud, zoals
+		-- de inline stijlen in de markup ze zetten.
+		local kleur = if item.badge == "LIVE" then Theme.color.neon else Theme.color.gold
 		local badge = UI.tag(b, item.badge, kleur)
 		badge.AnchorPoint = Vector2.new(1, 0.5)
 		badge.Position = UDim2.new(1, -16, 0.5, 0)
@@ -272,7 +289,10 @@ local function navItem(item: Scherm, volgorde: number)
 		badge.ZIndex = 11
 		local s = badge:FindFirstChildOfClass("UIStroke")
 		if s then s.Transparency = 1 end
+		-- `hidden` in de markup: een telling van nul hoort er niet te staan.
+		if item.id == "friends" then badge.Visible = false end
 		table.insert(navBadges, badge)
+		navBadgePerId[item.id] = badge
 	end
 
 	b.Activated:Connect(function()
@@ -293,10 +313,12 @@ do
 	local volgorde = 0
 	local vorigeGroep: string? = nil
 	for _, item in SCHERMEN do
-		if item.groep ~= vorigeGroep then
+		local groep = item.groep
+		if not groep then continue end
+		if groep ~= vorigeGroep then
 			volgorde += 1
-			groepLabel(item.groep, volgorde)
-			vorigeGroep = item.groep
+			groepLabel(groep, volgorde)
+			vorigeGroep = groep
 		end
 		volgorde += 1
 		navItem(item, volgorde)
@@ -304,7 +326,7 @@ do
 end
 
 -- .sidebar-footer
-local voet = UI.label(rail, "PLAY MONEY \u{00B7} NO REAL STAKES", {
+local voet = UI.label(rail, "v3.0 \u{00B7} FAIR ODDS", {
 	size = Theme.text.small, color = Theme.color.muted,
 })
 voet.AnchorPoint = Vector2.new(0, 1)
@@ -358,13 +380,13 @@ end)
 local toasts = Instance.new("Frame")
 toasts.Name = "Toasts"
 toasts.AnchorPoint = Vector2.new(1, 0)
-toasts.Position = UDim2.new(1, -20, 0, 20)
+toasts.Position = UDim2.new(1, -20, 0, 20)   -- .toast-host { padding: 20px }
 toasts.Size = UDim2.new(0, 360, 0, 0)
 toasts.AutomaticSize = Enum.AutomaticSize.Y
 toasts.BackgroundTransparency = 1
 toasts.ZIndex = 50
 toasts.Parent = inhoud
-local toastLijst = UI.list(toasts, 6)
+local toastLijst = UI.list(toasts, 8)   -- .toast-host { gap: 8px }
 toastLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
 
 -- ---------- vensters ----------
@@ -382,7 +404,10 @@ Common.setModalHost(vensters)
 -- want hover en actief door elkaar heen zetten is precies hoe een highlight verdwijnt.
 function verfBalk()
 	for naam, b in navKnoppen do
-		local aan = naam == huidige or (VIP_ROUTES[naam] and huidige == "vip" and not vipOpen)
+		-- Een VIP-spel heeft geen eigen menu-item; dan blijft de zone oplichten. Precies
+		-- een item actief, net als in de webversie: bij de zone zelf is dat de zone.
+		local navRoute = if VIP_ROUTES[huidige] then "vip" else huidige
+		local aan = naam == navRoute
 		local zweeft = hoverOp == naam and not aan
 		local streep = b:FindFirstChild("Marker") :: Frame?
 		local icoonVak = b:FindFirstChild("IconBox") :: Frame?
@@ -402,25 +427,26 @@ function verfBalk()
 
 		if streep then streep.BackgroundTransparency = if aan then 0 else 1 end
 
-		-- .nav-item.locked: een VIP-spel staat gedimd zolang de zone dicht is.
-		local opSlot = VIP_ROUTES[naam] == true and not vipOpen
 		local kleur = if aan then Theme.color.neon else Theme.color.text
-		local dim = if opSlot then Theme.alpha.locked else 0
 		if icoonVak then
 			local ic = icoonVak:FindFirstChild("Icon") :: Frame?
-			if ic then Icons.tint(ic, kleur, dim) end
+			if ic then Icons.tint(ic, kleur, 0) end
 		end
 		if label then
-			label.TextColor3 = kleur
-			-- Het label is onzichtbaar zolang de balk dicht is; alleen open telt de
-			-- dimming van een gesloten spel mee.
-			if open then label.TextTransparency = dim end
+			-- `.nav-item.vip-open .nav-label`: zodra de pas geldt wordt de naam van de zone
+			-- goud, ook als je ergens anders staat.
+			label.TextColor3 = if naam == "vip" and vipOpen then Theme.color.gold else kleur
+			if open then label.TextTransparency = 0 end
 		end
 	end
 end
 
 function navigate(id: string)
-	if VIP_ROUTES[id] and not vipOpen then
+	-- Een rit die al loopt speel je uit, ook als de pas net is afgelopen. Zou de schil je
+	-- er middenin uit sturen, dan blijft die ronde op de server openstaan met je inzet
+	-- erin: je kunt er niet meer bij en je kunt ook niets anders beginnen. De webversie
+	-- maakt dezelfde uitzondering (`!(route === 'bus' && BU.active)` in navigate).
+	if VIP_ROUTES[id] and not vipOpen and not Common.rideOpen(id) then
 		id = "vip"
 	end
 	for naam, v in views do
@@ -492,8 +518,24 @@ local function toon(p: any)
 
 	local was = vipOpen
 	vipOpen = Season.vipActive(tonumber(p.vipSeason))
-	if was ~= vipOpen then navigate(huidige) end
+	-- `.nav-item.vip-open`: het slotje wordt OPEN en de naam wordt goud.
+	local vipBadge = navBadgePerId["vip"]
+	if vipBadge then
+		vipBadge.Text = if vipOpen then "OPEN" else "\u{1F512}"
+	end
+	if was ~= vipOpen then
+		verfBalk()
+		navigate(huidige)
+	end
 end
+
+-- frBadge(): hoeveel vriendschapsverzoeken er op je wachten. Nul betekent geen badge.
+Common.setFriendCounter(function(n: number)
+	local badge = navBadgePerId["friends"]
+	if not badge then return end
+	badge.Text = tostring(n)
+	badge.Visible = n > 0
+end)
 
 task.spawn(function()
 	Net.ev("Profile").OnClientEvent:Connect(toon)

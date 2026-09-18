@@ -386,20 +386,25 @@ function UI.toast(host: Instance, text: string, kind: ToastKind?): ()
 		else Theme.color.neon
 
 	local f = Instance.new("Frame")
-	f.BackgroundColor3 = Theme.color.panel
+	-- `.toast { background: rgba(0,0,0,0.9) }`: bijna zwart, niet het grijs van een paneel.
+	f.BackgroundColor3 = Theme.color.black
+	f.BackgroundTransparency = 0.1
 	f.BorderSizePixel = 0
-	f.Size = UDim2.new(0, 0, 0, 34)
+	-- 14 padding boven en onder om een regel van 13.
+	f.Size = UDim2.new(0, 0, 0, Theme.text.toast + 28)
 	f.AutomaticSize = Enum.AutomaticSize.X
 	UI.corner(f, Theme.radius.button)
 	UI.stroke(f, color)
 
-	local t = UI.label(f, text, { size = Theme.text.tiny, color = color, font = Theme.font.uiMed })
+	local t = UI.label(f, text, { size = Theme.text.toast, color = color, font = Theme.font.uiBold })
 	t.Size = UDim2.new(0, 0, 1, 0)
 	t.AutomaticSize = Enum.AutomaticSize.X
-	UI.padding4(f, 0, 12, 0, 12)
+	UI.padding4(f, 0, 22, 0, 22)
 	f.Parent = host
 
-	task.delay(2.6, function()
+	-- `animation: slideIn 0.3s, slideOut 0.3s 2.7s forwards`, en de melding wordt drie
+	-- seconden na het verschijnen weggehaald.
+	task.delay(3, function()
 		if f.Parent then f:Destroy() end
 	end)
 end

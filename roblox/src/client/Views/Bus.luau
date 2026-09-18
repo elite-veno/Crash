@@ -402,6 +402,7 @@ function Bus.build(ouder: Instance): ()
 
 		if not res.hit then
 			actief = false
+			Common.setRideOpen("bus", actief)
 			wisKeuzes()
 			zetRug()
 			teken()
@@ -413,6 +414,7 @@ function Bus.build(ouder: Instance): ()
 		if res.done then
 			-- Vier calls is de hele rit: er valt niets meer te roepen, dus hij betaalt uit.
 			actief = false
+			Common.setRideOpen("bus", actief)
 			stap = 4
 			mult = tonumber(res.mult) or 0
 			local uit = tonumber(res.payout) or 0
@@ -438,6 +440,7 @@ function Bus.build(ouder: Instance): ()
 		local res = Common.call("Bet", "bus", bedrag)
 		if not res then return end
 		actief = true
+		Common.setRideOpen("bus", actief)
 		stap = 0
 		inzet = bedrag
 		mult = 0
@@ -454,6 +457,7 @@ function Bus.build(ouder: Instance): ()
 		local res = Common.call("CashOut", "bus")
 		if not res then return end
 		actief = false
+		Common.setRideOpen("bus", actief)
 		mult = tonumber(res.mult) or mult
 		local uit = tonumber(res.payout) or 0
 		wisKeuzes()
