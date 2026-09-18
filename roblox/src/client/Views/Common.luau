@@ -337,11 +337,16 @@ end
 --
 -- De terugknop wijst standaard naar de lobby. De twee VIP-spellen (777 en Ride the Bus)
 -- hebben in de markup `data-route="vip"` en `← VIP ZONE`; die geven het hier mee.
+-- `kaal` is voor een scherm waarvan de rechterkolom geen paneel is. De meeste spellen
+-- hebben daar `<main class="game-main"><div class="panel board">`: één paneel dat de kolom
+-- vult. Crash niet -- daar staan de RECENT-balk, de lucht en de twee spelerslijsten los
+-- onder elkaar in de kolom, met veertien pixels ertussen en zonder rand eromheen.
 function Common.columns(
 	ouder: Instance,
 	titel: string?,
 	terugNaar: string?,
-	terugTekst: string?
+	terugTekst: string?,
+	kaal: boolean?
 ): (Frame, ScrollingFrame)
 	local breedte = Theme.size.asideWidth
 	local vak = Instance.new("Frame")
@@ -370,21 +375,28 @@ function Common.columns(
 	bordVak.BackgroundColor3 = Theme.color.panel
 	bordVak.BorderSizePixel = 0
 	bordVak.ClipsDescendants = true
-	UI.gradient(bordVak, Theme.color.panel, Theme.color.panelLight)
-	UI.corner(bordVak, Theme.radius.panel)
-	UI.stroke(bordVak)
+	if kaal then
+		bordVak.BackgroundTransparency = 1
+	else
+		UI.gradient(bordVak, Theme.color.panel, Theme.color.panelLight)
+		UI.corner(bordVak, Theme.radius.panel)
+		UI.stroke(bordVak)
+	end
 	bordVak.Parent = vak
 
 	-- Waar het spel zelf in komt: gecentreerd, zoals het bord in de webversie.
 	local bord = Instance.new("Frame")
 	bord.Name = "Board"
-	bord.Size = UDim2.new(1, -Theme.size.panelPad * 2, 1, -Theme.size.panelPad * 2)
-	bord.Position = UDim2.fromOffset(Theme.size.panelPad, Theme.size.panelPad)
+	local pad = if kaal then 0 else Theme.size.panelPad
+	bord.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
+	bord.Position = UDim2.fromOffset(pad, pad)
 	bord.BackgroundTransparency = 1
 	bord.Parent = bordVak
 	local bordLijst = UI.list(bord, Theme.size.asideGap)
-	bordLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	bordLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+	if not kaal then
+		bordLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		bordLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+	end
 
 	-- .crash-header: de terugknop en de naam van het spel, naast elkaar.
 	if titel then

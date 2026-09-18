@@ -166,7 +166,8 @@ local function ficheKleur(m: number): (Color3, Color3, number)
 end
 
 function Crash.build(ouder: Instance): ()
-	local bord, bediening = Common.columns(ouder, "CRASH")
+	-- Kaal: de rechterkolom van crash is geen paneel maar main.game-main zelf.
+	local bord, bediening = Common.columns(ouder, "CRASH", nil, nil, true)
 
 	-- Het scherm blijft bestaan als je naar een ander spel gaat; dan hoeft er ook niets
 	-- getekend te worden. Het vak van de schil is wat er aan- en uitgezet wordt.

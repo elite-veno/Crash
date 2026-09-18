@@ -85,9 +85,13 @@ local STANDAARD = {
 	Name = "", Visible = true, ZIndex = 1, LayoutOrder = 0,
 	BackgroundTransparency = 0, TextTransparency = 0, BorderSizePixel = 1,
 	ClipsDescendants = false, Rotation = 0, TextSize = 14, Text = "",
-	TextWrapped = false, RichText = true, Active = true, AutoButtonColor = true,
+	TextWrapped = false, RichText = false, Active = true, AutoButtonColor = true,
 	TextEditable = true, ScrollBarThickness = 12, Thickness = 1, Transparency = 0,
 	LineHeight = 1,
+	-- Zoals Roblox ze standaard heeft. Vooral TextXAlignment telt: een knop die er zelf
+	-- niets over zegt zet zijn tekst in het midden, en de tekenaar zette hem links --
+	-- waardoor elke knop in de preview verkeerd stond zonder dat er iets mis was.
+	TextXAlignment = "Center", TextYAlignment = "Center",
 }
 
 local Instance = {}
