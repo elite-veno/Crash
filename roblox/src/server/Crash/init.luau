@@ -29,6 +29,10 @@ export type Inzet = {
 	bet: number,
 	cashed: number?,
 	payout: number?,
+	-- De ronde is voor deze speler al in zijn statistieken geboekt. Staat aan zodra iemand
+	-- halverwege de vlucht vertrekt: dan ligt de uitslag vast en wordt er meteen geboekt,
+	-- dus aan het eind van de ronde hoeft dat niet nog eens.
+	geboekt: boolean?,
 }
 
 type Ronde = {
@@ -103,9 +107,10 @@ end
 -- te worden, want de inzet was al afgeschreven. Wel de statistiek bijwerken.
 local function sluit(r: Ronde)
 	for id, i in r.inzetten do
-		if not i.cashed then
+		if not i.cashed and not i.geboekt then
 			local sp = Players:GetPlayerByUserId(id)
 			if sp then
+				i.geboekt = true
 				Profiles.record(sp, "crash", i.bet, 0, 0)
 			end
 		end
@@ -230,11 +235,19 @@ Profiles.onLeave(function(speler: Player)
 	local r = ronde
 	if not r then return end
 	local i = r.inzetten[speler.UserId]
-	if not i or i.cashed then return end
+	if not i or i.cashed or i.geboekt then return end
 	if r.fase == "waiting" then
 		r.inzetten[speler.UserId] = nil
 		Profiles.give(speler, i.bet)
+		return
 	end
+	-- De vlucht loopt en hij is weg. Uitstappen kan niet meer -- dat vraagt een speler die
+	-- er is -- dus deze inzet is verloren, wat de ronde verder ook doet. Nu boeken, want
+	-- straks is dit profiel opgeslagen en weg, en dan telt de ronde nergens meer mee: niet
+	-- in zijn statistieken, niet in zijn sprintstand, niet in zijn prestaties. Het geld was
+	-- al afgeschreven bij de inzet; alleen het boeken ontbrak.
+	i.geboekt = true
+	Profiles.record(speler, "crash", i.bet, 0, 0)
 end)
 
 return Crash

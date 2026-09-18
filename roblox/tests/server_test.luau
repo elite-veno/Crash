@@ -568,4 +568,41 @@ do
 	end
 end
 
+-- ---------- crash: weglopen tijdens de vlucht ----------
+do
+	-- Het inzetvenster staat nog open: de inzet hoort terug, en er is niets gespeeld.
+	local w = wereld()
+	local s, p = meldEen(w)
+	w.Crash.begin()
+	p.balance = 100
+	w.Crash.bet(s, 100)
+	h.check("de inzet is afgeschreven", 0, p.balance)
+	w.vertrek(s)
+	h.check("wie voor de start weggaat krijgt zijn inzet terug", 100, w.store.data["speler_1"].balance)
+	h.check("en er is geen ronde geboekt", 0, w.store.data["speler_1"].stats.crash.rounds)
+end
+
+do
+	-- De vlucht loopt al. Uitstappen kan niet meer, dus de inzet is weg -- en dat hoort in
+	-- zijn statistieken te staan. Gebeurt dat niet, dan is het geld wel afgeschreven maar
+	-- telt de ronde nergens mee.
+	local w = wereld()
+	local s, p = meldEen(w)
+	w.Crash.begin()
+	p.balance = 100
+	w.Crash.bet(s, 100)
+	w.Crash.takeOff()
+	w.vertrek(s)
+
+	local bewaard = w.store.data["speler_1"]
+	h.check("de inzet komt niet terug", 0, bewaard.balance)
+	h.check("de ronde is geboekt", 1, bewaard.stats.crash.rounds)
+	h.check("als verloren", 1, bewaard.stats.crash.lost)
+	h.check("met de inzet als verlies", -100, w.Money.round2(bewaard.stats.crash.profit))
+
+	-- En aan het eind van de ronde niet nog een keer.
+	w.Crash.blowUp()
+	h.check("de ronde wordt niet dubbel geboekt", 1, bewaard.stats.crash.rounds)
+end
+
 h.report("SERVER")
