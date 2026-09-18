@@ -5288,8 +5288,9 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 	-- De marges tussen de blokken verschillen in de CSS (30, 26, 50, 24, 18). Eén
 	-- UIListLayout kent maar één tussenruimte, dus die staat op de kleinste en elk blok
 	-- krijgt de rest als padding aan zijn onderkant mee.
+	local BLAD_GAT = 8
 	local lijst = blad:FindFirstChildOfClass("UIListLayout")
-	if lijst then lijst.Padding = UDim.new(0, 8) end
+	if lijst then lijst.Padding = UDim.new(0, BLAD_GAT) end
 
 	-- ---------- .home-hero ----------
 	local hero = Instance.new("Frame")
@@ -5333,9 +5334,10 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 	-- tekst mee en kan er dus niet zelf een padding onder krijgen.
 	local stripMarge = Instance.new("Frame")
 	stripMarge.Name = "SeasonGap"
-	-- `.season-strip { margin-bottom: 26px }`. Het blad zet er zelf al twaalf boven en
-	-- twaalf onder dit vak, dus er hoeven er nog twee bij.
-	stripMarge.Size = UDim2.new(1, 0, 0, 26 - (Theme.size.gap + 4) * 2)
+	-- `.season-strip { margin-bottom: 26px }`. Dit vak staat tussen de strip en het blok
+	-- eronder, en de lijst van het blad zet er aan beide kanten acht bij -- dat is de
+	-- tussenruimte die hierboven op de kleinste marge is gezet. Blijft over: tien.
+	stripMarge.Size = UDim2.new(1, 0, 0, 26 - BLAD_GAT * 2)
 	stripMarge.BackgroundTransparency = 1
 	stripMarge.LayoutOrder = 3
 	stripMarge.Parent = blad
