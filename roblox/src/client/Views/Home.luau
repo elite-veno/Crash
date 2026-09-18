@@ -108,12 +108,12 @@ local function tegel(ouder: Instance, k: Kaart, ga: (string) -> ()): Frame
 	local titel = UI.label(body, k.label, {
 		size = Theme.text.card, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
-	titel.Size = UDim2.new(1, 0, 0, Theme.text.card + 6)
+	titel.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.card))
 
 	local d = UI.label(body, k.desc, { size = Theme.text.tiny, color = Theme.color.muted })
 	d.TextWrapped = true
 	d.LineHeight = 1.6                       -- .game-card-desc { line-height: 1.6 }
-	d.Size = UDim2.new(1, 0, 0, 36)          -- twee regels van 11 op 1,6
+	d.Size = UDim2.new(1, 0, 0, 36)          -- twee regels van 11 op 1,6 (35,2, afgerond)
 	d.TextYAlignment = Enum.TextYAlignment.Top
 
 	-- .game-card-footer
@@ -157,6 +157,12 @@ end
 -- Een chip in de topbar: `.home-chip`. In de markup is dat een flexregel -- een icoon, de
 -- naam, en bij de VIP-zone een klein pilletje erachter. Dus geen tekst op de knop zelf maar
 -- een rij erin, anders staat het pilletje over de naam heen.
+-- `.game-card` is 296 hoog: een rand, de voorvertoning van 160, en daaronder de body met
+-- `padding: 18px` om de titel (21), zes lucht, de omschrijving over twee regels (36), veertien
+-- lucht en de voet (22). Roblox rekt een rastervakje niet met zijn inhoud mee, dus staat de
+-- hoogte hier en volgen de kaarten hem.
+local KAART_HOOG = 296
+
 local function topChip(ouder: Instance, tekst: string, ga: () -> (), goud: boolean?): (TextButton, TextLabel)
 	local b = Instance.new("TextButton")
 	b.Name = "HomeChip"
@@ -165,11 +171,13 @@ local function topChip(ouder: Instance, tekst: string, ga: () -> (), goud: boole
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.AutomaticSize = Enum.AutomaticSize.X
-	b.Size = UDim2.fromOffset(0, 32)
+	-- `.home-chip { padding: 9px 14px }`: zo hoog als wat erin staat. De VIP-chip draagt
+	-- een badge van 18 en wordt 38; de profielchip een icoon van 15 en wordt 35.
+	b.AutomaticSize = Enum.AutomaticSize.XY
+	b.Size = UDim2.fromOffset(0, 0)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b, if goud then Theme.color.gold else Theme.color.border)
-	UI.padding4(b, 0, 14 + UI.RAND, 0, 14 + UI.RAND)
+	UI.padding4(b, 9 + UI.RAND, 14 + UI.RAND, 9 + UI.RAND, 14 + UI.RAND)
 	local rij = UI.list(b, 8, Enum.FillDirection.Horizontal)
 	rij.VerticalAlignment = Enum.VerticalAlignment.Center
 	rij.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -181,7 +189,9 @@ local function topChip(ouder: Instance, tekst: string, ga: () -> (), goud: boole
 	naam.Name = "ChipLabel"
 	naam.LayoutOrder = 1
 	naam.AutomaticSize = Enum.AutomaticSize.X
-	naam.Size = UDim2.new(0, 0, 1, 0)
+	-- Zijn eigen regelhoogte, niet de volle hoogte van de chip: die groeit juist met zijn
+	-- inhoud mee, en dan zou de een op de ander wachten.
+	naam.Size = UDim2.new(0, 0, 0, Theme.lineBox(Theme.text.tiny))
 
 	-- `.home-chip-badge`: een klein goud pilletje achter de naam. Er staat een slotje in
 	-- zolang de zone dicht is en OPEN zodra de pas geldt.
@@ -233,7 +243,8 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	-- ---------- .home-topbar ----------
 	local topbar = Instance.new("Frame")
 	topbar.Name = "Topbar"
-	topbar.Size = UDim2.new(1, 0, 0, 32)
+	topbar.Size = UDim2.new(1, 0, 0, 0)
+	topbar.AutomaticSize = Enum.AutomaticSize.Y
 	topbar.BackgroundTransparency = 1
 	topbar.LayoutOrder = 1
 	topbar.Parent = blad
@@ -258,11 +269,16 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	hero.LayoutOrder = 2
 	hero.Parent = blad
 	UI.list(hero, 12)
+	-- `.home-balance-card { margin-top: 30px }` onder de hero; het blad zet er zelf 18
+	-- tussen, dus staan de twaalf die ontbreken hier. Aan de hero en niet aan de kaart,
+	-- want die heeft zijn eigen UIPadding voor `padding: 24px 32px` en twee UIPaddings op
+	-- één vak vechten met elkaar.
+	UI.padding4(hero, 0, 0, 30 - 18, 0)
 
 	local kop = UI.label(hero, "NEON CASINO", {
 		size = Theme.text.hero, color = Theme.color.neon, font = Theme.font.uiMed,
 	})
-	kop.Size = UDim2.new(1, 0, 0, Theme.text.hero + 6)
+	kop.Size = UDim2.new(1, 0, 0, Theme.text.hero)   -- `.home-title { line-height: 1 }`
 
 	UI.label(hero, "\u{25BA} FAIR ODDS \u{00B7} PLAY MONEY ONLY", {
 		size = Theme.text.body, color = Theme.color.muted,
@@ -277,9 +293,9 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	saldoKaart.BorderSizePixel = 0
 	saldoKaart.LayoutOrder = 3
 	-- `.home-balance-card` heeft `margin-top: 30`; het blad zet er zelf al 18 tussen, dus
-	-- de kaart draagt de twaalf die ontbreken zelf. Zo ook hieronder voor de 50 van
-	-- `.home-hero` en de 24 van `.section-heading`.
-	saldoKaart.Position = UDim2.fromOffset(0, 12)
+	-- draagt de kaart de twaalf die ontbreken zelf. Als padding, niet als Position: een
+	-- UIListLayout schrijft de plaats van zijn kinderen, dus die offset kwam er niet
+	-- doorheen en de kaart stond twaalf pixels te hoog.
 	UI.gradient(saldoKaart, Theme.color.panel, Theme.color.panelLight, 135)
 	UI.corner(saldoKaart, Theme.radius.panel)
 	UI.stroke(saldoKaart, Theme.color.neon)
@@ -309,7 +325,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	local kopRij = Instance.new("Frame")
 	-- 34 voor de kop zelf, plus wat `.home-hero` erboven en `.section-heading` eronder aan
 	-- marge vragen bovenop de 18 van het blad: (50 - 18) en (24 - 18).
-	kopRij.Size = UDim2.new(1, 0, 0, 34 + (50 - 18) + (24 - 18))
+	kopRij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title) + (50 - 18) + (24 - 18))
 	kopRij.BackgroundTransparency = 1
 	kopRij.LayoutOrder = 4
 	kopRij.Parent = blad
@@ -323,12 +339,17 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	raster.LayoutOrder = 5
 	raster.Parent = blad
 	local rasterLayout = Instance.new("UIGridLayout")
-	rasterLayout.CellSize = UDim2.fromOffset(Theme.size.cardMin, 300)
+	rasterLayout.CellSize = UDim2.fromOffset(Theme.size.cardMin, KAART_HOOG)
 	rasterLayout.CellPadding = UDim2.fromOffset(Theme.size.cardGap, Theme.size.cardGap)
 	rasterLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rasterLayout.Parent = raster
 
-	Common.rekKolommen(raster, rasterLayout, Theme.size.cardMin, Theme.size.cardGap, 300)
+	-- `.games-grid { margin-bottom: 50px }` onder het raster; het blad geeft er 18, dus
+	-- staan de tweeëndertig die ontbreken hier. De seizoenstrip eronder heeft zijn eigen
+	-- UIPadding en kan er geen tweede bij hebben.
+	UI.padding4(raster, 0, 0, 50 - 18, 0)
+
+	Common.rekKolommen(raster, rasterLayout, Theme.size.cardMin, Theme.size.cardGap, KAART_HOOG)
 
 	for i, k in KAARTEN do
 		tegel(raster, k, ga).LayoutOrder = i
@@ -343,7 +364,9 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 
 	-- ---------- LIVE LEADERBOARD ----------
 	local lbKop = Instance.new("Frame")
-	lbKop.Size = UDim2.new(1, 0, 0, 34)
+	-- `.season-strip { margin-bottom: 26px }` erboven, waarvan de lijst er 18 geeft.
+	lbKop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title) + (24 - 18) + (26 - 18))
+	UI.padding4(lbKop, 26 - 18, 0, 0, 0)
 	lbKop.BackgroundTransparency = 1
 	lbKop.LayoutOrder = 7
 	lbKop.Parent = blad
@@ -408,19 +431,30 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	})
 	lbNoot.Name = "LbNote"
 	lbNoot.LayoutOrder = 9
-	lbNoot.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 8)
+	lbNoot.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.tiny))
 
 	-- ---------- ODDS & FAIRNESS ----------
 	local oddsKop = Instance.new("Frame")
-	oddsKop.Size = UDim2.new(1, 0, 0, 34)
+	-- `.lb-note { margin-bottom: 50px }` erboven, waarvan de lijst er 18 geeft.
+	oddsKop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title) + (24 - 18) + (50 - 18))
+	UI.padding4(oddsKop, 50 - 18, 0, 0, 0)
 	oddsKop.BackgroundTransparency = 1
 	oddsKop.LayoutOrder = 10
 	oddsKop.Parent = blad
 	UI.sectionHeading(oddsKop, "ODDS & FAIRNESS", "EVERY MODE CHECKED")
 
-	local oddsVak = UI.panel(blad, "Fairness")
+	-- `.odds-wrap` is geen paneel: geen rand, geen padding, geen achtergrond -- de tabel
+	-- staat er kaal in, en elke rij trekt zijn eigen haarlijntje.
+	local oddsVak = Instance.new("Frame")
+	oddsVak.Name = "Fairness"
+	oddsVak.Size = UDim2.new(1, 0, 0, 0)
+	oddsVak.AutomaticSize = Enum.AutomaticSize.Y
+	oddsVak.BackgroundTransparency = 1
 	oddsVak.LayoutOrder = 11
-	UI.list(oddsVak, 2)
+	oddsVak.Parent = blad
+	-- De rijen raken elkaar: het haarlijntje hoort binnen de hoogte van de rij, zoals
+	-- `border-bottom` in de CSS.
+	UI.list(oddsVak, 0)
 
 	type OddsRij = { spel: string, rtp: string, huis: string, uitleg: string, kop: boolean? }
 	local RIJEN: { OddsRij } = {
@@ -448,7 +482,8 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 		rij.BackgroundTransparency = 1
 		rij.LayoutOrder = i
 		rij.Parent = oddsVak
-		UI.padding4(rij, 10, 0, 10, 0)
+		-- `.odds-table td { padding: 10px 14px }` met een haarlijn eronder: samen 35 hoog.
+		UI.padding4(rij, 10, 0, 10 + 1, 0)
 
 		local isKop = r.kop == true
 		local kleur = if isKop then Theme.color.muted else Theme.color.text
@@ -457,7 +492,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 				size = Theme.text.tiny, color = c, font = font or Theme.font.ui,
 			})
 			t.Position = UDim2.new(x, 0, 0, 0)
-			t.Size = UDim2.new(breed, -14, 0, Theme.text.tiny + 6)
+			t.Size = UDim2.new(breed, -14, 0, Theme.lineBox(Theme.text.tiny))
 			t.TextYAlignment = Enum.TextYAlignment.Top
 			return t
 		end
@@ -475,7 +510,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 		local lijn = Instance.new("Frame")
 		lijn.Name = "Border"
 		lijn.AnchorPoint = Vector2.new(0, 1)
-		lijn.Position = UDim2.new(0, 0, 1, 10)
+		lijn.Position = UDim2.new(0, 0, 1, 0)
 		lijn.Size = UDim2.new(1, 0, 0, 1)
 		lijn.BackgroundColor3 = Theme.color.border
 		lijn.BorderSizePixel = 0

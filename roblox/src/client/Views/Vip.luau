@@ -223,7 +223,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 	kopRij.Name = "GamesHeading"
 	kopRij.LayoutOrder = 4
 	-- De kopregel is 34 hoog; de 24 van `.section-heading { margin-bottom }` staat eronder.
-	kopRij.Size = UDim2.new(1, 0, 0, 34 + 24)
+	kopRij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title) + 24)
 	kopRij.BackgroundTransparency = 1
 	kopRij.Parent = blad
 	UI.sectionHeading(kopRij, "EXCLUSIVE GAMES", "NOWHERE ELSE")

@@ -240,7 +240,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	-- ---------- .section-heading ----------
 	local achKop = Instance.new("Frame")
 	achKop.Name = "AchHeading"
-	achKop.Size = UDim2.new(1, 0, 0, 30 + 16)
+	achKop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title) + 16)
 	achKop.BackgroundTransparency = 1
 	achKop.LayoutOrder = 5
 	achKop.Parent = blad

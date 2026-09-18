@@ -181,7 +181,8 @@ end
 function UI.sectionHeading(parent: Instance, kop: string, telling: string?): (TextLabel, TextLabel)
 	local rij = Instance.new("Frame")
 	rij.Name = "SectionHeading"
-	rij.Size = UDim2.new(1, 0, 0, 30)
+	-- `.section-heading h2` is 22px, dus een regel van 26 -- de rij is zo hoog als die kop.
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title))
 	rij.BackgroundTransparency = 1
 	rij.Parent = parent
 
@@ -205,13 +206,24 @@ function UI.sectionHeading(parent: Instance, kop: string, telling: string?): (Te
 	h.LayoutOrder = 1
 	c.LayoutOrder = 2
 
+	-- De streep hangt in de CSS aan de grondlijn van de kop, niet op het midden ervan. De
+	-- lijst zet zijn kinderen verticaal in het midden, dus krijgt de streep een vak van
+	-- volle hoogte mee en gaat hij daarbinnen naar onderen.
+	local streepVak = Instance.new("Frame")
+	streepVak.Name = "DividerBox"
+	streepVak.LayoutOrder = 3
+	streepVak.Size = UDim2.new(1, -260, 1, 0)
+	streepVak.BackgroundTransparency = 1
+	streepVak.Parent = rij
+
 	local streep = Instance.new("Frame")
 	streep.Name = "Divider"
-	streep.LayoutOrder = 3
-	streep.Size = UDim2.new(1, -260, 0, 1)
+	streep.AnchorPoint = Vector2.new(0, 1)
+	streep.Position = UDim2.new(0, 0, 1, -5)
+	streep.Size = UDim2.new(1, 0, 0, 1)
 	streep.BackgroundColor3 = Theme.color.border
 	streep.BorderSizePixel = 0
-	streep.Parent = rij
+	streep.Parent = streepVak
 	local g = Instance.new("UIGradient")
 	g.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0),

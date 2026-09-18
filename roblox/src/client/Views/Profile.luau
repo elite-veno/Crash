@@ -129,7 +129,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 	-- ---------- .prof-featured ----------
 	local etalage = Instance.new("Frame")
 	etalage.Name = "Featured"
-	etalage.Size = UDim2.new(1, 0, 0, 92 + 14)
+	etalage.Size = UDim2.new(1, 0, 0, 95 + 14)
 	etalage.BackgroundTransparency = 1
 	etalage.LayoutOrder = 2
 	etalage.Parent = blad
@@ -150,7 +150,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 		local vak = Instance.new("Frame")
 		vak.Name = "Slot" .. i
 		-- Drie gelijke kolommen: `auto-fit, minmax(150px, 1fr)` met 12 ertussen.
-		vak.Size = UDim2.new(1 / 3, -(KAART_GAT * 2 / 3), 0, 92)
+		vak.Size = UDim2.new(1 / 3, -(KAART_GAT * 2 / 3), 0, 95)
 		vak.BackgroundColor3 = Theme.color.black
 		vak.BackgroundTransparency = 0.8 -- rgba(0,0,0,0.2)
 		vak.BorderSizePixel = 0
@@ -163,17 +163,26 @@ function Profile.build(ouder: Instance): (any) -> ()
 		rand.Transparency = 0.45
 		UI.padding4(vak, 18 + UI.RAND, 12 + UI.RAND, 18 + UI.RAND, 12 + UI.RAND)
 		vak.Parent = etalage
-		local binnen = UI.list(vak, 6)
+
+		-- Het icoon en de naam staan in een eigen vak. De knop die het hele vakje aanklikbaar
+		-- maakt hangt daarnaast, buiten de lijst: een UIListLayout legt élk kind neer, dus
+		-- telde de knop mee als derde regel en duwde hij de twee andere het vakje uit -- het
+		-- icoon kwam twaalf pixels boven de rand uit.
+		local inhoud = Instance.new("Frame")
+		inhoud.Name = "Content"
+		inhoud.Size = UDim2.fromScale(1, 1)
+		inhoud.BackgroundTransparency = 1
+		inhoud.Parent = vak
+		local binnen = UI.list(inhoud, 6)
 		binnen.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		binnen.VerticalAlignment = Enum.VerticalAlignment.Center
 
-		local icoon = UI.label(vak, "\u{2014}", {
+		local icoon = UI.label(inhoud, "\u{2014}", {
 			size = 30, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
 		})
-		icoon.Size = UDim2.new(1, 0, 0, 34)
 		-- De webversie zet hier "empty" op andermans profiel en "pick a badge below" op dat
 		-- van jezelf. Dit scherm is altijd dat van jezelf, dus altijd die tweede.
-		local badgeNaam = UI.label(vak, "pick a badge below", {
+		local badgeNaam = UI.label(inhoud, "pick a badge below", {
 			size = Theme.text.body, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
 		})
 
@@ -221,7 +230,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 	local function rijHoogte(aantal: number): number
 		local regelH = 14 -- zoals Common.statRow er een neerzet: .stat-row bij line-height 1
 		local kopH = Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE   -- zoals UI.panelTitle
-		return Theme.size.panelPad * 2 + kopH + aantal * regelH + math.max(0, aantal - 1) * 6
+		return (Theme.size.panelPad + UI.RAND) * 2 + kopH + aantal * regelH + math.max(0, aantal - 1) * 6
 	end
 
 	local cijfers = Instance.new("Frame")
@@ -282,7 +291,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 	-- ---------- .section-heading + .ach-grid ----------
 	local badgeKop = Instance.new("Frame")
 	badgeKop.Name = "BadgesHeading"
-	badgeKop.Size = UDim2.new(1, 0, 0, 30 + 16)
+	badgeKop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.title) + 16)
 	badgeKop.BackgroundTransparency = 1
 	badgeKop.LayoutOrder = 5
 	badgeKop.Parent = blad
