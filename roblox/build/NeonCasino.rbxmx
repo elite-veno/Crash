@@ -8118,7 +8118,11 @@ local TAFEL = 50         -- de gedeelde tafel haalt er vijftig op (limit=50)
 
 -- main.crash-main: grid-template-rows: auto 1fr auto met gap 14.
 local RIJGAT = 14
-local BALK_H = 42        -- .history-bar: padding 10 boven en onder om een fiche van 22
+-- `.history-chip { padding: 5px 10px; font-size: 11px; border: 1px solid }`: een regelvak
+-- van 14, vijf lucht boven en onder, plus twee randen.
+local FICHE_H = 26
+-- `.history-bar` staat in de markup op `padding: 10px 14px` om die fiches heen.
+local BALK_H = 10 + FICHE_H + 10
 local SPELERS_H = 180    -- .players-section max-height
 local KOP_H = 30         -- .players-list h3 plus zijn margin-bottom van 10
 local REGEL_H = 24       -- .player-row: 11 pixels tekst met padding 6 boven en onder
@@ -8969,7 +8973,7 @@ function Crash.build(ouder: Instance): ()
 			-- padding van 10 links en rechts plus 0,6 em per teken. AutomaticSize houdt hem
 			-- ruim genoeg als een multiplier boven de honderd komt.
 			local tekst = Money.fmt(m) .. "\u{00D7}"
-			fiche.Size = UDim2.fromOffset(20 + math.ceil(#tekst * 6.6), 22)
+			fiche.Size = UDim2.fromOffset(20 + math.ceil(#tekst * 6.6), FICHE_H)
 			fiche.AutomaticSize = Enum.AutomaticSize.X
 			fiche.BackgroundColor3 = Theme.color.black
 			fiche.BackgroundTransparency = 0.6   -- rgba(0,0,0,0.4)
@@ -9214,8 +9218,8 @@ function Crash.build(ouder: Instance): ()
 		if math.abs(maat.X - luchtW) &lt; 1 and math.abs(maat.Y - luchtH) &lt; 1 then return end
 		luchtW, luchtH = maat.X, maat.Y
 		zaaiWolken()
-		-- @media (max-width: 720px) { .multiplier-display { font-size: 64px } }
-		local groot = if luchtW &lt; 720 then 64 else 96
+		-- @media (max-width: 900px) { .multiplier-display { font-size: 64px } }
+		local groot = if luchtW &lt; 900 then 64 else 96
 		multTekst.TextSize = groot
 		multSchaduw.TextSize = groot
 	end
@@ -9307,15 +9311,16 @@ function Crash.build(ouder: Instance): ()
 			if nu.cashed and not was.cashed then
 				-- De server heeft automatisch uitgestapt; de knop deed dat niet, want die
 				-- zegt het zelf al.
+				-- `+$x @ yx · AUTO`: de webversie zet er AUTO achter als het automatisch ging.
 				Common.toast("+$" .. Money.fmt(nu.payout or 0)
-					.. " @ " .. Money.fmt(nu.cashed) .. "\u{00D7}", "green")
+					.. " @ " .. Money.fmt(nu.cashed) .. "x \u{00B7} AUTO", "green")
 			end
 		end
 		if s.phase == "crashed" and nu and not nu.cashed and not gezien["#verlies"] then
 			gezien["#verlies"] = true
 			-- `LOST $x @ yx` in rood, net als mpSettle in de webversie.
 			Common.toast("LOST $" .. Money.fmt(nu.bet)
-				.. " @ " .. Money.fmt(s.crashAt or 1) .. "\u{00D7}", "red")
+				.. " @ " .. Money.fmt(s.crashAt or 1) .. "x", "red")
 		end
 
 		toonSpelers()
@@ -9395,13 +9400,14 @@ function Crash.build(ouder: Instance): ()
 			-- Het doel gaat mee met de inzet: de server stapt er zelf op uit, op zijn eigen
 			-- klok. Zou het scherm dat doen, dan kost een haperende verbinding je de hele
 			-- inzet terwijl het spel een vast getal belooft.
-			if Common.call("Bet", "crash", betBox.get(), if autoAan then autoDoel() else nil) then
-				Common.toast("BET PLACED", "green")
-			end
+			-- Geen melding bij het inzetten: de knop wordt WAITING… en je regel verschijnt
+			-- in YOUR ROUND. De webversie zegt er niets bij.
+			Common.call("Bet", "crash", betBox.get(), if autoAan then autoDoel() else nil)
 		elseif stand.phase == "flying" then
 			local res = Common.call("CashOut", "crash")
 			if res then
-				Common.toast("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
+				-- `+$x @ yx`, met de @ die de webversie gebruikt.
+				Common.toast("+$" .. Money.fmt(res.payout) .. " @ " .. Money.fmt(res.mult) .. "x", "green")
 			end
 		end
 		zetKnop()
