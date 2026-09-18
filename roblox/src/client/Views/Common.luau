@@ -424,12 +424,13 @@ function Common.columns(
 	-- Waar het spel zelf in komt: gecentreerd, zoals het bord in de webversie.
 	local bord = Instance.new("Frame")
 	bord.Name = "Board"
-	local pad = if kaal then 0 else Theme.size.panelPad
+	-- `.board` is ruimer dan `.panel`: 22 padding en 18 tussen zijn kinderen, niet 18 en 14.
+	local pad = if kaal then 0 else Theme.size.boardPad
 	bord.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
 	bord.Position = UDim2.fromOffset(pad, pad)
 	bord.BackgroundTransparency = 1
 	bord.Parent = bordVak
-	local bordLijst = UI.list(bord, Theme.size.asideGap)
+	local bordLijst = UI.list(bord, if kaal then Theme.size.asideGap else Theme.size.boardGap)
 	if not kaal then
 		bordLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		bordLijst.VerticalAlignment = Enum.VerticalAlignment.Center

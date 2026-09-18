@@ -1286,7 +1286,8 @@ Theme.alpha = {
 	tagNeon    = 0.88,   -- rgba(62,207,142,0.12)
 	tagGold    = 0.90,   -- rgba(224,181,85,0.10)
 	locked     = 0.65,   -- opacity 0.35
-	disabled   = 0.40,   -- opacity 0.6
+	disabled   = 0.40,   -- .btn-primary:disabled opacity 0.6
+	disabledSec = 0.65,  -- .btn-secondary:disabled opacity 0.35 -- veel doffer dan een primaire
 }
 
 Theme.font = {
@@ -1326,6 +1327,16 @@ Theme.size = {
 	navPadX     = 20,
 	navGap      = 16,
 	pad         = 12,
+	-- `.payout-line { font-size: 11px; padding: 6px 0; border-bottom: 1px solid }`: een
+	-- regelvak van 14, zes lucht boven en onder, plus het haarlijntje eronder. Zeven
+	-- schermen tekenen zo'n regel, dus het getal staat hier en niet zeven keer los.
+	payoutRow   = 27,
+	-- `.board { padding: 22px; gap: 18px }`: het speelveld rechts is ruimer dan een gewoon
+	-- paneel, dat 18 padding heeft. Plinko en de paardenrace zetten hem in de markup zelf
+	-- op 14 terug.
+	boardPad    = 22,
+	boardGap    = 18,
+	boardPadSm  = 14,
 }
 
 -- De lettergroottes uit de CSS, met de naam van waar ze vandaan komen.
@@ -1807,11 +1818,21 @@ end
 
 -- Een knop uitzetten zoals :disabled in de CSS: nog zichtbaar, maar niet aan te klikken.
 function UI.setEnabled(b: TextButton, aan: boolean): ()
+	local vol = b.Name == "Primary" or b.Name == "Danger"
 	b.Active = aan
 	b.AutoButtonColor = false
-	b.TextTransparency = if aan then 0 else Theme.alpha.disabled
+	-- De CSS dimt de twee soorten verschillend: `.btn-primary:disabled` blijft op 0,6 nog
+	-- goed leesbaar, `.btn-secondary:disabled` zakt naar 0,35 en is duidelijk uit.
+	b.TextTransparency = if aan then 0
+		elseif vol then Theme.alpha.disabled
+		else Theme.alpha.disabledSec
 	if b.BackgroundTransparency &lt; 0.9 then
-		b.BackgroundTransparency = if aan then (if b.Name == "Primary" or b.Name == "Danger" then 0 else Theme.alpha.buttonBg) else 0.7
+		b.BackgroundTransparency = if aan then (if vol then 0 else Theme.alpha.buttonBg) else 0.7
+	end
+	-- Een rand dimt mee; anders blijft er een scherpe lijn om een uitgezette knop staan.
+	local rand = b:FindFirstChildOfClass("UIStroke")
+	if rand then
+		rand.Transparency = if aan then 0 else (if vol then Theme.alpha.disabled else Theme.alpha.disabledSec)
 	end
 end
 
@@ -6729,7 +6750,7 @@ local STREEP = Color3.fromHex("1a3a1a")   -- .payout-line border-bottom
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -7473,12 +7494,13 @@ function Common.columns(
 	-- Waar het spel zelf in komt: gecentreerd, zoals het bord in de webversie.
 	local bord = Instance.new("Frame")
 	bord.Name = "Board"
-	local pad = if kaal then 0 else Theme.size.panelPad
+	-- `.board` is ruimer dan `.panel`: 22 padding en 18 tussen zijn kinderen, niet 18 en 14.
+	local pad = if kaal then 0 else Theme.size.boardPad
 	bord.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
 	bord.Position = UDim2.fromOffset(pad, pad)
 	bord.BackgroundTransparency = 1
 	bord.Parent = bordVak
-	local bordLijst = UI.list(bord, Theme.size.asideGap)
+	local bordLijst = UI.list(bord, if kaal then Theme.size.asideGap else Theme.size.boardGap)
 	if not kaal then
 		bordLijst.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		bordLijst.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -10387,7 +10409,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -11160,7 +11182,7 @@ end
 -- wordt) plus het haarlijntje zelf: zevenentwintig hoog. De twee regels staan in de CSS
 -- pal tegen elkaar, dus ze komen in een eigen omhulsel zonder tussenruimte -- zie
 -- payoutBlok hieronder.
-local PAYOUT_HOOG = 27
+local PAYOUT_HOOG = Theme.size.payoutRow
 
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3): TextLabel
 	local rij = Instance.new("Frame")
@@ -11791,7 +11813,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -11819,7 +11841,8 @@ end
 local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (string, string) -&gt; (TextButton, UIStroke))
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	seg.Size = UDim2.new(1, 0, 0, 30)   -- 11px tekst met padding 8 boven en onder
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.LayoutOrder = orde
 	seg.Parent = ouder
@@ -11853,12 +11876,19 @@ end
 function Plinko.build(ouder: Instance): ()
 	local bord, bediening = Common.columns(ouder, "PLINKO")
 
+	-- `.panel.board` staat bij dit scherm in de markup op `padding: 14px`, smaller dan de
+	-- 22 die `.board` aanhoudt. Net als bij de paardenrace: aan alle kanten acht pixels
+	-- minder rand, dus acht pixels meer bord.
+	local pad = Theme.size.boardPadSm
+	bord.Position = UDim2.fromOffset(pad, pad)
+	bord.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
+
 	-- ---------- het bord ----------
 	-- `.plinko-wrap` vult wat het bord overhoudt, met de uitslagbalk eronder: hoogte min de
 	-- balk en de tussenruimte. De min-height van 340 staat er ook in de CSS.
 	local vak = Instance.new("Frame")
 	vak.Name = "PlinkoWrap"
-	vak.Size = UDim2.new(1, 0, 1, -(STRIP_H + Theme.size.asideGap))
+	vak.Size = UDim2.new(1, 0, 1, -(STRIP_H + Theme.size.boardGap))
 	vak.BackgroundTransparency = 1
 	vak.Parent = bord
 	local minHoogte = Instance.new("UISizeConstraint")
@@ -12810,7 +12840,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, waarde: string, kleur: Color3): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- padding 6 boven en onder om een regel van 11
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 
@@ -13520,7 +13550,7 @@ local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLa
 	-- De 8 pixels erboven zijn de `margin-bottom: 14px` van `.field-group` min de 6 die de
 	-- UIListLayout van het paneel er al tussen zet; één lijst kan maar één tussenruimte.
 	local LUCHT = 8
-	local HOOG = 27
+	local HOOG = Theme.size.payoutRow
 
 	local rij = Instance.new("Frame")
 	rij.Name = "PayoutLine"
@@ -14242,7 +14272,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 26)   -- 6 boven, 11px regel, 6 onder, plus het haarlijntje
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -14322,7 +14352,8 @@ function Tower.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen, de gekozene in neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	seg.Size = UDim2.new(1, 0, 0, 30)   -- 11px tekst met padding 8 boven en onder
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.Parent = diffVeld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)

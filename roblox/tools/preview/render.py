@@ -214,6 +214,14 @@ def plaats(n, x, y, b, h, uit, diepte=0):
         groep = '<g transform="rotate(%.2f %.2f %.2f)">' % (rot, x + b / 2, y + h / 2)
         uit.append(groep)
 
+    # CanvasGroup.GroupTransparency: de hele inhoud gaat als geheel doorschijnen, niet elk
+    # onderdeel apart. Zo dimt de webversie een veld dat nog niet aan de beurt is.
+    groepDek = None
+    gt = p.get("GroupTransparency", 0) or 0
+    if gt > 0.001:
+        groepDek = '<g opacity="%.3f">' % max(0.0, 1 - gt)
+        uit.append(groepDek)
+
     klasse = n["class"]
     if klasse in ("Frame", "TextLabel", "TextButton", "TextBox", "ScrollingFrame", "ImageLabel"):
         doorzicht = p.get("BackgroundTransparency", 0)
@@ -377,6 +385,8 @@ def plaats(n, x, y, b, h, uit, diepte=0):
             plaats(k, bx + kx, by + ky, kb, kh, uit, diepte + 1)
 
     if clip:
+        uit.append("</g>")
+    if groepDek:
         uit.append("</g>")
     if groep:
         uit.append("</g>")

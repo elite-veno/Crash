@@ -166,7 +166,7 @@ local STREEP = Color3.fromHex("1a3a1a")   -- .payout-line border-bottom
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder

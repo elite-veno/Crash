@@ -63,7 +63,7 @@ end
 -- wordt) plus het haarlijntje zelf: zevenentwintig hoog. De twee regels staan in de CSS
 -- pal tegen elkaar, dus ze komen in een eigen omhulsel zonder tussenruimte -- zie
 -- payoutBlok hieronder.
-local PAYOUT_HOOG = 27
+local PAYOUT_HOOG = Theme.size.payoutRow
 
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3): TextLabel
 	local rij = Instance.new("Frame")

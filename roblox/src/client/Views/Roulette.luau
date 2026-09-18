@@ -96,7 +96,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, waarde: string, kleur: Color3): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- padding 6 boven en onder om een regel van 11
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 

@@ -48,7 +48,7 @@ local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLa
 	-- De 8 pixels erboven zijn de `margin-bottom: 14px` van `.field-group` min de 6 die de
 	-- UIListLayout van het paneel er al tussen zet; één lijst kan maar één tussenruimte.
 	local LUCHT = 8
-	local HOOG = 27
+	local HOOG = Theme.size.payoutRow
 
 	local rij = Instance.new("Frame")
 	rij.Name = "PayoutLine"

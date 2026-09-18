@@ -88,6 +88,8 @@ local STANDAARD = {
 	TextWrapped = false, RichText = false, Active = true, AutoButtonColor = true,
 	TextEditable = true, ScrollBarThickness = 12, Thickness = 1, Transparency = 0,
 	LineHeight = 1,
+	-- Een CanvasGroup tekent zijn hele inhoud en laat die daarna als geheel doorschijnen.
+	GroupTransparency = 0,
 	-- Zoals Roblox ze standaard heeft. Vooral TextXAlignment telt: een knop die er zelf
 	-- niets over zegt zet zijn tekst in het midden, en de tekenaar zette hem links --
 	-- waardoor elke knop in de preview verkeerd stond zonder dat er iets mis was.

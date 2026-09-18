@@ -450,11 +450,21 @@ end
 
 -- Een knop uitzetten zoals :disabled in de CSS: nog zichtbaar, maar niet aan te klikken.
 function UI.setEnabled(b: TextButton, aan: boolean): ()
+	local vol = b.Name == "Primary" or b.Name == "Danger"
 	b.Active = aan
 	b.AutoButtonColor = false
-	b.TextTransparency = if aan then 0 else Theme.alpha.disabled
+	-- De CSS dimt de twee soorten verschillend: `.btn-primary:disabled` blijft op 0,6 nog
+	-- goed leesbaar, `.btn-secondary:disabled` zakt naar 0,35 en is duidelijk uit.
+	b.TextTransparency = if aan then 0
+		elseif vol then Theme.alpha.disabled
+		else Theme.alpha.disabledSec
 	if b.BackgroundTransparency < 0.9 then
-		b.BackgroundTransparency = if aan then (if b.Name == "Primary" or b.Name == "Danger" then 0 else Theme.alpha.buttonBg) else 0.7
+		b.BackgroundTransparency = if aan then (if vol then 0 else Theme.alpha.buttonBg) else 0.7
+	end
+	-- Een rand dimt mee; anders blijft er een scherpe lijn om een uitgezette knop staan.
+	local rand = b:FindFirstChildOfClass("UIStroke")
+	if rand then
+		rand.Transparency = if aan then 0 else (if vol then Theme.alpha.disabled else Theme.alpha.disabledSec)
 	end
 end
 

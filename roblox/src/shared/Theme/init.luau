@@ -46,7 +46,8 @@ Theme.alpha = {
 	tagNeon    = 0.88,   -- rgba(62,207,142,0.12)
 	tagGold    = 0.90,   -- rgba(224,181,85,0.10)
 	locked     = 0.65,   -- opacity 0.35
-	disabled   = 0.40,   -- opacity 0.6
+	disabled   = 0.40,   -- .btn-primary:disabled opacity 0.6
+	disabledSec = 0.65,  -- .btn-secondary:disabled opacity 0.35 -- veel doffer dan een primaire
 }
 
 Theme.font = {
@@ -86,6 +87,16 @@ Theme.size = {
 	navPadX     = 20,
 	navGap      = 16,
 	pad         = 12,
+	-- `.payout-line { font-size: 11px; padding: 6px 0; border-bottom: 1px solid }`: een
+	-- regelvak van 14, zes lucht boven en onder, plus het haarlijntje eronder. Zeven
+	-- schermen tekenen zo'n regel, dus het getal staat hier en niet zeven keer los.
+	payoutRow   = 27,
+	-- `.board { padding: 22px; gap: 18px }`: het speelveld rechts is ruimer dan een gewoon
+	-- paneel, dat 18 padding heeft. Plinko en de paardenrace zetten hem in de markup zelf
+	-- op 14 terug.
+	boardPad    = 22,
+	boardGap    = 18,
+	boardPadSm  = 14,
 }
 
 -- De lettergroottes uit de CSS, met de naam van waar ze vandaan komen.

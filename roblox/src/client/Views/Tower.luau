@@ -71,7 +71,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, kleur: Color3, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 26)   -- 6 boven, 11px regel, 6 onder, plus het haarlijntje
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -151,7 +151,8 @@ function Tower.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen, de gekozene in neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	seg.Size = UDim2.new(1, 0, 0, 30)   -- 11px tekst met padding 8 boven en onder
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.Parent = diffVeld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)

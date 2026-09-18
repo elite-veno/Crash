@@ -153,7 +153,7 @@ end
 local function payoutRegel(ouder: Instance, naam: string, orde: number): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, 28)   -- 11px tekst met padding 6 boven en onder
+	rij.Size = UDim2.new(1, 0, 0, Theme.size.payoutRow)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -181,7 +181,8 @@ end
 local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (string, string) -> (TextButton, UIStroke))
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	seg.Size = UDim2.new(1, 0, 0, 30)   -- 11px tekst met padding 8 boven en onder
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.LayoutOrder = orde
 	seg.Parent = ouder
@@ -215,12 +216,19 @@ end
 function Plinko.build(ouder: Instance): ()
 	local bord, bediening = Common.columns(ouder, "PLINKO")
 
+	-- `.panel.board` staat bij dit scherm in de markup op `padding: 14px`, smaller dan de
+	-- 22 die `.board` aanhoudt. Net als bij de paardenrace: aan alle kanten acht pixels
+	-- minder rand, dus acht pixels meer bord.
+	local pad = Theme.size.boardPadSm
+	bord.Position = UDim2.fromOffset(pad, pad)
+	bord.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
+
 	-- ---------- het bord ----------
 	-- `.plinko-wrap` vult wat het bord overhoudt, met de uitslagbalk eronder: hoogte min de
 	-- balk en de tussenruimte. De min-height van 340 staat er ook in de CSS.
 	local vak = Instance.new("Frame")
 	vak.Name = "PlinkoWrap"
-	vak.Size = UDim2.new(1, 0, 1, -(STRIP_H + Theme.size.asideGap))
+	vak.Size = UDim2.new(1, 0, 1, -(STRIP_H + Theme.size.boardGap))
 	vak.BackgroundTransparency = 1
 	vak.Parent = bord
 	local minHoogte = Instance.new("UISizeConstraint")
