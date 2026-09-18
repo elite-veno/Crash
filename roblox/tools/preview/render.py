@@ -7,6 +7,7 @@ rotatie. Het is geen exacte kopie van de engine -- tekstbreedte wordt geschat --
 wel meteen of een paneel op de verkeerde plek staat of een bord te klein is.
 """
 import re
+import math
 import os
 import json
 import sys
@@ -103,6 +104,58 @@ def breekRegels(stukken, maat, font, breedte):
     if regel:
         regels.append(regel)
     return regels or [[]]
+
+
+def verloopStops(verloop, basis):
+    """De stops van een UIGradient als SVG: kleur en doorzichtigheid samen.
+
+    Roblox houdt die twee apart -- Color is een ColorSequence, Transparency een
+    NumberSequence -- en ze mogen hun eigen tijdstippen hebben. Hier worden ze samengelegd,
+    want een SVG-stop draagt allebei. Zonder de doorzichtigheid tekende een verloop dat naar
+    niets uitdooft hier als een volle vlakte.
+    """
+    # Beide velden kunnen ook een kaal getal of niets zijn: een UIGradient die er niets
+    # over zegt staat op de standaardwaarde en wordt dan niet als reeks weggeschreven.
+    def reeks(veld):
+        v = verloop["props"].get(veld)
+        return (v.get("k") or []) if isinstance(v, dict) else []
+
+    kp = reeks("Color")
+    tp = reeks("Transparency")
+    kleuren = [(k.get("t", 0), kleur(k["v"])) for k in kp if isinstance(k.get("v"), dict)]
+    doorzicht = [(k.get("t", 0), k.get("v", 0)) for k in tp if isinstance(k.get("v"), (int, float))]
+    if not kleuren and not doorzicht:
+        return ""
+    if not kleuren:
+        kleuren = [(0.0, basis), (1.0, basis)]
+
+    def waarde(punten, t, standaard):
+        if not punten:
+            return standaard
+        if t <= punten[0][0]:
+            return punten[0][1]
+        if t >= punten[-1][0]:
+            return punten[-1][1]
+        for i in range(1, len(punten)):
+            t0, v0 = punten[i - 1]
+            t1, v1 = punten[i]
+            if t <= t1:
+                if t1 == t0:
+                    return v1
+                f = (t - t0) / (t1 - t0)
+                if isinstance(v0, str):
+                    return v0 if f < 0.5 else v1
+                return v0 + (v1 - v0) * f
+        return punten[-1][1]
+
+    tijden = sorted({t for t, _ in kleuren} | {t for t, _ in doorzicht})
+    uit = []
+    for t in tijden:
+        c = waarde(kleuren, t, basis)
+        d = waarde(doorzicht, t, 0.0)
+        uit.append('<stop offset="%.4f" stop-color="%s" stop-opacity="%.3f"/>'
+                   % (t, c, max(0.0, 1.0 - d)))
+    return "".join(uit)
 
 
 LAYOUTS = ("UIListLayout", "UIGridLayout", "UIPadding", "UICorner", "UIStroke", "UIGradient",
@@ -243,19 +296,19 @@ def plaats(n, x, y, b, h, uit, diepte=0):
             verloop = kind(n, "UIGradient")
             vul = kleur(p.get("BackgroundColor3"), "#ffffff")
             if verloop:
-                kps = verloop["props"].get("Color", {}).get("k", [])
-                if len(kps) >= 2 and isinstance(kps[0].get("v"), dict):
-                    van = kleur(kps[0]["v"])
-                    tot = kleur(kps[-1]["v"])
-                    draai = verloop["props"].get("Rotation", 0)
-                    gid = "g%d" % len(uit)
-                    x2, y2 = (0, 1) if abs(draai - 90) < 1 else (1, 0)
-                    if abs(draai - 135) < 1:
-                        x2, y2 = 1, 1
+                gid = "g%d" % len(uit)
+                stops = verloopStops(verloop, vul)
+                if stops:
+                    # De richting uit Rotation: 0 is links naar rechts, en de hoek loopt
+                    # met de klok mee omdat y in Roblox naar beneden wijst. De lijn gaat
+                    # door het midden van het vak, dus hij begint en eindigt een halve
+                    # slag aan weerszijden daarvan.
+                    draai = math.radians(verloop["props"].get("Rotation", 0) or 0)
+                    dx, dy = math.cos(draai) / 2, math.sin(draai) / 2
                     uit.append(
-                        '<defs><linearGradient id="%s" x1="0" y1="0" x2="%d" y2="%d">'
-                        '<stop offset="0" stop-color="%s"/><stop offset="1" stop-color="%s"/>'
-                        "</linearGradient></defs>" % (gid, x2, y2, van, tot))
+                        '<defs><linearGradient id="%s" x1="%.4f" y1="%.4f" x2="%.4f" y2="%.4f">'
+                        "%s</linearGradient></defs>"
+                        % (gid, 0.5 - dx, 0.5 - dy, 0.5 + dx, 0.5 + dy, stops))
                     vul = "url(#%s)" % gid
             uit.append(
                 '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%.1f" fill="%s" '

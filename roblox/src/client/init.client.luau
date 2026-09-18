@@ -53,6 +53,36 @@ root.BackgroundColor3 = Theme.color.bg
 root.BorderSizePixel = 0
 root.Parent = gui
 
+-- De twee gloedvlekken die `body` over die achtergrond legt:
+--   radial-gradient(ellipse at top left,     #16202a 0%, transparent 55%)
+--   radial-gradient(ellipse at bottom right, #131b23 0%, transparent 55%)
+--
+-- Roblox kent geen radiaal verloop, alleen een lineair. Een verloop dat vanuit de hoek
+-- schuin wegvalt komt er dicht bij: in de hoek precies de goede kleur, en op 55% van de
+-- diagonaal weg. De vorm van de uitdoving is een lijn in plaats van een ellips, maar dat
+-- is over een verschil van een paar tinten niet te zien -- en zonder deze twee is de hele
+-- achtergrond overal even donker, terwijl hij op de site naar de hoeken toe oplicht.
+local function gloed(kleur: Color3, hoek: number)
+    local f = Instance.new("Frame")
+    f.Name = "Glow"
+    f.Size = UDim2.fromScale(1, 1)
+    f.BackgroundColor3 = kleur
+    f.BorderSizePixel = 0
+    f.ZIndex = 0
+    f.Parent = root
+    local g = Instance.new("UIGradient")
+    g.Rotation = hoek
+    g.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(0.55, 1),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    g.Parent = f
+end
+
+gloed(Color3.fromHex("16202a"), 45)    -- vanuit linksboven
+gloed(Color3.fromHex("131b23"), 225)   -- vanuit rechtsonder
+
 -- ---------- de schermen ----------
 -- `groep` is nil voor een scherm dat wel bestaat maar niet in de balk staat: de twee
 -- VIP-spellen zijn alleen vanaf de zone zelf te bereiken, net als in de markup.
