@@ -119,7 +119,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 	local heroKop = UI.label(hero, "VIP ZONE", {
 		size = 40, color = Theme.color.neon, font = Theme.font.uiBold,
 	})
-	heroKop.Size = UDim2.new(1, 0, 0, 46)
+	heroKop.Size = UDim2.new(1, 0, 0, 40)   -- `.home-title` heeft line-height: 1, dus precies de tekstgrootte
 
 	UI.label(hero, "\u{25BA} FINISH A SPRINT AT #1 AND THE ZONE IS YOURS FOR THE SEASON", {
 		size = Theme.text.body, color = Theme.color.muted,

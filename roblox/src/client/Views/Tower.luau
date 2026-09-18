@@ -151,8 +151,9 @@ function Tower.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen, de gekozene in neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
-	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
+	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
+	seg.Size = UDim2.new(1, 0, 0, 32 - 2)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.Parent = diffVeld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)

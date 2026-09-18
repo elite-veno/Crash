@@ -97,7 +97,7 @@ Achievements.LIST = {
 	  test = function(s) return s.extra.bigWin >= 500 end },
 	{ id = "comeback", icon = "\u{1F504}", tier = "silver", title = "Comeback", desc = "Go from under $50 back above $1,000",
 	  test = function(s) return s.extra.comeback end },
-	{ id = "crash_5x", icon = "\u{2708}", tier = "bronze", title = "High flyer", desc = "Cash out at 5x or higher in Crash",
+	{ id = "crash_5x", icon = "\u{2708}\u{FE0F}", tier = "bronze", title = "High flyer", desc = "Cash out at 5x or higher in Crash",
 	  test = function(s) return max(s, "crash") >= 5 end },
 	{ id = "crash_20x", icon = "\u{1F6F0}", tier = "gold", title = "Stratosphere", desc = "Cash out at 20x or higher in Crash",
 	  test = function(s) return max(s, "crash") >= 20 end },
@@ -121,7 +121,7 @@ Achievements.LIST = {
 	  test = function(s) return max(s, "plinko") >= 500 end },
 	{ id = "bj_natural", icon = "\u{1F0CF}", tier = "bronze", title = "Blackjack!", desc = "Win a hand with a blackjack",
 	  test = function(s) return s.extra.bjNatural end },
-	{ id = "bj_double", icon = "\u{270C}", tier = "silver", title = "Nerve", desc = "Win a doubled hand",
+	{ id = "bj_double", icon = "\u{270C}\u{FE0F}", tier = "silver", title = "Nerve", desc = "Win a doubled hand",
 	  test = function(s) return s.extra.bjDouble end },
 	{ id = "hr_outsider", icon = "\u{1F40E}", tier = "gold", title = "Longshot", desc = "Win a race on a horse paying 8x or more",
 	  test = function(s) return max(s, "horse") >= 8 end },
@@ -200,20 +200,27 @@ function Achievements.record(e: Extra, r: Ronde, saldoNa: number): Extra
 			if r.doubled then e.bjDouble = true end
 		end
 		if r.game == "bus" and (r.steps or 0) >= 4 then e.busFull = true end
-	else
+
+		-- Hoe hoog je in de toren kwam en hoeveel mijnen er lagen tellen alleen als je de
+		-- ronde ook echt hebt binnengehaald. Anders zou je tot de negende verdieping
+		-- klimmen, jezelf opblazen, en toch `Tower keeper` krijgen -- terwijl die prestatie
+		-- juist over uitstappen gaat. In de webversie staat dit blok binnen dezelfde
+		-- `if (ctx.payout > ctx.wager)`.
+		if r.game == "tower" then
+			if (r.level or 0) > e.towerLevel then e.towerLevel = r.level :: number end
+			if r.diff == "master" then e.towerMaster = true end
+		end
+		if r.game == "mines" then
+			if (r.mines or 0) > e.minesMines then e.minesMines = r.mines :: number end
+			if r.perfect and (r.mines or 0) >= 5 and (r.cleared or 0) >= 5 then e.minesPerfect = true end
+		end
+	elseif r.payout < r.wager then
+		-- Alleen een verlies breekt de reeks. Een push -- gelijk spel bij blackjack, waar je
+		-- je inzet terugkrijgt -- is geen verlies, en zo staat het ook in de webversie
+		-- (`else if (ctx.payout < ctx.wager)`). Hier stond `else`, dus een gelijkspel
+		-- zette je reeks op nul terwijl je niets was kwijtgeraakt.
 		e.streak = 0
 		if r.game == "horse" then e.horseStreak = 0 end
-	end
-
-	-- Deze twee tellen ook als de ronde verloren is: hoe hoog je kwam in de toren, en
-	-- hoeveel mijnen er op het veld lagen, zegt iets over het risico dat je nam.
-	if r.game == "tower" then
-		if (r.level or 0) > e.towerLevel then e.towerLevel = r.level :: number end
-		if r.diff == "master" and r.payout > r.wager then e.towerMaster = true end
-	end
-	if r.game == "mines" and r.payout > r.wager then
-		if (r.mines or 0) > e.minesMines then e.minesMines = r.mines :: number end
-		if r.perfect and (r.mines or 0) >= 5 and (r.cleared or 0) >= 5 then e.minesPerfect = true end
 	end
 
 	-- De comeback: onder de vijftig gezeten hebben en daarna weer boven de duizend komen.

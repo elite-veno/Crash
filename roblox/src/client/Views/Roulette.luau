@@ -513,8 +513,9 @@ function Roulette.build(ouder: Instance): ()
 	-- .seg: vijf gelijke knoppen met 4 pixels ertussen; de aangeklikte is neon.
 	local seg = Instance.new("Frame")
 	seg.Name = "ChipSeg"
-	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
-	seg.Size = UDim2.new(1, 0, 0, 32)
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
+	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
+	seg.Size = UDim2.new(1, 0, 0, 32 - 2)
 	seg.BackgroundTransparency = 1
 	seg.Parent = veld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)

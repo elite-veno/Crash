@@ -40,7 +40,8 @@ local TAFEL = 50         -- de gedeelde tafel haalt er vijftig op (limit=50)
 local RIJGAT = 14
 -- `.history-chip { padding: 5px 10px; font-size: 11px; border: 1px solid }`: een regelvak
 -- van 14, vijf lucht boven en onder, plus twee randen.
-local FICHE_H = 26
+-- ...en de rand ligt buiten het vak, dus het vak zelf is er twee kleiner.
+local FICHE_H = 26 - 2
 -- `.history-bar` staat in de markup op `padding: 10px 14px` om die fiches heen.
 local BALK_H = 10 + FICHE_H + 10
 local SPELERS_H = 180    -- .players-section max-height

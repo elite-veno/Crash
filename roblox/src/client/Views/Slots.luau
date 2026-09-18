@@ -36,7 +36,7 @@ local SYMBOOL = 54                -- .slot-reel font-size
 local KAST_B = ROL_B * 3 + ROL_GAT * 2 + KAST_PAD * 2
 local KAST_H = ROL_H + KAST_PAD * 2
 local MACHINE_GAT = 18            -- .slot-machine gap
-local HIST_H = 24                 -- .sl-hist: 11px tekst met 4 padding boven en onder
+local HIST_H = 24 - 2             -- .sl-hist is 24 in de CSS; de rand ligt buiten het vak
 local HIST_GAT = 6                -- .sl-history-row gap
 local MAX_HIST = 8                -- SL.history.length > 8 -> pop()
 

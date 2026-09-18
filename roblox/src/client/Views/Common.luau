@@ -177,15 +177,17 @@ function Common.safetyNet(): ()
 
 	UI.panelTitle(vak, "\u{25BA} SAFETY NET").Size = UDim2.new(1, 0, 0, Theme.text.small + 12)
 
-	local uitleg = UI.label(vak,
-		"You are broke. Stop the marker as close to the middle as you can. $10 is guaranteed; a perfect stop is worth $40.",
-		{ size = Theme.text.tiny, color = Theme.color.muted })
+	-- De vetgedrukte stukken zijn in de CSS goud, net als in elk ander `.odds-note`.
+	local uitleg = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
+	uitleg.RichText = true
+	uitleg.Text = Common.accent(
+		"You are broke. Stop the marker as close to the middle as you can. *$10* is guaranteed; a perfect stop is worth *$40*.")
 	uitleg.TextWrapped = true
 	uitleg.Size = UDim2.new(1, 0, 0, 34)
 
-	local hint = UI.label(vak, "Hit SPACE or tap STOP.", {
-		size = Theme.text.tiny, color = Theme.color.muted,
-	})
+	local hint = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
+	hint.RichText = true
+	hint.Text = Common.accent("Hit *SPACE* or tap STOP.")
 	hint.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 6)
 
 	-- .bk-bar: 34 hoog, met 18 lucht erboven en 10 eronder.
@@ -316,7 +318,7 @@ function Common.safetyNet(): ()
 		sluitKnop.Visible = true
 		hint.Visible = false
 		if r.balance then Common.setBalance(r.balance) end
-		Common.toast(string.format("SAFETY NET +$%s \u{B7} %d%% ACCURACY",
+		Common.toast(string.format("SAFETY NET +$%s \u{B7} %d%% accuracy",
 			Money.fmt(r.payout), math.round((tonumber(r.accuracy) or 0) * 100)), "gold")
 	end
 
@@ -504,7 +506,15 @@ function Common.columns(
 	end
 
 	-- Het saldopaneel, zoals `.panel.balance` in de markup: alles gecentreerd.
+	-- `.balance { text-align: center; padding: 16px }`: smaller dan de 18 van `.panel`.
 	local saldoVak = UI.panel(aside, "Balance")
+	local saldoPad = saldoVak:FindFirstChildOfClass("UIPadding")
+	if saldoPad then
+		saldoPad.PaddingTop = UDim.new(0, 16)
+		saldoPad.PaddingRight = UDim.new(0, 16)
+		saldoPad.PaddingBottom = UDim.new(0, 16)
+		saldoPad.PaddingLeft = UDim.new(0, 16)
+	end
 	UI.list(saldoVak, 2)
 	local kopje = UI.label(saldoVak, "BALANCE", {
 		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
@@ -594,7 +604,8 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	hint.TextTransparency = 0.3
 
 	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
-	local ficherij = Common.row(paneel, 24)
+	-- `.chips`: de rij is precies zo hoog als een fiche met zijn rand eromheen.
+	local ficherij = Common.row(paneel, 28)
 
 	local function huidig(): number
 		return tonumber(vak.Text) or 0
@@ -613,7 +624,8 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	for _, fiche in knoppen do
 		-- .chips is een raster van vier gelijke kolommen met 4 pixels ertussen.
 		local b = UI.chip(ficherij, fiche.naam)
-		b.Size = UDim2.new(0.25, -3, 0, 24)
+		-- Alleen de breedte; de hoogte komt van `.chip` zelf.
+		b.Size = UDim2.new(0.25, -3, 0, b.Size.Y.Offset)
 		b.Activated:Connect(function()
 			zet(fiche.maak())
 		end)
@@ -813,8 +825,11 @@ function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabe
 	rij.Parent = ouder
 	rij.Size = UDim2.new(1, 0, 0, STAT_REGEL)
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted, name = "Key" })
+	-- De waarde staat in dezelfde letter als de rest: `.stats-grid` zet alleen de grootte,
+	-- en `.stat-row` heeft geen eigen font-family. Alleen `.lb-row .val` en `.payout-line
+	-- .v` gebruiken de cijferletter, en dat zijn andere regels.
 	return UI.label(rij, waarde, {
-		size = Theme.text.small, color = Theme.color.text, font = Theme.font.num,
+		size = Theme.text.small, color = Theme.color.text,
 		align = Enum.TextXAlignment.Right, name = "Value",
 	})
 end

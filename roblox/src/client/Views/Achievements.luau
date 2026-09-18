@@ -150,7 +150,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	local kop = UI.label(hero, "ACHIEVEMENTS", {
 		size = 40, color = Theme.color.neon, font = Theme.font.uiBold,
 	})
-	kop.Size = UDim2.new(1, 0, 0, 46)
+	kop.Size = UDim2.new(1, 0, 0, 40)   -- `.home-title` heeft line-height: 1, dus precies de tekstgrootte
 
 	UI.label(hero, "\u{25BA} EARN THEM BY PLAYING \u{00B7} THEY SHOW NEXT TO YOUR NAME ON THE BOARD", {
 		size = Theme.text.body, color = Theme.color.muted,
@@ -656,7 +656,12 @@ function Achievements.build(ouder: Instance): (any) -> ()
 
 		sprintUitslagKop.Text = "\u{25BA} " .. string.upper(tostring(res.label or ""))
 
+		-- Alleen wie er echt iets aan overhoudt. De webversie loopt over `SEASON.awards`,
+		-- en dat zijn de plaatsen waar een prijs aan hangt -- drie. Alle vijfentwintig
+		-- rijen afdrukken zou nummer vier tot en met vijfentwintig vertellen dat ze een
+		-- TITLE hebben gewonnen, en dat is niet zo.
 		for i, plek in top do
+			if i > #Season.PRIZES then break end
 			local rang = tonumber(plek.rank) or i
 			local r = RANGEN[math.clamp(rang, 1, #RANGEN)]
 
@@ -677,8 +682,20 @@ function Achievements.build(ouder: Instance): (any) -> ()
 
 			local naam = UI.label(rij, tostring(plek.name or "\u{2014}"), { size = Theme.text.small })
 			naam.Position = UDim2.fromOffset(44, 0)
-			naam.Size = UDim2.new(1, -(44 + 90), 1, 0)
-			naam.TextTruncate = Enum.TextTruncate.AtEnd
+			naam.AutomaticSize = Enum.AutomaticSize.X
+			naam.Size = UDim2.new(0, 0, 1, 0)
+
+			-- `.lb-row .meta`: de naam van de plaats, zes pixels achter de spelersnaam.
+			-- `nameSpan` zet hem er in de webversie ook achter.
+			local plaats = UI.label(rij, r.naam, {
+				size = Theme.text.small, color = Theme.color.muted,
+			})
+			plaats.AutomaticSize = Enum.AutomaticSize.X
+			plaats.Size = UDim2.new(0, 0, 1, 0)
+			naam:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+				plaats.Position = UDim2.fromOffset(44 + naam.AbsoluteSize.X + 6, 0)
+			end)
+			plaats.Position = UDim2.fromOffset(44 + naam.AbsoluteSize.X + 6, 0)
 
 			-- Een plek levert geen geld meer op; wat je eraan overhoudt is de titel, en voor
 			-- de winnaar de pas naar de VIP-zone.

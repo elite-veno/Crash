@@ -181,8 +181,9 @@ end
 local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (string, string) -> (TextButton, UIStroke))
 	local seg = Instance.new("Frame")
 	seg.Name = "Seg"
-	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14), plus twee randen.
-	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
+	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
+	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
+	seg.Size = UDim2.new(1, 0, 0, 32 - 2)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.LayoutOrder = orde
 	seg.Parent = ouder

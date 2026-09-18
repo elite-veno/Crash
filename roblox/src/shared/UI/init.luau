@@ -242,7 +242,9 @@ function UI.secondary(parent: Instance, text: string): Button
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(1, 0, 0, 36)
+	-- `padding: 12px 0` om een regel van 11 (regelvak 14) plus twee randen is 40 in de CSS;
+	-- de rand ligt hier buiten het vak, dus het vak is er twee kleiner.
+	b.Size = UDim2.new(1, 0, 0, 40 - 2)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
 	hover(b, function()
@@ -257,6 +259,11 @@ function UI.secondary(parent: Instance, text: string): Button
 end
 
 -- .chip: hetzelfde, maar kleiner en met radius 2.
+--
+-- Let op hoe de hoogte hier gerekend wordt, want dat geldt voor elke knop met een rand.
+-- De CSS meet in border-box: `padding: 6px 0` om een regel van 11 (regelvak 14) plus twee
+-- randen van 1 is samen 28. Een UIStroke ligt in Roblox BUITEN het vak, dus het vak zelf
+-- moet 26 zijn om er met rand en al 28 van te maken.
 function UI.chip(parent: Instance, text: string): Button
 	local b = Instance.new("TextButton")
 	b.Name = "Chip"
@@ -268,14 +275,20 @@ function UI.chip(parent: Instance, text: string): Button
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(0, 0, 0, 24)
+	b.Size = UDim2.new(0, 0, 0, 28 - 2)
 	UI.corner(b, Theme.radius.chip)
 	local rand = UI.stroke(b)
+	-- `.chip:hover` vult het fiche helemaal neon en zet de tekst op de achtergrondkleur;
+	-- alleen de rand verkleuren is een ander effect dan wat de CSS doet.
 	hover(b, function()
 		rand.Color = Theme.color.neon
-		b.TextColor3 = Theme.color.neon
+		b.BackgroundColor3 = Theme.color.neon
+		b.BackgroundTransparency = 0
+		b.TextColor3 = Theme.color.bg
 	end, function()
 		rand.Color = Theme.color.border
+		b.BackgroundColor3 = Theme.color.black
+		b.BackgroundTransparency = Theme.alpha.buttonBg
 		b.TextColor3 = Theme.color.text
 	end)
 	b.Parent = parent

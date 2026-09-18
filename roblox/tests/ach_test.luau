@@ -167,14 +167,39 @@ do
 end
 
 do
-	-- De toren onthoudt hoe hoog je kwam, ook als je eraf viel.
+	-- De toren boekt alleen wat je binnenhaalt. Tot de negende verdieping klimmen en
+	-- daarna ontploffen telt niet: `Tower keeper` gaat juist over uitstappen. Zo staat het
+	-- in de webversie, waar dit blok binnen `if (ctx.payout > ctx.wager)` valt.
 	local e = Ach.fresh()
 	Ach.record(e, { game = "tower", wager = 10, payout = 0, mult = 0, level = 7, diff = "master" }, 990)
-	h.check("de hoogte telt ook bij een gevallen ronde", 7, e.towerLevel)
-	h.check("maar master telt alleen bij winst", false, e.towerMaster)
+	h.check("een gevallen ronde boekt de hoogte niet", 0, e.towerLevel)
+	h.check("en master ook niet", false, e.towerMaster)
+
 	Ach.record(e, { game = "tower", wager = 10, payout = 400, mult = 40, level = 4, diff = "master" }, 1390)
 	h.check("gewonnen op master telt wel", true, e.towerMaster)
+	h.check("en de hoogte van die ronde", 4, e.towerLevel)
+
+	Ach.record(e, { game = "tower", wager = 10, payout = 800, mult = 80, level = 7, diff = "easy" }, 2190)
+	h.check("hoger gewonnen telt op", 7, e.towerLevel)
+	Ach.record(e, { game = "tower", wager = 10, payout = 200, mult = 20, level = 3, diff = "easy" }, 2380)
 	h.check("een lagere ronde verlaagt de hoogte niet", 7, e.towerLevel)
+end
+
+do
+	-- Een push is geen verlies: bij blackjack krijg je je inzet terug, dus de reeks loopt
+	-- door. De webversie zet hem alleen op nul bij `ctx.payout < ctx.wager`.
+	local e = Ach.fresh()
+	Ach.record(e, { game = "crash", wager = 10, payout = 30, mult = 3 }, 1020)
+	Ach.record(e, { game = "crash", wager = 10, payout = 30, mult = 3 }, 1040)
+	h.check("twee keer gewonnen is een reeks van twee", 2, e.streak)
+
+	Ach.record(e, { game = "blackjack", wager = 10, payout = 10, mult = 1 }, 1040)
+	h.check("een push breekt de reeks niet", 2, e.streak)
+	h.check("en telt ook niet mee als winst", 2, e.streak)
+
+	Ach.record(e, { game = "crash", wager = 10, payout = 0, mult = 0 }, 1030)
+	h.check("een verlies breekt hem wel", 0, e.streak)
+	h.check("de beste reeks blijft staan", 2, e.bestStreak)
 end
 
 do

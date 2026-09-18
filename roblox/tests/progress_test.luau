@@ -213,11 +213,17 @@ do
 	local w = wereld()
 	local s = w.speler(1, "Aap")
 	local p = w.Profiles.load(s)
+	-- Eraf vallen boekt niets: `Tower keeper` gaat over uitstappen, niet over klimmen.
 	w.Profiles.record(s, "tower", 10, 0, 0, { level = 9, diff = "master" })
-	h.check("de negende verdieping telt, ook al viel je eraf", true, p.achievements.tw_top ~= nil)
-	h.check("maar master telt alleen bij winst", nil, p.achievements.tw_master)
+	h.check("een gevallen ronde telt niet", nil, p.achievements.tw_top)
+	h.check("en master ook niet", nil, p.achievements.tw_master)
+
 	w.Profiles.record(s, "tower", 10, 500, 50, { level = 5, diff = "master" })
 	h.check("gewonnen op master telt wel", true, p.achievements.tw_master ~= nil)
+	h.check("maar vijf verdiepingen is nog geen negen", nil, p.achievements.tw_top)
+
+	w.Profiles.record(s, "tower", 10, 900, 90, { level = 9, diff = "easy" })
+	h.check("negen verdiepingen binnengehaald telt wel", true, p.achievements.tw_top ~= nil)
 end
 
 -- ---------- de drie badges ----------
