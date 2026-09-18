@@ -804,7 +804,6 @@ function Crash.build(ouder: Instance): ()
 	local vorigeRonde: number = -1
 	local knalMoment = 0
 	local autoAan = false
-	local autoGeprobeerd = false
 
 	local function autoDoel(): number
 		return math.max(1.01, Money.round2(tonumber(autoVeld.Text) or 1.01))
@@ -1164,7 +1163,6 @@ function Crash.build(ouder: Instance): ()
 		if id ~= vorigeRonde then
 			vorigeRonde = id
 			gezien = {}
-			autoGeprobeerd = false
 			wisSpoor()
 			knalVak.Visible = false
 		end
@@ -1233,20 +1231,12 @@ function Crash.build(ouder: Instance): ()
 			local hoek = math.atan2(baanY[STAPPEN + 1] - baanY[STAPPEN], baanX[STAPPEN + 1] - baanX[STAPPEN])
 			zetVliegtuig(baanX[STAPPEN + 1], baanY[STAPPEN + 1], hoek)
 
-			-- Automatisch uitstappen vraagt de server om af te rekenen zodra het doel gehaald
-			-- is -- dezelfde aanroep als de knop. Eén poging per ronde: mislukt hij, dan is de
-			-- kans voorbij en moet het scherm niet zestig keer per seconde blijven proberen.
-			local mijn = mijnInzet()
-			if autoAan and mijn and not mijn.cashed and not autoGeprobeerd and m >= autoDoel() then
-				autoGeprobeerd = true
-				task.spawn(function()
-					local res = Common.call("CashOut", "crash")
-					if res then
-						Common.toast("+$" .. Money.fmt(res.payout) .. "  \u{00B7}  " .. Money.fmt(res.mult) .. "\u{00D7}", "green")
-					end
-				end)
-			end
+			-- Automatisch uitstappen gebeurt op de server, op het doel dat met de inzet is
+			-- meegegaan. Het scherm hoeft er niets voor te doen; het ziet de uitslag
+			-- langskomen in de stand, net als bij iedere andere speler.
+			--
 			-- de knop telt mee met de multiplier: CASH OUT $12.34
+			local mijn = mijnInzet()
 			if mijn and not mijn.cashed then
 				knop.Text = "CASH OUT $" .. Money.fmt(Money.floor2(mijn.bet * m))
 			end
@@ -1275,7 +1265,10 @@ function Crash.build(ouder: Instance): ()
 	knop.Activated:Connect(function()
 		if not stand or not knop.Active then return end
 		if stand.phase == "waiting" then
-			if Common.call("Bet", "crash", betBox.get()) then
+			-- Het doel gaat mee met de inzet: de server stapt er zelf op uit, op zijn eigen
+			-- klok. Zou het scherm dat doen, dan kost een haperende verbinding je de hele
+			-- inzet terwijl het spel een vast getal belooft.
+			if Common.call("Bet", "crash", betBox.get(), if autoAan then autoDoel() else nil) then
 				Common.toast("BET PLACED", "green")
 			end
 		elseif stand.phase == "flying" then

@@ -643,4 +643,89 @@ do
 	h.check("zijn naamgenoot niet", nil, na[2].cashed)
 end
 
+-- ---------- crash: automatisch uitstappen ----------
+-- Dit hoort op de server te gebeuren. Deed het scherm het, dan moest het de multiplier
+-- zien, de vraag over de lijn sturen en wachten tot de server hem oppakte -- en bij een
+-- haperende verbinding komt hij na de klap aan. Dan ben je je hele inzet kwijt terwijl het
+-- spel een vast getal belooft. De server kent het crashpunt al, dus hij kan op de cent.
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	-- Een zaad dat een ronde geeft die ver genoeg komt.
+	w.Crash.setSeeder(function() return "test-hoog" end)
+	for _ = 1, 200 do
+		w.Crash.begin()
+		if w.Crash.state().phase == "waiting" then break end
+	end
+
+	p.balance = 100
+	local gezet = w.Crash.bet(s, 100, 2)
+	h.check("de inzet met een doel lukt", true, gezet.ok)
+	h.check("de server geeft het doel terug", 2, gezet.auto)
+
+	local rij = w.Crash.state().bets[1]
+	h.check("het doel staat in het beeld", 2, rij.auto)
+
+	w.Crash.takeOff()
+	local crashAt = w.Crash.huidigCrashPunt()
+	if crashAt >= 2 then
+		-- De vlucht haalt het doel: uitstappen op precies twee keer, niet op wat de klok
+		-- toevallig aanwees toen een verzoek binnenkwam.
+		w.Crash.autoSettle(2)
+		local na = w.Crash.state().bets[1]
+		h.check("er is automatisch uitgestapt", 2, na.cashed)
+		h.check("en wel op precies het doel", 200, na.payout)
+		h.check("het saldo klopt", 200, p.balance)
+
+		-- Nog eens afrekenen mag niets meer doen.
+		w.Crash.autoSettle(5)
+		h.check("niet twee keer uitbetaald", 200, p.balance)
+
+		w.Crash.blowUp()
+		h.check("en de ronde is een keer geboekt", 1, w.Profiles.get(s).stats.crash.rounds)
+		h.check("als gewonnen", 1, w.Profiles.get(s).stats.crash.won)
+	end
+end
+
+do
+	-- Een doel boven het crashpunt wordt niet gehaald; dan is de inzet gewoon weg.
+	local w = wereld()
+	local s, p = meldEen(w)
+	w.Crash.begin()
+	p.balance = 100
+	w.Crash.bet(s, 100, 1000000)
+	w.Crash.takeOff()
+	w.Crash.autoSettle(1000000)
+	h.check("een doel boven het crashpunt haalt het niet", nil, w.Crash.state().bets[1].cashed)
+	w.Crash.blowUp()
+	h.check("en de inzet is weg", 0, p.balance)
+	h.check("de ronde telt als verloren", 1, w.Profiles.get(s).stats.crash.lost)
+end
+
+do
+	-- Wat de client als doel opstuurt gaat door dezelfde zeef als een bedrag.
+	local w = wereld()
+	local s, p = meldEen(w)
+	local function doelNa(waarde: any): any
+		w.Crash.begin()
+		p.balance = 1000
+		local r = w.Crash.bet(s, 10, waarde)
+		local uit = if r.ok then r.auto else nil
+		w.Crash.takeOff()
+		w.Crash.blowUp()
+		return uit
+	end
+	h.check("geen doel is geen doel", nil, doelNa(nil))
+	h.check("tekst is geen doel", nil, doelNa("straks"))
+	h.check("onder 1,01 telt niet", nil, doelNa(1))
+	h.check("nul telt niet", nil, doelNa(0))
+	h.check("negatief telt niet", nil, doelNa(-5))
+	h.check("oneindig telt niet", nil, doelNa(math.huge))
+	h.check("NaN telt niet", nil, doelNa(0 / 0))
+	h.check("belachelijk hoog telt niet", nil, doelNa(1e12))
+	h.check("een gewoon doel telt wel", 2.5, doelNa(2.5))
+	h.check("en wordt op de cent gezet", 1.34, doelNa(1.3357))
+end
+
 h.report("SERVER")

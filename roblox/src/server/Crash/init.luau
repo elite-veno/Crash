@@ -33,6 +33,8 @@ export type Inzet = {
 	-- halverwege de vlucht vertrekt: dan ligt de uitslag vast en wordt er meteen geboekt,
 	-- dus aan het eind van de ronde hoeft dat niet nog eens.
 	geboekt: boolean?,
+	-- Automatisch uitstappen op deze multiplier, als de speler er een heeft opgegeven.
+	auto: number?,
 }
 
 type Ronde = {
@@ -86,6 +88,7 @@ local function beeld(): any
 	for id, i in r.inzetten do
 		table.insert(lijst, {
 			id = id, naam = i.naam, bet = i.bet, cashed = i.cashed, payout = i.payout,
+			auto = i.auto,
 		})
 	end
 	return {
@@ -104,6 +107,14 @@ end
 
 function Crash.state(): any
 	return beeld()
+end
+
+-- Alleen voor de tests: het crashpunt van de lopende ronde. De client krijgt dit pas als
+-- de ronde voorbij is -- dat staat in beeld() -- want anders weet hij waar hij moet
+-- uitstappen voordat hij inzet.
+function Crash.huidigCrashPunt(): number
+	local r = ronde
+	return if r then r.crashAt else 0
 end
 
 local function duw()
@@ -158,6 +169,55 @@ function Crash.takeOff(): ()
 	duw()
 end
 
+-- Automatisch uitstappen wordt door de server zelf gedaan, op zijn eigen klok en precies
+-- op de opgegeven multiplier.
+--
+-- Het scherm kan dit niet: dat ziet de multiplier pas als het beeld er is, moet de vraag
+-- dan nog over de lijn sturen, en de server rekent af op het moment dat hij binnenkomt.
+-- Zit daar vertraging in, dan komt het verzoek na de klap aan en is de inzet weg -- terwijl
+-- het spel belooft dat je op je eigen getal uitstapt. Hier ligt het crashpunt al vast, dus
+-- de server weet van tevoren wie er onderweg uitstapt en wanneer, en betaalt op de cent.
+-- Iedereen afrekenen wiens doel op of onder `m` ligt en die het crashpunt haalt. De lus
+-- roept dit aan op het moment dat de vlucht m bereikt; een test kan het rechtstreeks
+-- aanroepen zonder op een klok te wachten.
+function Crash.autoSettle(m: number): ()
+	local r = ronde
+	if not r or r.fase ~= "flying" then return end
+	local iets = false
+	for id, i in r.inzetten do
+		local doel = i.auto
+		if doel and not i.cashed and not i.geboekt and doel <= m and doel <= r.crashAt then
+			local sp = Players:GetPlayerByUserId(id)
+			if sp then
+				local uit = Money.floor2(i.bet * doel)
+				i.cashed = doel
+				i.payout = uit
+				i.geboekt = true
+				Profiles.give(sp, uit)
+				Profiles.record(sp, "crash", i.bet, uit, doel)
+				iets = true
+			end
+		end
+	end
+	if iets then duw() end
+end
+
+-- De doelen die deze ronde gehaald worden, van laag naar hoog, met het tijdstip erbij.
+-- Een doel boven het crashpunt haalt het niet en staat er dus niet bij.
+local function autoPlan(r: Ronde): { { id: number, doel: number, op: number } }
+	local plan = {}
+	for id, i in r.inzetten do
+		local doel = i.auto
+		if doel and not i.cashed and doel <= r.crashAt then
+			table.insert(plan, { id = id, doel = doel, op = r.opent + Crash.durationFor(doel) })
+		end
+	end
+	table.sort(plan, function(a, b)
+		return a.op < b.op
+	end)
+	return plan
+end
+
 function Crash.blowUp(): ()
 	local r = ronde
 	if not r or r.fase ~= "flying" then return end
@@ -173,6 +233,11 @@ local function lus()
 		local r = ronde :: Ronde
 		task.wait(math.max(0, r.opent - nu()))
 		Crash.takeOff()
+		-- Onderweg de automatische uitstappers afrekenen, elk op zijn eigen moment.
+		for _, d in autoPlan(r) do
+			task.wait(math.max(0, d.op - nu()))
+			Crash.autoSettle(d.doel)
+		end
 		task.wait(math.max(0, r.eindigt - nu()))
 		Crash.blowUp()
 		task.wait(NAPAUZE)
@@ -184,7 +249,22 @@ function Crash.start(): ()
 end
 
 -- ---------- wat een speler mag doen ----------
-function Crash.bet(speler: Player, inzet: any): any
+-- Het doel voor automatisch uitstappen, zoals het van de client komt: nooit op zijn woord.
+-- Onder 1,01 heeft het geen zin (de vlucht begint op 1,00) en boven het hoogste crashpunt
+-- ook niet. NaN en oneindig glippen door een gewone vergelijking heen, dus die apart.
+local AUTO_MIN = 1.01
+local AUTO_MAX = 1000000
+
+local function schoonDoel(raw: any): number?
+	if raw == nil then return nil end
+	local n = tonumber(raw)
+	if not n or n ~= n or n == math.huge or n == -math.huge then return nil end
+	n = math.floor(n * 100 + 0.5) / 100
+	if n < AUTO_MIN or n > AUTO_MAX then return nil end
+	return n
+end
+
+function Crash.bet(speler: Player, inzet: any, autoDoel: any): any
 	local r = ronde
 	if not r then return { ok = false, err = "geen ronde" } end
 	if r.fase ~= "waiting" then return { ok = false, err = "het inzetvenster is gesloten" } end
@@ -197,9 +277,10 @@ function Crash.bet(speler: Player, inzet: any): any
 	if not bet then return { ok = false, err = "ongeldige inzet" } end
 	if not Profiles.take(speler, bet) then return { ok = false, err = "onvoldoende saldo" } end
 
-	r.inzetten[speler.UserId] = { naam = speler.DisplayName, bet = bet }
+	local doel = schoonDoel(autoDoel)
+	r.inzetten[speler.UserId] = { naam = speler.DisplayName, bet = bet, auto = doel }
 	duw()
-	return { ok = true, round = r.id, amount = bet, balance = p.balance }
+	return { ok = true, round = r.id, amount = bet, balance = p.balance, auto = doel }
 end
 
 -- Een inzet die nog niet beslist is: de vlucht loopt en er is nog niet uitgestapt. Het

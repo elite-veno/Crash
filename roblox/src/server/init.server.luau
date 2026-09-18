@@ -142,7 +142,8 @@ Net.fn("Bet").OnServerInvoke = function(speler, spel, inzet, a, b)
 	elseif spel == "mines" then uit = Multi.minesStart(speler, inzet, a)
 	elseif spel == "bus" then uit = Multi.busStart(speler, inzet)
 	elseif spel == "blackjack" then uit = Blackjack.deal(speler, inzet)
-	elseif spel == "crash" then uit = Crash.bet(speler, inzet)
+	-- Bij crash draagt `a` het doel voor automatisch uitstappen, of niets.
+	elseif spel == "crash" then uit = Crash.bet(speler, inzet, a)
 	elseif spel == "safety" then uit = Games.safetyOpen(speler)
 	else uit = { ok = false, err = "onbekend spel" } end
 	stuurProfiel(speler)
