@@ -8224,11 +8224,13 @@ local TAFEL = 50         -- de gedeelde tafel haalt er vijftig op (limit=50)
 -- main.crash-main: grid-template-rows: auto 1fr auto met gap 14.
 local RIJGAT = 14
 -- `.history-chip { padding: 5px 10px; font-size: 11px; border: 1px solid }`: een regelvak
--- van 14, vijf lucht boven en onder, plus twee randen.
--- ...en de rand ligt buiten het vak, dus het vak zelf is er twee kleiner.
-local FICHE_H = 26 - 2
--- `.history-bar` staat in de markup op `padding: 10px 14px` om die fiches heen.
-local BALK_H = 10 + FICHE_H + 10
+-- van 14, vijf lucht boven en onder, plus twee randen is 26 in de CSS. De rand ligt in
+-- Roblox buiten het vak, dus het vak zelf is 24 en neemt met rand en al 26 in.
+local FICHE_ZICHTBAAR = 26
+local FICHE_H = FICHE_ZICHTBAAR - 2
+-- `.history-bar` staat in de markup op `padding: 10px 14px` om die fiches heen. Daar telt
+-- de ruimte die een fiche echt inneemt, dus met zijn rand erbij.
+local BALK_H = 10 + FICHE_ZICHTBAAR + 10
 local SPELERS_H = 180    -- .players-section max-height
 local KOP_H = 30         -- .players-list h3 plus zijn margin-bottom van 10
 local REGEL_H = 24       -- .player-row: 11 pixels tekst met padding 6 boven en onder
