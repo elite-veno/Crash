@@ -475,12 +475,10 @@ function Mines.build(ouder: Instance): ()
 	-- mnSetMines(): hele getallen tussen 1 en 24, en wat er niet door kan blijft staan
 	-- zoals het was. Het veld gaat dicht, want een ander aantal mijnen is een ander veld.
 	local function zetMijnen(ruw: string)
-		local n = tonumber(ruw)
-		if not n then
-			teken()   -- zet de tekst terug op wat er echt staat
-			return
-		end
-		mijnen = math.clamp(math.floor(n), 1, 24)
+		-- `Number(v) || 1` in mnSetMines: wat geen getal is wordt één, niet het vorige
+		-- aantal. Een leeg veld of een typfout zet het veld dus terug op de bodem, en niet
+		-- op iets wat de speler net had weggehaald.
+		mijnen = math.clamp(math.floor(tonumber(ruw) or 1), 1, 24)
 		if not actief then
 			table.clear(geopend)
 			gepakt = 0

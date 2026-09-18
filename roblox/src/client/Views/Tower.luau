@@ -206,6 +206,14 @@ function Tower.build(ouder: Instance): ()
 		b.Activated:Connect(function()
 			if actief then return end
 			diff = naam
+			-- Een andere moeilijkheid is een andere toren: andere breedte, andere quotes.
+			-- Het afgelopen bord laten staan zou een rij van vier tegels naast een knop van
+			-- drie zetten en een uitbetaling tonen die bij de vorige toren hoorde. De
+			-- webversie gooit hem daarom leeg (`TW.rows = []; TW.picks = []; TW.level = 0`).
+			niveau = 0
+			over = false
+			table.clear(keuzes)
+			table.clear(rijen)
 			teken()
 		end)
 		b.Parent = seg

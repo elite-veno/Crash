@@ -6490,8 +6490,12 @@ function Blackjack.build(ouder: Instance): ()
 		spelerPil.Text = pilTekst(res.playerValue, res.playerSoft)
 		dealerPil.Text = pilTekst(res.dealerValue, false)
 		zetInzet(res.bet)
-		-- Dubbelen mag alleen op de eerste twee kaarten, net als aan een echte tafel.
-		zetKnoppen(#res.player == 2 and not gedubbeld)
+		-- Dubbelen mag alleen op de eerste twee kaarten, net als aan een echte tafel -- en
+		-- alleen als er genoeg op de rekening staat voor de tweede helft van de inzet.
+		-- Staat de knop aan zonder dekking, dan weigert de server hem alsnog en heb je een
+		-- knop ingedrukt die nooit iets kon doen.
+		local dekking = Common.balance() + 1e-9 &gt;= (tonumber(res.bet) or 0)
+		zetKnoppen(#res.player == 2 and not gedubbeld and dekking)
 		zetBericht("HIT, STAND OR DOUBLE?", nil)
 	end
 
@@ -6532,9 +6536,9 @@ function Blackjack.build(ouder: Instance): ()
 			zetBericht("LOST" .. dub .. " \u{00B7} -$" .. Money.fmt(inzet), "lose")
 		end
 
-		if res.result == "win" then
-			Common.toast("+$" .. Money.fmt(uit) .. dub, if spelerBJ then "gold" else "green")
-		end
+		-- Geen melding bij winst: bjFinish zet alleen het bericht onder de hand en tekent
+		-- opnieuw. De uitslag staat daar al, groot en in kleur; er nog een melding
+		-- overheen gooien is iets wat de webversie niet doet.
 	end
 
 	local function verwerk(res: any)
@@ -6562,7 +6566,13 @@ function Blackjack.build(ouder: Instance): ()
 	doubleKnop.Activated:Connect(function()
 		-- Active staat uit zodra dubbelen niet meer mag; dat is hier ook de grendel.
 		if not actief or not doubleKnop.Active then return end
-		verwerk(Common.call("Act", "blackjack", "double"))
+		local res = Common.call("Act", "blackjack", "double")
+		if not res then return end
+		-- Hardop zeggen dat het gelukt is. Zonder dit verandert alleen het kleine label
+		-- naast je hand, en kun je achteraf niet zien of de verdubbeling is aangekomen of
+		-- stil geweigerd werd.
+		Common.toast("DOUBLED \u{00B7} STAKE $" .. Money.fmt(res.bet or 0), "gold")
+		verwerk(res)
 	end)
 
 	zetKnoppen(false)
@@ -6606,6 +6616,7 @@ return Blackjack
 -- `repeat(auto-fit, minmax(130px, 1fr))`; bij twee of vier calls komt dat neer op twee of
 -- vier gelijke kolommen die samen de volle breedte vullen, en dat is hier uitgerekend.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
@@ -6849,6 +6860,16 @@ function Bus.build(ouder: Instance): ()
 	uitKnop.TextColor3 = Theme.color.bg
 	uitKnop.Visible = false
 	UI.gradient(uitKnop, Theme.color.gold, GOUD_DONKER, 135)
+	-- `.btn-cashout { animation: pulse-gold 1s infinite }`: dezelfde kloppende gouden rand
+	-- als bij mines en de toren. In de CSS is het een box-shadow; hier een rand die op en
+	-- neer gaat, want Roblox kent geen schaduw.
+	local klopRand = UI.stroke(uitKnop, Theme.color.gold, 2)
+	klopRand.Transparency = 1
+	local klop = TweenService:Create(
+		klopRand,
+		TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.5 }   -- rgba(224,181,85,0.5) uit @keyframes pulse-gold
+	)
 
 	-- ---------- de stand van de rit ----------
 	local actief = false
@@ -6882,6 +6903,8 @@ function Bus.build(ouder: Instance): ()
 	end
 
 	local roep: (string) -&gt; ()
+	-- Wanneer de vorige call werd gedaan, voor de dubbelklikbeveiliging hieronder.
+	local laatsteCall = 0
 
 	-- .bu-option: het label erboven, en eronder wat de rit waard wordt als deze call goed
 	-- gaat plus de kans erop. Een call die niet kan uitkomen is `.dead`: doorzichtig, niet
@@ -6956,6 +6979,10 @@ function Bus.build(ouder: Instance): ()
 		uitKnop.Visible = actief and stap &gt; 0
 		if actief and stap &gt; 0 then
 			uitKnop.Text = "CASH OUT $" .. Money.fmt(Money.floor2(inzet * mult))
+			klop:Play()
+		else
+			klop:Pause()
+			klopRand.Transparency = 1
 		end
 		callLabel.Text = if actief then (stap + 1) .. " / 4" else "\u{2014}"
 		multLabel.Text = if actief and stap &gt; 0 then Money.fmt(mult) .. "\u{00D7}" else "\u{2014}"
@@ -6971,6 +6998,14 @@ function Bus.build(ouder: Instance): ()
 
 	function roep(keuze: string)
 		if not actief then return end
+		-- De knoppenrij wordt na elke call opnieuw opgebouwd, dus de tweede tik van een
+		-- dubbelklik landt op de knop van de VOLGENDE call. Die tik is nooit gewild, en
+		-- hier hangt er een hele rit aan. De webversie negeert daarom alles binnen 350
+		-- milliseconde na de vorige call, en dat doet dit ook.
+		local nu = os.clock()
+		if nu - laatsteCall &lt; 0.35 then return end
+		laatsteCall = nu
+
 		-- De kans van deze call onthouden voordat de server antwoordt: de knoppen van de
 		-- volgende stap zijn er straks mee uit te rekenen.
 		local kans = 0
@@ -11594,12 +11629,10 @@ function Mines.build(ouder: Instance): ()
 	-- mnSetMines(): hele getallen tussen 1 en 24, en wat er niet door kan blijft staan
 	-- zoals het was. Het veld gaat dicht, want een ander aantal mijnen is een ander veld.
 	local function zetMijnen(ruw: string)
-		local n = tonumber(ruw)
-		if not n then
-			teken()   -- zet de tekst terug op wat er echt staat
-			return
-		end
-		mijnen = math.clamp(math.floor(n), 1, 24)
+		-- `Number(v) || 1` in mnSetMines: wat geen getal is wordt één, niet het vorige
+		-- aantal. Een leeg veld of een typfout zet het veld dus terug op de bodem, en niet
+		-- op iets wat de speler net had weggehaald.
+		mijnen = math.clamp(math.floor(tonumber(ruw) or 1), 1, 24)
 		if not actief then
 			table.clear(geopend)
 			gepakt = 0
@@ -14407,6 +14440,14 @@ function Tower.build(ouder: Instance): ()
 		b.Activated:Connect(function()
 			if actief then return end
 			diff = naam
+			-- Een andere moeilijkheid is een andere toren: andere breedte, andere quotes.
+			-- Het afgelopen bord laten staan zou een rij van vier tegels naast een knop van
+			-- drie zetten en een uitbetaling tonen die bij de vorige toren hoorde. De
+			-- webversie gooit hem daarom leeg (`TW.rows = []; TW.picks = []; TW.level = 0`).
+			niveau = 0
+			over = false
+			table.clear(keuzes)
+			table.clear(rijen)
 			teken()
 		end)
 		b.Parent = seg

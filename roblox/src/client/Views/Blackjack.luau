@@ -406,8 +406,12 @@ function Blackjack.build(ouder: Instance): ()
 		spelerPil.Text = pilTekst(res.playerValue, res.playerSoft)
 		dealerPil.Text = pilTekst(res.dealerValue, false)
 		zetInzet(res.bet)
-		-- Dubbelen mag alleen op de eerste twee kaarten, net als aan een echte tafel.
-		zetKnoppen(#res.player == 2 and not gedubbeld)
+		-- Dubbelen mag alleen op de eerste twee kaarten, net als aan een echte tafel -- en
+		-- alleen als er genoeg op de rekening staat voor de tweede helft van de inzet.
+		-- Staat de knop aan zonder dekking, dan weigert de server hem alsnog en heb je een
+		-- knop ingedrukt die nooit iets kon doen.
+		local dekking = Common.balance() + 1e-9 >= (tonumber(res.bet) or 0)
+		zetKnoppen(#res.player == 2 and not gedubbeld and dekking)
 		zetBericht("HIT, STAND OR DOUBLE?", nil)
 	end
 
@@ -448,9 +452,9 @@ function Blackjack.build(ouder: Instance): ()
 			zetBericht("LOST" .. dub .. " \u{00B7} -$" .. Money.fmt(inzet), "lose")
 		end
 
-		if res.result == "win" then
-			Common.toast("+$" .. Money.fmt(uit) .. dub, if spelerBJ then "gold" else "green")
-		end
+		-- Geen melding bij winst: bjFinish zet alleen het bericht onder de hand en tekent
+		-- opnieuw. De uitslag staat daar al, groot en in kleur; er nog een melding
+		-- overheen gooien is iets wat de webversie niet doet.
 	end
 
 	local function verwerk(res: any)
@@ -478,7 +482,13 @@ function Blackjack.build(ouder: Instance): ()
 	doubleKnop.Activated:Connect(function()
 		-- Active staat uit zodra dubbelen niet meer mag; dat is hier ook de grendel.
 		if not actief or not doubleKnop.Active then return end
-		verwerk(Common.call("Act", "blackjack", "double"))
+		local res = Common.call("Act", "blackjack", "double")
+		if not res then return end
+		-- Hardop zeggen dat het gelukt is. Zonder dit verandert alleen het kleine label
+		-- naast je hand, en kun je achteraf niet zien of de verdubbeling is aangekomen of
+		-- stil geweigerd werd.
+		Common.toast("DOUBLED \u{00B7} STAKE $" .. Money.fmt(res.bet or 0), "gold")
+		verwerk(res)
 	end)
 
 	zetKnoppen(false)

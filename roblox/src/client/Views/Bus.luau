@@ -22,6 +22,7 @@
 -- `repeat(auto-fit, minmax(130px, 1fr))`; bij twee of vier calls komt dat neer op twee of
 -- vier gelijke kolommen die samen de volle breedte vullen, en dat is hier uitgerekend.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
@@ -265,6 +266,16 @@ function Bus.build(ouder: Instance): ()
 	uitKnop.TextColor3 = Theme.color.bg
 	uitKnop.Visible = false
 	UI.gradient(uitKnop, Theme.color.gold, GOUD_DONKER, 135)
+	-- `.btn-cashout { animation: pulse-gold 1s infinite }`: dezelfde kloppende gouden rand
+	-- als bij mines en de toren. In de CSS is het een box-shadow; hier een rand die op en
+	-- neer gaat, want Roblox kent geen schaduw.
+	local klopRand = UI.stroke(uitKnop, Theme.color.gold, 2)
+	klopRand.Transparency = 1
+	local klop = TweenService:Create(
+		klopRand,
+		TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.5 }   -- rgba(224,181,85,0.5) uit @keyframes pulse-gold
+	)
 
 	-- ---------- de stand van de rit ----------
 	local actief = false
@@ -298,6 +309,8 @@ function Bus.build(ouder: Instance): ()
 	end
 
 	local roep: (string) -> ()
+	-- Wanneer de vorige call werd gedaan, voor de dubbelklikbeveiliging hieronder.
+	local laatsteCall = 0
 
 	-- .bu-option: het label erboven, en eronder wat de rit waard wordt als deze call goed
 	-- gaat plus de kans erop. Een call die niet kan uitkomen is `.dead`: doorzichtig, niet
@@ -372,6 +385,10 @@ function Bus.build(ouder: Instance): ()
 		uitKnop.Visible = actief and stap > 0
 		if actief and stap > 0 then
 			uitKnop.Text = "CASH OUT $" .. Money.fmt(Money.floor2(inzet * mult))
+			klop:Play()
+		else
+			klop:Pause()
+			klopRand.Transparency = 1
 		end
 		callLabel.Text = if actief then (stap + 1) .. " / 4" else "\u{2014}"
 		multLabel.Text = if actief and stap > 0 then Money.fmt(mult) .. "\u{00D7}" else "\u{2014}"
@@ -387,6 +404,14 @@ function Bus.build(ouder: Instance): ()
 
 	function roep(keuze: string)
 		if not actief then return end
+		-- De knoppenrij wordt na elke call opnieuw opgebouwd, dus de tweede tik van een
+		-- dubbelklik landt op de knop van de VOLGENDE call. Die tik is nooit gewild, en
+		-- hier hangt er een hele rit aan. De webversie negeert daarom alles binnen 350
+		-- milliseconde na de vorige call, en dat doet dit ook.
+		local nu = os.clock()
+		if nu - laatsteCall < 0.35 then return end
+		laatsteCall = nu
+
 		-- De kans van deze call onthouden voordat de server antwoordt: de knoppen van de
 		-- volgende stap zijn er straks mee uit te rekenen.
 		local kans = 0
