@@ -95,7 +95,19 @@ function Net.build(): ()
 	end
 end
 
+-- De namen als verzameling, zodat een tikfout meteen opvalt in plaats van na dertig
+-- seconden wachten. Zonder deze controle wacht WaitForChild op een kanaal dat niet bestaat,
+-- geeft nil terug, en meldt het scherm alleen dat de server niet antwoordt -- terwijl er
+-- niets mis is met de server.
+local BEKEND: { [string]: boolean } = {}
+for _, naam in Net.FUNCTIONS do
+	BEKEND[naam] = true
+end
+
 function Net.fn(naam: string): RemoteFunction
+	if not BEKEND[naam] then
+		error("onbekend kanaal: " .. naam, 2)
+	end
 	return ensure():WaitForChild(naam, 30) :: RemoteFunction
 end
 

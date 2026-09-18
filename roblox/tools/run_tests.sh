@@ -19,6 +19,10 @@ echo "=== model voor Studio bouwen ==="
 python3 tools/build_rbxmx.py || fails=$((fails+1))
 
 echo
+echo "=== kanalen tussen client en server ==="
+python3 tools/check_channels.py || fails=$((fails+1))
+
+echo
 echo "=== typecheck tegen de Roblox-API ==="
 if out=$("$LSP" analyze --definitions=tools/globalTypes.d.luau --sourcemap=sourcemap.json \
           --ignore='tools/**' --ignore='tests/server_sources.luau' \

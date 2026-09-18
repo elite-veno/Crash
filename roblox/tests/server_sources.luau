@@ -1040,12 +1040,22 @@ function Games.horse(speler: Player, inzetten: any): any
 		end
 	end
 	uit = Money.floor2(uit)
-	-- De race is gelopen; de volgende krijgt een nieuw veld.
-	paardenVeld[speler.UserId] = nil
-	settle(speler, "horse", totaal, uit, if uit > 0 then uit / totaal else 0)
+	-- De quote van het winnende paard, niet de uitbetaling gedeeld door alles wat er lag.
+	-- Wie op vijf paarden zet en de winnaar te pakken heeft, wint misschien maar het
+	-- dubbele van zijn totale inzet terwijl het paard acht keer betaalde -- en `Longshot`
+	-- gaat over dat laatste. Zo boekt de webversie het ook: `ret > 0 ? h.mult : 0`.
+	local wonMult = if uit > 0 then Odds.horseMultiplier(kansen[winnaar]) else 0
+
+	-- De race is gelopen, dus het veld ook. Meteen een nieuw veld loten en meesturen: dan
+	-- staan de quotes voor de volgende race op het scherm voordat er weer wordt ingezet,
+	-- in plaats van pas als het scherm er opnieuw om vraagt.
+	local volgend = Odds.horseField()
+	paardenVeld[speler.UserId] = volgend
+
+	settle(speler, "horse", totaal, uit, wonMult)
 	return {
 		ok = true, order = volgorde, probs = kansen, winner = winnaar,
-		payout = uit, balance = p.balance,
+		payout = uit, balance = p.balance, nextProbs = volgend,
 	}
 end
 

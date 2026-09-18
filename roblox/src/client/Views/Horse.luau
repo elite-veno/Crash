@@ -798,6 +798,12 @@ function Horse.build(ouder: Instance): ()
 		end
 		table.clear(inzetten)
 		bezig = false
+		-- Het veld voor de volgende race kwam met de uitslag mee, dus de quotes staan er
+		-- meteen weer -- zonder dat er eerst blind ingezet hoeft te worden.
+		if typeof(res.nextProbs) == "table" then
+			kansen = res.nextProbs
+			winnaar = nil
+		end
 		ververs()
 	end)
 

@@ -421,7 +421,19 @@ function Net.build(): ()
 	end
 end
 
+-- De namen als verzameling, zodat een tikfout meteen opvalt in plaats van na dertig
+-- seconden wachten. Zonder deze controle wacht WaitForChild op een kanaal dat niet bestaat,
+-- geeft nil terug, en meldt het scherm alleen dat de server niet antwoordt -- terwijl er
+-- niets mis is met de server.
+local BEKEND: { [string]: boolean } = {}
+for _, naam in Net.FUNCTIONS do
+	BEKEND[naam] = true
+end
+
 function Net.fn(naam: string): RemoteFunction
+	if not BEKEND[naam] then
+		error("onbekend kanaal: " .. naam, 2)
+	end
 	return ensure():WaitForChild(naam, 30) :: RemoteFunction
 end
 
@@ -2846,12 +2858,22 @@ function Games.horse(speler: Player, inzetten: any): any
 		end
 	end
 	uit = Money.floor2(uit)
-	-- De race is gelopen; de volgende krijgt een nieuw veld.
-	paardenVeld[speler.UserId] = nil
-	settle(speler, "horse", totaal, uit, if uit &gt; 0 then uit / totaal else 0)
+	-- De quote van het winnende paard, niet de uitbetaling gedeeld door alles wat er lag.
+	-- Wie op vijf paarden zet en de winnaar te pakken heeft, wint misschien maar het
+	-- dubbele van zijn totale inzet terwijl het paard acht keer betaalde -- en `Longshot`
+	-- gaat over dat laatste. Zo boekt de webversie het ook: `ret &gt; 0 ? h.mult : 0`.
+	local wonMult = if uit &gt; 0 then Odds.horseMultiplier(kansen[winnaar]) else 0
+
+	-- De race is gelopen, dus het veld ook. Meteen een nieuw veld loten en meesturen: dan
+	-- staan de quotes voor de volgende race op het scherm voordat er weer wordt ingezet,
+	-- in plaats van pas als het scherm er opnieuw om vraagt.
+	local volgend = Odds.horseField()
+	paardenVeld[speler.UserId] = volgend
+
+	settle(speler, "horse", totaal, uit, wonMult)
 	return {
 		ok = true, order = volgorde, probs = kansen, winner = winnaar,
-		payout = uit, balance = p.balance,
+		payout = uit, balance = p.balance, nextProbs = volgend,
 	}
 end
 
@@ -7458,7 +7480,7 @@ function Common.safetyNet(): ()
 	-- Twee vensters tegelijk zou twee klokken geven; de server weigert het ook.
 	if host:FindFirstChild("BrokeModal") then return end
 
-	local start = Common.call("bet", "safety")
+	local start = Common.call("Bet", "safety")
 	if not start then return end
 
 	-- .modal: over alles heen, met een donkere waas erachter.
@@ -7610,7 +7632,7 @@ function Common.safetyNet(): ()
 	local function stop()
 		if not loopt then return end
 		loopt = false
-		local r = Common.call("act", "safety")
+		local r = Common.call("Act", "safety")
 		if not r then
 			-- De server heeft de ronde hoe dan ook gesloten; blijven staan met een
 			-- streepje dat niet meer telt zou misleiden.
@@ -11457,6 +11479,12 @@ function Horse.build(ouder: Instance): ()
 		end
 		table.clear(inzetten)
 		bezig = false
+		-- Het veld voor de volgende race kwam met de uitslag mee, dus de quotes staan er
+		-- meteen weer -- zonder dat er eerst blind ingezet hoeft te worden.
+		if typeof(res.nextProbs) == "table" then
+			kansen = res.nextProbs
+			winnaar = nil
+		end
 		ververs()
 	end)
 

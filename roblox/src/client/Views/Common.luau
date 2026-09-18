@@ -150,7 +150,7 @@ function Common.safetyNet(): ()
 	-- Twee vensters tegelijk zou twee klokken geven; de server weigert het ook.
 	if host:FindFirstChild("BrokeModal") then return end
 
-	local start = Common.call("bet", "safety")
+	local start = Common.call("Bet", "safety")
 	if not start then return end
 
 	-- .modal: over alles heen, met een donkere waas erachter.
@@ -302,7 +302,7 @@ function Common.safetyNet(): ()
 	local function stop()
 		if not loopt then return end
 		loopt = false
-		local r = Common.call("act", "safety")
+		local r = Common.call("Act", "safety")
 		if not r then
 			-- De server heeft de ronde hoe dan ook gesloten; blijven staan met een
 			-- streepje dat niet meer telt zou misleiden.

@@ -533,13 +533,42 @@ do
 		h.check("de race gebruikt het getoonde veld", eerst.probs[i], uitslag.probs[i])
 	end
 
-	-- Daarna staat er een nieuw veld klaar voor de volgende race.
+	-- Daarna staat er een nieuw veld klaar voor de volgende race, en het komt meteen mee
+	-- met de uitslag: anders zou de volgende inzet weer blind zijn tot het scherm er zelf
+	-- om vraagt.
+	h.check("de uitslag draagt het veld voor de volgende race", #w.Odds.HORSES,
+		if typeof(uitslag.nextProbs) == "table" then #uitslag.nextProbs else 0)
 	local na = w.Games.horseField(s)
+	for i = 1, #na.probs do
+		h.check("en dat is het veld dat klaarstaat", uitslag.nextProbs[i], na.probs[i])
+	end
 	local zelfde = true
 	for i = 1, #eerst.probs do
 		if na.probs[i] ~= eerst.probs[i] then zelfde = false break end
 	end
-	h.check("na de race wordt er opnieuw geloot", false, zelfde)
+	h.check("het is een ander veld dan de race die net liep", false, zelfde)
+end
+
+do
+	-- De ronde wordt geboekt op de quote van het winnende paard, niet op de uitbetaling
+	-- gedeeld door alles wat er lag. Zet je op vijf paarden, dan win je misschien maar het
+	-- dubbele van je totale inzet terwijl het paard acht keer betaalde -- en `Longshot`
+	-- gaat over dat laatste.
+	local w = wereld()
+	local s, p = meldEen(w)
+	local veld = w.Games.horseField(s).probs
+
+	p.balance = 1000
+	local inzetten = {}
+	for i = 1, #w.Odds.HORSES do inzetten[i] = 10 end
+	local uitslag = w.Games.horse(s, inzetten)
+	h.check("de race loopt", true, uitslag.ok)
+
+	-- Op alle paarden inzetten betekent dat de winnaar er altijd bij zit.
+	local quote = w.Odds.horseMultiplier(veld[uitslag.winner])
+	h.check("de geboekte multiplier is de quote van de winnaar", quote, p.stats.horse.highest)
+	h.check("en niet de uitbetaling gedeeld door de totale inzet", true,
+		math.abs(quote - (uitslag.payout / 60)) > 0.01)
 end
 
 do
