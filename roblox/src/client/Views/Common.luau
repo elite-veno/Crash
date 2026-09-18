@@ -14,6 +14,11 @@ local Money = require(ReplicatedStorage.Shared.Money)
 
 local Common = {}
 
+-- `.stat-row` is een regel zonder marge in een raster met `line-height: 1`, dus zo hoog als
+-- de letter zelf. Met de zes pixels van `.stats-grid` ertussen komen de regels twintig uit
+-- elkaar te staan, en dat is wat de site laat zien.
+local STAT_REGEL = 14
+
 -- ---------- saldo en meldingen ----------
 -- De schil weet het saldo en heeft het meldingenvak; de schermen vragen het hier op.
 local saldo = Money.START
@@ -604,17 +609,18 @@ function Common.statsPanel(ouder: Instance, spel: string): Frame
 	UI.list(vak, 6)
 	UI.panelTitle(vak, "\u{25BA} statistics")
 
-	local rondes = Common.statRow(vak, "ROUNDS", "0")
-	local won = Common.statRow(vak, "WON", "0")
+	local regels = Common.statRows(vak)
+	local rondes = Common.statRow(regels, "ROUNDS", "0")
+	local won = Common.statRow(regels, "WON", "0")
 	won.TextColor3 = Theme.color.neon
-	local lost = Common.statRow(vak, "LOST", "0")
+	local lost = Common.statRow(regels, "LOST", "0")
 	lost.TextColor3 = Theme.color.red
 	-- Bij crash heet het BEST, bij de rest BEST MULT -- net als in renderStats.
-	local best = Common.statRow(vak, if spel == "crash" then "BEST" else "BEST MULT", "\u{2014}")
+	local best = Common.statRow(regels, if spel == "crash" then "BEST" else "BEST MULT", "\u{2014}")
 	best.TextColor3 = Theme.color.gold
 	local bestRij = best.Parent :: Frame
 	bestRij.Visible = spel == "crash"
-	local winst = Common.statRow(vak, "PROFIT", "+$0.00")
+	local winst = Common.statRow(regels, "PROFIT", "+$0.00")
 	winst.TextColor3 = Theme.color.neon
 
 	table.insert(statsVakken, {
@@ -706,6 +712,28 @@ function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
 	return vak
 end
 
+-- `repeat(auto-fill, minmax(<min>px, 1fr))`: zoveel kolommen van minstens `min` als er
+-- passen, en die rekken daarna samen de rij vol. De minimumbreedte is dus een bodem, geen
+-- maat. Roblox rekent dat niet zelf uit, dus het gebeurt hier, opnieuw bij elke
+-- maatverandering.
+function Common.rekKolommen(
+	vak: GuiObject,
+	raster: UIGridLayout,
+	minBreedte: number,
+	gat: number,
+	hoogte: number
+): ()
+	local function meet()
+		local breed = vak.AbsoluteSize.X
+		if breed <= 0 then return end
+		local kolommen = math.max(1, math.floor((breed + gat) / (minBreedte + gat)))
+		local kolomBreedte = (breed - gat * (kolommen - 1)) / kolommen
+		raster.CellSize = UDim2.fromOffset(math.floor(kolomBreedte), hoogte)
+	end
+	vak:GetPropertyChangedSignal("AbsoluteSize"):Connect(meet)
+	task.defer(meet)
+end
+
 -- ---------- terugkerende stukjes ----------
 -- Een groot vak met een getal erin: de multiplier bij crash, de stand bij blackjack.
 function Common.bigNumber(ouder: Instance, tekst: string, kleur: Color3?): TextLabel
@@ -717,6 +745,19 @@ function Common.bigNumber(ouder: Instance, tekst: string, kleur: Color3?): TextL
 	return t
 end
 
+-- `.stats-grid`: het vak om de regels heen, met zijn eigen afstand van zes. Een paneel zet
+-- er meer lucht tussen zijn onderdelen, en die geldt hier niet.
+function Common.statRows(ouder: Instance): Frame
+	local vak = Instance.new("Frame")
+	vak.Name = "StatRows"
+	vak.BackgroundTransparency = 1
+	vak.Size = UDim2.new(1, 0, 0, 0)
+	vak.AutomaticSize = Enum.AutomaticSize.Y
+	vak.Parent = ouder
+	UI.list(vak, 6)
+	return vak
+end
+
 -- Een regel met een naam links en een waarde rechts, zoals `.stat-row` in de CSS. Geeft
 -- het waardelabel terug, zodat het scherm het kan bijwerken.
 function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabel
@@ -724,7 +765,7 @@ function Common.statRow(ouder: Instance, naam: string, waarde: string): TextLabe
 	rij.Name = "StatRow"
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	rij.Size = UDim2.new(1, 0, 0, STAT_REGEL)
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted, name = "Key" })
 	return UI.label(rij, waarde, {
 		size = Theme.text.small, color = Theme.color.text, font = Theme.font.num,

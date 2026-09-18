@@ -65,11 +65,12 @@ for i, a in Ach.LIST do
 	PLEK[a.id] = i
 end
 
--- `.ach-grid` is `repeat(auto-fill, minmax(260px, 1fr))` met 12 ertussen. Roblox kent geen
--- auto-fill, dus staat hier een vaste cel -- dezelfde als op het profiel, zodat de twee
--- rekken naast elkaar te leggen zijn.
-local KAART_BREED = 264
-local KAART_HOOG = 76
+-- `.ach-grid` is `repeat(auto-fill, minmax(260px, 1fr))` met 12 ertussen: de 260 is een
+-- bodem, en de kolommen die passen rekken daarna de rij vol. `Common.rekKolommen` rekent
+-- dat uit -- dezelfde maten als op het profiel, zodat de twee rekken naast elkaar te
+-- leggen zijn.
+local KAART_MIN = 260
+local KAART_HOOG = 75
 local KAART_GAT = 12
 
 -- `.lb-row` heeft border-bottom rgba(26,58,26,0.5); `.rank-row` rgba(42,50,61,0.6). Roblox
@@ -469,10 +470,11 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	rek.LayoutOrder = 8
 	rek.Parent = blad
 	local rekIndeling = Instance.new("UIGridLayout")
-	rekIndeling.CellSize = UDim2.fromOffset(KAART_BREED, KAART_HOOG)
+	rekIndeling.CellSize = UDim2.fromOffset(KAART_MIN, KAART_HOOG)
 	rekIndeling.CellPadding = UDim2.fromOffset(KAART_GAT, KAART_GAT)
 	rekIndeling.SortOrder = Enum.SortOrder.LayoutOrder
 	rekIndeling.Parent = rek
+	Common.rekKolommen(rek, rekIndeling, KAART_MIN, KAART_GAT, KAART_HOOG)
 
 	-- De lucht onder het rek, uit `<div style="height: 40px">` onderaan de markup.
 	local staart = Instance.new("Frame")

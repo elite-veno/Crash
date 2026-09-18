@@ -292,20 +292,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	rasterLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rasterLayout.Parent = raster
 
-	-- `repeat(auto-fill, minmax(280px, 1fr))`: zoveel kolommen van minstens 280 als er
-	-- passen, en die rekken daarna samen de hele breedte vol. De 280 is dus een bodem, geen
-	-- maat -- met vier kaarten naast elkaar is een kolom hier ruim 320. Roblox rekent dat
-	-- niet zelf uit, dus dat gebeurt hier, opnieuw bij elke maatverandering.
-	local gat = Theme.size.cardGap
-	local function meetRaster()
-		local breed = raster.AbsoluteSize.X
-		if breed <= 0 then return end
-		local kolommen = math.max(1, math.floor((breed + gat) / (Theme.size.cardMin + gat)))
-		local kolomBreedte = (breed - gat * (kolommen - 1)) / kolommen
-		rasterLayout.CellSize = UDim2.fromOffset(math.floor(kolomBreedte), 300)
-	end
-	raster:GetPropertyChangedSignal("AbsoluteSize"):Connect(meetRaster)
-	task.defer(meetRaster)
+	Common.rekKolommen(raster, rasterLayout, Theme.size.cardMin, Theme.size.cardGap, 300)
 
 	for i, k in KAARTEN do
 		tegel(raster, k, ga).LayoutOrder = i

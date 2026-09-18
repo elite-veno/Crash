@@ -70,11 +70,14 @@ local function opVolgorde(open: { [string]: any })
 	return rij
 end
 
--- `.ach-grid` is `repeat(auto-fill, minmax(260px, 1fr))` met 12 ertussen. Roblox kent geen
--- auto-fill, dus staat hier een vaste cel: op een breed scherm levert dat dezelfde vijf
--- kolommen op, en op een smaller scherm vouwt UIGridLayout net zo goed om.
-local KAART_BREED = 264
-local KAART_HOOG = 76
+-- `.ach-grid` is `repeat(auto-fill, minmax(260px, 1fr))` met 12 ertussen: de 260 is een
+-- bodem, en de kolommen die passen rekken daarna de rij vol. Roblox kent die regel niet,
+-- dus `rekKolommen` rekent het uit -- net als bij het spelraster op het beginscherm.
+--
+-- De hoogte is de padding van 12 boven en onder om een vak van 51: nagemeten op de site,
+-- waar de kaarten 87 pixels uit elkaar staan met 12 ertussen.
+local KAART_MIN = 260
+local KAART_HOOG = 75
 local KAART_GAT = 12
 
 local function bedrag(n: number): string
@@ -161,7 +164,9 @@ function Profile.build(ouder: Instance): (any) -> ()
 			size = 30, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
 		})
 		icoon.Size = UDim2.new(1, 0, 0, 34)
-		local badgeNaam = UI.label(vak, "empty", {
+		-- De webversie zet hier "empty" op andermans profiel en "pick a badge below" op dat
+		-- van jezelf. Dit scherm is altijd dat van jezelf, dus altijd die tweede.
+		local badgeNaam = UI.label(vak, "pick a badge below", {
 			size = Theme.text.body, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
 		})
 
@@ -185,9 +190,21 @@ function Profile.build(ouder: Instance): (any) -> ()
 	titelIndeling.Wraps = true
 
 	-- ---------- .prof-grid: TOTALS naast PER GAME ----------
+	local TOTALEN_REGELS = 7
+
+	-- Hoe hoog de rij moet zijn om zoveel regels te laten passen: de padding van .panel,
+	-- de paneelkop met zijn marge, en dan de regels van .stats-grid met 6 ertussen.
+	local function rijHoogte(aantal: number): number
+		local regelH = 14 -- zoals Common.statRow er een neerzet: .stat-row bij line-height 1
+		local kopH = Theme.text.small + 8   -- zoals UI.panelTitle
+		return Theme.size.panelPad * 2 + kopH + 6 + aantal * regelH + math.max(0, aantal - 1) * 6
+	end
+
 	local cijfers = Instance.new("Frame")
 	cijfers.Name = "ProfGrid"
-	cijfers.Size = UDim2.new(1, 0, 0, 230)
+	-- TOTALS heeft zeven regels; die bepalen de hoogte tot er een profiel binnenkomt met
+	-- meer regels aan de PER GAME-kant.
+	cijfers.Size = UDim2.new(1, 0, 0, rijHoogte(TOTALEN_REGELS))
 	cijfers.BackgroundTransparency = 1
 	cijfers.LayoutOrder = 4
 	cijfers.Parent = blad
@@ -213,14 +230,6 @@ function Profile.build(ouder: Instance): (any) -> ()
 		return regels
 	end
 
-	-- Hoe hoog de rij moet zijn om zoveel regels te laten passen: de padding van .panel,
-	-- de paneelkop met zijn marge, en dan de regels van .stats-grid met 6 ertussen.
-	local function rijHoogte(aantal: number): number
-		local regelH = Theme.text.small + 8 -- zoals Common.statRow er een neerzet
-		local kopH = Theme.text.small + 8   -- zoals UI.panelTitle
-		return Theme.size.panelPad * 2 + kopH + 6 + aantal * regelH + math.max(0, aantal - 1) * 6
-	end
-
 	local totalenRegels = halfPaneel("Totals", "\u{25BA} totals", 1)
 	local saldo = Common.statRow(totalenRegels, "BALANCE", "$" .. Money.fmt(Money.START))
 	saldo.TextColor3 = Theme.color.neon
@@ -235,8 +244,6 @@ function Profile.build(ouder: Instance): (any) -> ()
 	winst.TextColor3 = Theme.color.neon
 	local badgeTeller = Common.statRow(totalenRegels, "BADGES", "0 / " .. #Ach.LIST)
 	badgeTeller.TextColor3 = Theme.color.gold
-	local TOTALEN_REGELS = 7
-
 	local perSpelRegels = halfPaneel("PerGame", "\u{25BA} per game", 2)
 
 	-- Zet er meteen de regel neer die de webversie toont als je nog niets gespeeld hebt,
@@ -256,7 +263,10 @@ function Profile.build(ouder: Instance): (any) -> ()
 	badgeKop.LayoutOrder = 5
 	badgeKop.Parent = blad
 	UI.padding4(badgeKop, 0, 0, 16, 0) -- margin-bottom: 24px
-	local _, behaald = UI.sectionHeading(badgeKop, "BADGES", "0 EARNED")
+	-- Ook hier de tekst van je eigen profiel: de telling "n EARNED" hoort bij dat van een
+	-- ander, en dat bestaat hier niet.
+	UI.sectionHeading(badgeKop, "BADGES",
+		"CLICK TO SHOW UP TO THREE \u{00B7} CLICK A SLOT ABOVE TO REMOVE")
 
 	local rek = Instance.new("Frame")
 	rek.Name = "AchGrid"
@@ -266,10 +276,11 @@ function Profile.build(ouder: Instance): (any) -> ()
 	rek.LayoutOrder = 6
 	rek.Parent = blad
 	local rekIndeling = Instance.new("UIGridLayout")
-	rekIndeling.CellSize = UDim2.fromOffset(KAART_BREED, KAART_HOOG)
+	rekIndeling.CellSize = UDim2.fromOffset(KAART_MIN, KAART_HOOG)
 	rekIndeling.CellPadding = UDim2.fromOffset(KAART_GAT, KAART_GAT)
 	rekIndeling.SortOrder = Enum.SortOrder.LayoutOrder
 	rekIndeling.Parent = rek
+	Common.rekKolommen(rek, rekIndeling, KAART_MIN, KAART_GAT, KAART_HOOG)
 
 	type Kaartje = { vak: Frame, rand: UIStroke, icoon: TextLabel, niveau: TextLabel }
 	local kaartjes: { [string]: Kaartje } = {}
@@ -361,7 +372,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 			else
 				v.icoon.Text = "\u{2014}"
 				v.icoon.TextColor3 = Theme.color.muted
-				v.naam.Text = "empty"
+				v.naam.Text = "pick a badge below"
 				v.naam.TextColor3 = Theme.color.muted
 				v.naam.Font = Theme.font.ui
 				v.vak.BackgroundColor3 = Theme.color.black
@@ -403,7 +414,6 @@ function Profile.build(ouder: Instance): (any) -> ()
 			if open[a.id] ~= nil then aantalOpen += 1 end
 		end
 		badgeTeller.Text = aantalOpen .. " / " .. #Ach.LIST
-		behaald.Text = aantalOpen .. " EARNED"
 
 		-- ---------- PER GAME ----------
 		for _, k in perSpelRegels:GetChildren() do
