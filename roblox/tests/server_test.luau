@@ -728,4 +728,41 @@ do
 	h.check("en wordt op de cent gezet", 1.34, doelNa(1.3357))
 end
 
+-- ---------- blackjack: eenentwintig staat vanzelf ----------
+-- In de webversie blijft de hand staan zodra hij precies eenentwintig is
+-- (`else if (v === 21) bjStand()`). Zonder dat kan een speler op eenentwintig nog een kaart
+-- vragen en zich kapot trekken -- een verlies dat nergens door hoeft.
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	local zag21, zagMinder = false, false
+	for _ = 1, 400 do
+		if zag21 and zagMinder then break end
+		p.balance = 1000
+		local gedeeld = w.Blackjack.deal(s, 10)
+		local r = w.Blackjack.get(s)
+		if gedeeld.ok and r then
+			-- Een hand van elf: de volgende kaart maakt er twaalf tot eenentwintig van.
+			r.speler = { { r = "5", s = "\u{2660}" }, { r = "6", s = "\u{2665}" } }
+			local na = w.Blackjack.act(s, "hit")
+			local totaal = (w.Odds.bjValue(na.player or {}))
+			if totaal == 21 then
+				zag21 = true
+				h.check("op eenentwintig is de hand afgerekend", true, na.done == true)
+				h.check("en er staat niets meer open", nil, w.Blackjack.get(s))
+			elseif totaal < 21 then
+				zagMinder = true
+				h.check("onder eenentwintig loopt de hand door", false, na.done == true)
+				h.check("en de hand staat nog open", true, w.Blackjack.get(s) ~= nil)
+				w.Blackjack.act(s, "stand")
+			else
+				w.Blackjack.refund(s)
+			end
+		end
+	end
+	h.check("er is een hand van precies eenentwintig gezien", true, zag21)
+	h.check("en een hand die eronder bleef", true, zagMinder)
+end
+
 h.report("SERVER")

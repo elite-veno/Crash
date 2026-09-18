@@ -2892,8 +2892,16 @@ function Blackjack.act(speler: Player, zet: any): any
 
 	if k == "hit" then
 		table.insert(r.speler, trek(speler))
-		if (Odds.bjValue(r.speler)) &gt; 21 then
+		local totaal = (Odds.bjValue(r.speler))
+		if totaal &gt; 21 then
 			return afrekenen(speler, r, false)
+		end
+		-- Precies eenentwintig: dan staat de hand vanzelf. Zo doet de webversie het ook
+		-- (`else if (v === 21) bjStand()` in bjHit). Zonder dit kan een speler op
+		-- eenentwintig nog een kaart vragen en zich kapot trekken, en dat is een verlies
+		-- dat het spel elders belooft te voorkomen.
+		if totaal == 21 then
+			return afrekenen(speler, r, true)
 		end
 		local b = beeld(r)
 		b.ok = true
