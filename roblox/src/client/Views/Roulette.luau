@@ -488,7 +488,8 @@ function Roulette.build(ouder: Instance): ()
 
 	-- ---------- de bediening links ----------
 	local vakBediening = UI.panel(bediening, "Controls")
-	UI.list(vakBediening, 6)
+	-- Een `.panel` heeft geen tussenruimte: elk blok erin draagt zijn eigen marge.
+	UI.list(vakBediening, 0)
 
 	-- .field-group: "CHIP VALUE" links, het dollarteken in neon als hint rechts.
 	local veld = Instance.new("Frame")
@@ -498,7 +499,7 @@ function Roulette.build(ouder: Instance): ()
 	veld.BackgroundTransparency = 1
 	veld.Parent = vakBediening
 	UI.list(veld, 6)
-	UI.padding4(veld, 0, 0, 8, 0)   -- .field-group margin-bottom 14, met de 6 uit de lijst erbij
+	UI.padding4(veld, 0, 0, 14, 0)   -- .field-group { margin-bottom: 14px }
 
 	local kop = Instance.new("Frame")
 	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
@@ -568,17 +569,21 @@ function Roulette.build(ouder: Instance): ()
 	local totaalLabel = payoutRegel(vakBediening, "TOTAL STAKE", "$0.00", Theme.color.gold)
 	local laatsteLabel = payoutRegel(vakBediening, "LAST RESULT", "\u{2014}", Theme.color.neon)
 
+	Common.buttonGap(vakBediening)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, over de volle breedte.
 	local draaien = UI.primary(vakBediening, "SPIN")
 	draaien.Font = Theme.font.uiBold
 	UI.gradient(draaien, Theme.color.neon, Theme.color.neonDim, 135)
 
-	local knoprij = Common.row(vakBediening, 36, 6)   -- .btn-row { gap: 6px }
-	UI.padding4(knoprij, 2, 0, 0, 0)   -- .btn-row margin-top 8, waarvan 6 uit de lijst komt
+	-- `.btn-row { gap: 6px; margin-top: 8px }` met twee `.btn-secondary`s van 40 hoog
+	-- (`padding: 12px 0` om een regel van 14, plus twee randen).
+	local knoprij = Common.row(vakBediening, 40 + 8, 6)   -- de rij plus zijn marge erboven
+	UI.padding4(knoprij, 8, 0, 0, 0)
 	local wissen = UI.secondary(knoprij, "CLEAR")
-	wissen.Size = UDim2.new(0.5, -3, 0, 36)
+	wissen.Size = UDim2.new(0.5, -3, 0, wissen.Size.Y.Offset)
 	local herhalen = UI.secondary(knoprij, "REPEAT")
-	herhalen.Size = UDim2.new(0.5, -3, 0, 36)
+	herhalen.Size = UDim2.new(0.5, -3, 0, herhalen.Size.Y.Offset)
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "roulette")

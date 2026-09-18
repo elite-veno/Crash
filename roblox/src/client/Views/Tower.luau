@@ -134,8 +134,8 @@ function Tower.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local paneel = betBox.panel
 
-	-- .field-group met de knoppenbalk. De 8 boven is de margin-bottom van het
-	-- inzetveld erboven, de 8 onder die van deze groep zelf (14 min de 6 uit de lijst).
+	-- .field-group met de knoppenbalk, met zijn eigen `margin-bottom: 14px` eronder. Het
+	-- inzetveld erboven draagt de zijne zelf, dus hier hoeft er niets boven.
 	local diffVeld = Instance.new("Frame")
 	diffVeld.Name = "DifficultyField"
 	diffVeld.Size = UDim2.new(1, 0, 0, 0)
@@ -144,7 +144,7 @@ function Tower.build(ouder: Instance): ()
 	diffVeld.LayoutOrder = 10
 	diffVeld.Parent = paneel
 	UI.list(diffVeld, 6)
-	UI.padding4(diffVeld, 8, 0, 8, 0)
+	UI.padding4(diffVeld, 0, 0, 14, 0)
 
 	local hint = veldKop(diffVeld, "DIFFICULTY", Odds.TOWER_DIFF[diff].label)
 
@@ -223,8 +223,8 @@ function Tower.build(ouder: Instance): ()
 	end
 
 	-- De twee `.payout-line`s raken elkaar in de CSS: geen marge, alleen het haarlijntje
-	-- ertussen. Het paneel zet zelf 6 pixels tussen zijn kinderen, dus ze gaan samen in een
-	-- eigen blok met ruimte nul. De 2 eronder maakt van die 6 de 8 van `.btn-primary`.
+	-- ertussen. Ze gaan daarom samen in een eigen blok met ruimte nul, met eronder de
+	-- `margin-top: 8px` van de knop die erop volgt.
 	local uitbetaling = Instance.new("Frame")
 	uitbetaling.Name = "Payout"
 	uitbetaling.Size = UDim2.new(1, 0, 0, 0)
@@ -233,7 +233,7 @@ function Tower.build(ouder: Instance): ()
 	uitbetaling.LayoutOrder = 11
 	uitbetaling.Parent = paneel
 	UI.list(uitbetaling, 0)
-	UI.padding4(uitbetaling, 0, 0, 2, 0)
+	UI.padding4(uitbetaling, 0, 0, 8, 0)
 
 	local huidigLabel = payoutRegel(uitbetaling, "CURRENT WIN", Theme.color.neon, 1)
 	local volgendLabel = payoutRegel(uitbetaling, "NEXT FLOOR", Theme.color.gold, 2)

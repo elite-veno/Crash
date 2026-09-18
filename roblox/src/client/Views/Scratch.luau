@@ -44,10 +44,9 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 -- Geeft allebei de labels terug, want hier verandert ook de naam mee: TO GO zolang je
 -- krast, RESULT zodra het lot af is.
 local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLabel, TextLabel)
-	-- De regel zelf is 27 hoog: 11px tekst met padding 6 boven en onder plus de haarlijn.
-	-- De 8 pixels erboven zijn de `margin-bottom: 14px` van `.field-group` min de 6 die de
-	-- UIListLayout van het paneel er al tussen zet; één lijst kan maar één tussenruimte.
-	local LUCHT = 8
+	-- De regel is 27 hoog: 11px tekst met padding 6 boven en onder plus de haarlijn. De
+	-- `.field-group` erboven draagt zijn eigen marge, dus er hoeft hier niets bij.
+	local LUCHT = 0
 	local HOOG = Theme.size.payoutRow
 
 	local rij = Instance.new("Frame")
@@ -263,6 +262,8 @@ function Scratch.build(ouder: Instance): ()
 	end
 
 	local statusNaam, statusWaarde = payoutRegel(paneel, "RESULT", 11)
+
+	Common.buttonGap(paneel, 11)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local kopen = UI.primary(paneel, "BUY A CARD")

@@ -446,7 +446,7 @@ function Plinko.build(ouder: Instance): ()
 	-- Een `.field-group` heeft alleen `margin-bottom: 14`. Het paneel zet zelf al 6 pixels
 	-- tussen zijn kinderen, dus elke groep legt er 8 onder bij. Het inzetblok erboven komt
 	-- uit Common.betBox en heeft die 8 niet, dus de eerste groep zet ze ook boven zichzelf.
-	local function veldGroep(orde: number, eerste: boolean?): Frame
+	local function veldGroep(orde: number): Frame
 		local f = Instance.new("Frame")
 		f.Name = "FieldGroup"
 		f.Size = UDim2.new(1, 0, 0, 0)
@@ -455,11 +455,11 @@ function Plinko.build(ouder: Instance): ()
 		f.LayoutOrder = orde
 		f.Parent = paneel
 		UI.list(f, 6)
-		UI.padding4(f, if eerste then 8 else 0, 0, 8, 0)
+		UI.padding4(f, 0, 0, 14, 0)   -- `.field-group { margin-bottom: 14px }`
 		return f
 	end
 
-	local rijenVeld = veldGroep(10, true)
+	local rijenVeld = veldGroep(10)
 	veldKop(rijenVeld, "ROWS")
 	local _, rijKnop = segRij(rijenVeld, #RIJEN, 2)
 	local rijKnoppen: { [number]: { knop: TextButton, rand: UIStroke } } = {}
@@ -479,7 +479,7 @@ function Plinko.build(ouder: Instance): ()
 	uitbetaling.LayoutOrder = 12
 	uitbetaling.Parent = paneel
 	UI.list(uitbetaling, 0)
-	UI.padding4(uitbetaling, 0, 0, 2, 0)
+	UI.padding4(uitbetaling, 0, 0, 8, 0)
 
 	local maxLabel = payoutRegel(uitbetaling, "MAX MULTIPLIER", 1)
 

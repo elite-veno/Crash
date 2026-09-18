@@ -318,22 +318,40 @@ function Crash.build(ouder: Instance): ()
 		bloem.Parent = grasvak
 	end
 
-	-- het spoor: drawTrail() trekt één lijn van 6 en daaroverheen een van 2. Twee lagen zou
-	-- honderd Frames per beeldje kosten, dus het is er één van vijf dik.
-	local spoor: { Frame } = {}
-	for i = 1, STAPPEN do
-		local f = Instance.new("Frame")
-		f.AnchorPoint = Vector2.new(0.5, 0.5)
-		f.Size = UDim2.fromOffset(1, 5)
-		f.BackgroundColor3 = Theme.color.white
-		f.BackgroundTransparency = 0.15
-		f.BorderSizePixel = 0
-		f.Visible = false
-		f.ZIndex = 4
-		UI.corner(f, 2)   -- lineCap: round
-		f.Parent = lucht
-		spoor[i] = f
+	-- het spoor. drawTrail() trekt twee lijnen over dezelfde punten: eerst een van zes
+	-- dik in wit op 0.85, dan een van twee eroverheen -- wit tijdens de vlucht, rood zodra
+	-- het misgaat. Dat is geen versiering: de dikke lijn is de gloed eromheen en de dunne
+	-- is de lijn zelf, en zonder die tweede laag ziet een gecrashte baan er niet rood-met-
+	-- witte-rand uit maar gewoon breed rood.
+	--
+	-- Elk stukje is een gedraaid balkje. De hoek verspringt per stukje, dus waar twee
+	-- balkjes elkaar raken viel er een hapje uit de buitenbocht -- de lijn zag er gebroken
+	-- uit. `lineCap: round` en `lineJoin: round` in de webversie ronden die uiteinden af en
+	-- vullen daarmee de knik; een UICorner op de halve hoogte doet hier hetzelfde.
+	local function spoorLaag(dikte: number, doorzicht: number, laag: number): { Frame }
+		local rij: { Frame } = {}
+		for i = 1, STAPPEN do
+			local f = Instance.new("Frame")
+			f.Name = "Trail" .. dikte .. "_" .. i
+			f.AnchorPoint = Vector2.new(0.5, 0.5)
+			f.Size = UDim2.fromOffset(1, dikte)
+			f.BackgroundColor3 = Theme.color.white
+			f.BackgroundTransparency = doorzicht
+			f.BorderSizePixel = 0
+			f.Visible = false
+			f.ZIndex = laag
+			-- Een hoek van de halve hoogte maakt van het balkje een staafje met ronde
+			-- koppen: precies wat lineCap en lineJoin op `round` doen.
+			local hoek = Instance.new("UICorner")
+			hoek.CornerRadius = UDim.new(0.5, 0)
+			hoek.Parent = f
+			f.Parent = lucht
+			rij[i] = f
+		end
+		return rij
 	end
+	local spoorGloed = spoorLaag(6, 0.15, 4)   -- rgba(255,255,255,0.85), lineWidth 6
+	local spoor = spoorLaag(2, 0, 5)           -- lineWidth 2, wit of rood
 
 	-- het vliegtuigje. De onderdelen staan in de coördinaten van drawPlane(): de neus op
 	-- x = 32, de staart op x = -32. Het vak zelf is nul groot, dus draaien draait om de neus
@@ -410,12 +428,40 @@ function Crash.build(ouder: Instance): ()
 		schaduw.TextTransparency = 0.7
 		schaduw.TextYAlignment = Enum.TextYAlignment.Center
 
+		-- De tweede schaduw uit `.multiplier-display`: `0 0 30px rgba(255,255,255,0.8)`, een
+		-- brede witte gloed om de cijfers. Roblox kan niet vervagen, maar een UIStroke volgt
+		-- de letters: drie kopieën van de tekst met een steeds dikkere, steeds doorzichtiger
+		-- witte rand lopen samen uit tot dezelfde halo. Ze staan achter de tekst zelf, dus
+		-- de cijfers blijven scherp.
+		local gloeden: { TextLabel } = {}
+		for _, laag in { { 20, 0.94 }, { 12, 0.86 }, { 6, 0.74 } } do
+			local g = UI.label(vak, "", {
+				size = maat, color = Theme.color.white, font = Theme.font.num,
+				align = Enum.TextXAlignment.Center, name = "Glow",
+			})
+			g.Size = UDim2.fromScale(1, 1)
+			g.TextYAlignment = Enum.TextYAlignment.Center
+			g.TextTransparency = 1          -- alleen de rand licht op, niet de letter zelf
+			local rand = UI.stroke(g, Theme.color.white, laag[1])
+			rand.Transparency = laag[2]
+			rand.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+			table.insert(gloeden, g)
+		end
+
 		local tekst = UI.label(vak, "", {
 			size = maat, color = Theme.color.white, font = Theme.font.num,
 			align = Enum.TextXAlignment.Center,
 		})
 		tekst.Size = UDim2.fromScale(1, 1)
 		tekst.TextYAlignment = Enum.TextYAlignment.Center
+		-- Wat in de tekst komt, komt ook in de schaduw en in de gloed: één plek die ze alle
+		-- drie bijwerkt, zodat de halo nooit een vorige waarde blijft tonen.
+		tekst:GetPropertyChangedSignal("Text"):Connect(function()
+			for _, g in gloeden do
+				g.Text = tekst.Text
+			end
+		end)
+
 		local rand = UI.stroke(tekst, randKleur, 2)
 		-- Contextual in plaats van Border: op een label zonder achtergrond legt Roblox de rand
 		-- dan om de letters. Met Border krijg je een kader om het vak, en dat is niet wat
@@ -687,14 +733,15 @@ function Crash.build(ouder: Instance): ()
 	-- De UIListLayout van Common.betBox houdt overal 6 pixels aan -- dat is de `margin-top`
 	-- van .chips. Waar de CSS meer vraagt komt er een leeg vakje bij, want één lijst kan
 	-- geen twee verschillende gaten. Hier de `margin-bottom: 14px` van .field-group.
-	local function ruimte(naam: string, hoogte: number)
+	-- Een vulvak dat de marge van het blok erboven draagt. Het inzetpaneel heeft geen
+	-- tussenruimte, net als een `.panel` in de CSS, dus staat hier precies wat de marge is.
+	local function ruimte(naam: string, marge: number)
 		local v = Instance.new("Frame")
 		v.Name = naam
-		v.Size = UDim2.new(1, 0, 0, hoogte)
+		v.Size = UDim2.new(1, 0, 0, marge)
 		v.BackgroundTransparency = 1
 		v.Parent = zetPaneel
 	end
-	ruimte("GapStake", 14 - 6)
 
 	-- .toggle-row: de schakelaar plus zijn etiket, samen aan te klikken.
 	local schakelRij = Instance.new("TextButton")
@@ -705,7 +752,8 @@ function Crash.build(ouder: Instance): ()
 	-- .toggle-row is 40 hoog (20 met padding 10 boven en onder) en er zit geen marge onder.
 	-- De lijst zet er zelf 6 achter, dus het vak is 34 en de schakelaar hangt op zijn eigen
 	-- 10 van boven: samen weer 40 tot het volgende veld.
-	schakelRij.Size = UDim2.new(1, 0, 0, 34)
+	-- `.toggle-row { padding: 10px 0 }` om een schakelaar van 20: 40 hoog.
+	schakelRij.Size = UDim2.new(1, 0, 0, 10 + 20 + 10)
 	schakelRij.Parent = zetPaneel
 
 	local schakelaar = Instance.new("Frame")
@@ -760,9 +808,10 @@ function Crash.build(ouder: Instance): ()
 
 	-- #autoField sluit af met dezelfde `margin-bottom: 14px` en .btn-primary zet er zijn
 	-- eigen `margin-top: 8px` bovenop.
-	ruimte("GapAuto", 14 + 8 - 6)
+	ruimte("GapAuto", 14 + 8)
 
 	local knop = UI.primary(zetPaneel, "PLACE BET")
+	local KNOP_H = knop.Size.Y.Offset
 	-- .btn-bet: verloop van 135 graden, neon naar neon-dim. De knop wisselt van kleur met
 	-- de fase, net als de klassen btn-bet, btn-cashout en btn-waiting.
 	local knopVerloop = UI.gradient(knop, Theme.color.neon, Theme.color.neonDim, 135)
@@ -978,6 +1027,11 @@ function Crash.build(ouder: Instance): ()
 		knop.Active = actief
 		betBox.lock(fase ~= "waiting" or mijn ~= nil)
 
+		-- `.btn-primary` heeft `border: none`; alleen `.btn-waiting` zet er een rand omheen.
+		-- Die rand telt in de CSS mee in de hoogte, dus in die stand is de knop twee hoger
+		-- -- en het inzetpaneel dus ook, precies zoals de pagina het doet.
+		knop.Size = UDim2.new(1, 0, 0, KNOP_H + (if actief then 0 else UI.RAND * 2))
+
 		if not actief then
 			-- .btn-waiting: vlak --panel-light met een rand, plus de opacity 0.6 van :disabled
 			knop.BackgroundColor3 = Theme.color.panelLight
@@ -1069,15 +1123,22 @@ function Crash.build(ouder: Instance): ()
 
 	local function tekenSpoor(gecrasht: boolean)
 		for i = 1, STAPPEN do
+			local g = spoorGloed[i]
+			g.Visible = true
+			zetLijn(g, baanX[i], baanY[i], baanX[i + 1], baanY[i + 1], 6)
+
 			local f = spoor[i]
 			f.Visible = true
 			f.BackgroundColor3 = if gecrasht then KLEUR.spoorCrash else Theme.color.white
-			zetLijn(f, baanX[i], baanY[i], baanX[i + 1], baanY[i + 1], 5)
+			zetLijn(f, baanX[i], baanY[i], baanX[i + 1], baanY[i + 1], 2)
 		end
 	end
 
 	local function wisSpoor()
 		for _, f in spoor do
+			f.Visible = false
+		end
+		for _, f in spoorGloed do
 			f.Visible = false
 		end
 	end

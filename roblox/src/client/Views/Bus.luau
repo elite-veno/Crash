@@ -252,6 +252,8 @@ function Bus.build(ouder: Instance): ()
 	-- `.payout-line .v.neon` op CURRENT WIN, de enige van de twee die neon is.
 	local multLabel = payoutRegel(paneel, "CURRENT WIN", Theme.color.neon, 12)
 
+	Common.buttonGap(paneel, 12)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local startKnop = UI.primary(paneel, "GET ON THE BUS")
 	startKnop.LayoutOrder = 13

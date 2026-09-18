@@ -79,18 +79,38 @@ function Art.canvas(ouder: Instance, achtergrondVan: Color3, achtergrondTot: Col
 	end
 
 	-- Een lijn tussen twee punten: een gedraaid balkje op het midden.
+	--
+	-- De plaats gaat op schaal mee met het vak, maar de lengte stond in pixels van de
+	-- viewBox. Een kaart is breder dan de 280 van die viewBox, dus elk stukje kwam een
+	-- stuk te kort -- en bij een kromme, die uit tien van die stukjes bestaat, viel er
+	-- tussen elk paar een gat. De vliegbaan op de crashkaart zag er daardoor gebroken uit
+	-- in plaats van als één lijn.
+	--
+	-- Daarom gaat de lengte nu op schaal mee, net als de plaats.
 	function doek.lijn(x1: number, y1: number, x2: number, y2: number, dikte: number, kleur: Color3, doorzicht: number?): Frame
-		local dx, dy = x2 - x1, y2 - y1
-		local lengte = math.sqrt(dx * dx + dy * dy)
 		local f = Instance.new("Frame")
+		f.Name = "Line"
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.BackgroundColor3 = kleur
 		f.BackgroundTransparency = doorzicht or 0
 		f.BorderSizePixel = 0
 		f.Position = UDim2.fromScale((x1 + x2) / 2 / B, (y1 + y2) / 2 / H)
-		f.Size = UDim2.fromOffset(lengte, dikte)
-		f.Rotation = math.deg(math.atan2(dy, dx))
+		-- Ronde koppen, zoals `stroke-linecap: round`: ze vullen meteen de knik waar twee
+		-- stukjes onder een hoek tegen elkaar aan liggen.
+		local hoek = Instance.new("UICorner")
+		hoek.CornerRadius = UDim.new(0.5, 0)
+		hoek.Parent = f
 		f.Parent = vak
+
+		local dx, dy = x2 - x1, y2 - y1
+		local lengte = math.sqrt(dx * dx + dy * dy)
+		-- De lengte gaat op schaal, net als de plaats: een breed vak rekt de lijn dan even
+		-- ver uit als de twee punten uit elkaar schuiven, en de stukjes blijven aansluiten.
+		-- De dikte blijft in pixels -- een lijn die meerekt wordt bij een brede kaart een
+		-- balk. Diagonaal rekt de x wel en de y niet, dus zo'n stukje wordt een haartje
+		-- langer dan nodig; dat overlapt en valt weg onder de ronde koppen.
+		f.Size = UDim2.new(lengte / B, 0, 0, dikte)
+		f.Rotation = math.deg(math.atan2(dy, dx))
 		return f
 	end
 

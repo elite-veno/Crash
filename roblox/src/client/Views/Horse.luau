@@ -480,9 +480,9 @@ function Horse.build(ouder: Instance): ()
 		end
 	end
 
-	-- De `.field-group` erboven heeft margin-bottom 14; de lijst van het paneel geeft er al
-	-- 6, dus komt er 8 bij. Onderaan hetzelfde verhaal voor `.hr-list { margin-bottom: 10 }`:
-	-- 6 van de lijst plus 4 hier, zodat de totaalregel net zo ver onder de paarden staat.
+	-- Het kopje `.field-label` met zijn `margin-bottom: 6px`, dan de lijst met de paarden
+	-- en daaronder de `margin-bottom: 10px` van `.hr-list`. Het paneel houdt zelf niets
+	-- tussen zijn kinderen, dus die tien staan hier.
 	local lijstGroep = Instance.new("Frame")
 	lijstGroep.Name = "HorseField"
 	lijstGroep.Size = UDim2.new(1, 0, 0, 0)
@@ -491,7 +491,7 @@ function Horse.build(ouder: Instance): ()
 	lijstGroep.LayoutOrder = 10
 	lijstGroep.Parent = paneel
 	UI.list(lijstGroep, 6)
-	UI.padding4(lijstGroep, 8, 0, 4, 0)
+	UI.padding4(lijstGroep, 0, 0, 10, 0)
 
 	veldKop(lijstGroep, "HORSES & ODDS", "win chance", 1)
 
@@ -621,6 +621,8 @@ function Horse.build(ouder: Instance): ()
 
 	local totaalLabel = payoutRegel(paneel, "TOTAL STAKE", 11)
 
+	Common.buttonGap(paneel, 12)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local startKnop = UI.primary(paneel, "START THE RACE")
 	startKnop.LayoutOrder = 12
@@ -630,7 +632,7 @@ function Horse.build(ouder: Instance): ()
 	-- .btn-row: twee gelijke knoppen met 6 ertussen en 8 lucht erboven.
 	local knoprij = Instance.new("Frame")
 	knoprij.Name = "ButtonRow"
-	knoprij.Size = UDim2.new(1, 0, 0, 36 + 8)
+	knoprij.Size = UDim2.new(1, 0, 0, 40 + 8)
 	knoprij.BackgroundTransparency = 1
 	knoprij.LayoutOrder = 13
 	knoprij.Parent = paneel
@@ -640,10 +642,10 @@ function Horse.build(ouder: Instance): ()
 
 	local wissen = UI.secondary(knoprij, "CLEAR")
 	wissen.LayoutOrder = 1
-	wissen.Size = UDim2.new(0.5, -3, 0, 36)
+	wissen.Size = UDim2.new(0.5, -3, 0, wissen.Size.Y.Offset)
 	local nieuweOdds = UI.secondary(knoprij, "NEW ODDS")
 	nieuweOdds.LayoutOrder = 2
-	nieuweOdds.Size = UDim2.new(0.5, -3, 0, 36)
+	nieuweOdds.Size = UDim2.new(0.5, -3, 0, nieuweOdds.Size.Y.Offset)
 
 	-- hrRender(): alle teksten en alle aan/uit-standen in één keer bijwerken.
 	function ververs()

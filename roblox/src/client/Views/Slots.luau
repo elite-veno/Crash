@@ -192,14 +192,8 @@ function Slots.build(ouder: Instance): ()
 	-- inzetvak en de knop; hier volgt SPIN er meteen op, en dan valt op dat hij te hoog
 	-- hangt. In de CSS sluit `.field-group` af met 14 pixels lucht en begint
 	-- `.btn-primary` met 8, samen 22. De lijst van het paneel geeft er zelf 6 voor en 6 na
-	-- een kind, dus een leeg vakje van 10 vult het aan. Padding op de knop zelf zou de
-	-- tekst verschuiven in plaats van de knop.
-	local lucht = Instance.new("Frame")
-	lucht.Name = "Gap"
-	lucht.Size = UDim2.new(1, 0, 0, 22 - 6 - 6)
-	lucht.BackgroundTransparency = 1
-	lucht.LayoutOrder = 10
-	lucht.Parent = betBox.panel
+	-- een kind, dus een leeg vakje vult het aan.
+	Common.buttonGap(betBox.panel, 10)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local knop = UI.primary(betBox.panel, "SPIN")

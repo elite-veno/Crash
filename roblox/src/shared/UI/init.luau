@@ -244,9 +244,11 @@ function UI.primary(parent: Instance, text: string): Button
 	b.BackgroundColor3 = Theme.color.neon
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	-- 16 padding boven en onder om een regel van 15: op de site is de knop 51 hoog,
-	-- nagemeten aan een schermafdruk ervan.
-	b.Size = UDim2.new(1, 0, 0, 51)
+	-- `.btn-primary { padding: 16px; border: none }` om een regel van 19: 51 hoog, en geen
+	-- randpixel erbij, want deze knop heeft er geen. Alleen `.btn-waiting` -- de stand
+	-- waarin crash op de volgende ronde wacht -- zet er wel een rand omheen; die is 53, en
+	-- dat regelt het crashscherm zelf.
+	b.Size = UDim2.new(1, 0, 0, 16 + Theme.lineBox(Theme.text.button) + 16)
 	UI.corner(b, Theme.radius.button)
 	hover(b, function()
 		b.BackgroundColor3 = Theme.color.neonDim
@@ -345,7 +347,8 @@ function UI.backButton(parent: Instance, text: string?): Button
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.fromOffset(86, 30)
+	-- `.back-btn { padding: 8px 12px }` om een regel van 14, plus twee randen: 32.
+	b.Size = UDim2.fromOffset(86, 8 + Theme.lineBox(Theme.text.tiny) + 8 + UI.RAND * 2)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
 	hover(b, function()

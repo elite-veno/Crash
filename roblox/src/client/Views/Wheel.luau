@@ -284,6 +284,8 @@ function Wheel.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
+	Common.buttonGap(betBox.panel)
+
 	local knop = UI.primary(betBox.panel, "SPIN THE WHEEL")
 	knop.LayoutOrder = 11
 	knop.Font = Theme.font.uiBold

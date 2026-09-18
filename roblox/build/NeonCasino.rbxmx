@@ -1703,9 +1703,11 @@ function UI.primary(parent: Instance, text: string): Button
 	b.BackgroundColor3 = Theme.color.neon
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	-- 16 padding boven en onder om een regel van 15: op de site is de knop 51 hoog,
-	-- nagemeten aan een schermafdruk ervan.
-	b.Size = UDim2.new(1, 0, 0, 51)
+	-- `.btn-primary { padding: 16px; border: none }` om een regel van 19: 51 hoog, en geen
+	-- randpixel erbij, want deze knop heeft er geen. Alleen `.btn-waiting` -- de stand
+	-- waarin crash op de volgende ronde wacht -- zet er wel een rand omheen; die is 53, en
+	-- dat regelt het crashscherm zelf.
+	b.Size = UDim2.new(1, 0, 0, 16 + Theme.lineBox(Theme.text.button) + 16)
 	UI.corner(b, Theme.radius.button)
 	hover(b, function()
 		b.BackgroundColor3 = Theme.color.neonDim
@@ -1804,7 +1806,8 @@ function UI.backButton(parent: Instance, text: string?): Button
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.fromOffset(86, 30)
+	-- `.back-btn { padding: 8px 12px }` om een regel van 14, plus twee randen: 32.
+	b.Size = UDim2.fromOffset(86, 8 + Theme.lineBox(Theme.text.tiny) + 8 + UI.RAND * 2)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
 	hover(b, function()
@@ -5925,18 +5928,38 @@ function Art.canvas(ouder: Instance, achtergrondVan: Color3, achtergrondTot: Col
 	end
 
 	-- Een lijn tussen twee punten: een gedraaid balkje op het midden.
+	--
+	-- De plaats gaat op schaal mee met het vak, maar de lengte stond in pixels van de
+	-- viewBox. Een kaart is breder dan de 280 van die viewBox, dus elk stukje kwam een
+	-- stuk te kort -- en bij een kromme, die uit tien van die stukjes bestaat, viel er
+	-- tussen elk paar een gat. De vliegbaan op de crashkaart zag er daardoor gebroken uit
+	-- in plaats van als één lijn.
+	--
+	-- Daarom gaat de lengte nu op schaal mee, net als de plaats.
 	function doek.lijn(x1: number, y1: number, x2: number, y2: number, dikte: number, kleur: Color3, doorzicht: number?): Frame
-		local dx, dy = x2 - x1, y2 - y1
-		local lengte = math.sqrt(dx * dx + dy * dy)
 		local f = Instance.new("Frame")
+		f.Name = "Line"
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.BackgroundColor3 = kleur
 		f.BackgroundTransparency = doorzicht or 0
 		f.BorderSizePixel = 0
 		f.Position = UDim2.fromScale((x1 + x2) / 2 / B, (y1 + y2) / 2 / H)
-		f.Size = UDim2.fromOffset(lengte, dikte)
-		f.Rotation = math.deg(math.atan2(dy, dx))
+		-- Ronde koppen, zoals `stroke-linecap: round`: ze vullen meteen de knik waar twee
+		-- stukjes onder een hoek tegen elkaar aan liggen.
+		local hoek = Instance.new("UICorner")
+		hoek.CornerRadius = UDim.new(0.5, 0)
+		hoek.Parent = f
 		f.Parent = vak
+
+		local dx, dy = x2 - x1, y2 - y1
+		local lengte = math.sqrt(dx * dx + dy * dy)
+		-- De lengte gaat op schaal, net als de plaats: een breed vak rekt de lijn dan even
+		-- ver uit als de twee punten uit elkaar schuiven, en de stukjes blijven aansluiten.
+		-- De dikte blijft in pixels -- een lijn die meerekt wordt bij een brede kaart een
+		-- balk. Diagonaal rekt de x wel en de y niet, dus zo'n stukje wordt een haartje
+		-- langer dan nodig; dat overlapt en valt weg onder de ronde koppen.
+		f.Size = UDim2.new(lengte / B, 0, 0, dikte)
+		f.Rotation = math.deg(math.atan2(dy, dx))
 		return f
 	end
 
@@ -6278,7 +6301,8 @@ local ACTIE_H = 40         -- .btn-secondary: 11px tekst (regel 14), padding 12 
 -- Boven DEAL zit twee keer lucht: de margin-bottom van de `.field-group` met het inzetveld
 -- en de margin-top van `.btn-primary` zelf. Samen 22, en dat is meer dan de 6 die de lijst
 -- van het paneel ertussen zet -- vandaar dat de knop hier in een eigen vakje hangt.
-local DEAL_MARGE = 14 + 8  -- .field-group margin-bottom + .btn-primary margin-top
+local DEAL_MARGE = 8       -- .btn-primary { margin-top: 8px }; de 14 van de
+                           -- `.field-group` erboven draagt die groep zelf
 
 -- .btn-primary:disabled is opacity 0.6 en .btn-secondary:disabled 0.35. UI.setEnabled kent
 -- dat verschil niet en dimt alles even hard, dus DEAL wordt hier zelf gezet.
@@ -6519,7 +6543,7 @@ function Blackjack.build(ouder: Instance): ()
 	dealVak.BackgroundTransparency = 1
 	dealVak.LayoutOrder = 10
 	dealVak.Parent = paneel
-	UI.padding4(dealVak, DEAL_MARGE - 6, 0, 0, 0)
+	UI.padding4(dealVak, DEAL_MARGE, 0, 0, 0)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	--
@@ -6541,7 +6565,7 @@ function Blackjack.build(ouder: Instance): ()
 	UI.list(acties, ACTIE_GAT)
 	-- `.bj-actions` heeft margin-top 8. Het paneel van betBox zet zijn onderdelen al met 6
 	-- uit elkaar, dus er hoeft hier nog 2 bij om op diezelfde 8 uit te komen.
-	UI.padding4(acties, ACTIE_MARGE - 6, 0, 0, 0)
+	UI.padding4(acties, ACTIE_MARGE, 0, 0, 0)
 
 	local bovenRij = Instance.new("Frame")
 	bovenRij.Name = "Row"
@@ -6991,6 +7015,8 @@ function Bus.build(ouder: Instance): ()
 	-- `.payout-line .v.neon` op CURRENT WIN, de enige van de twee die neon is.
 	local multLabel = payoutRegel(paneel, "CURRENT WIN", Theme.color.neon, 12)
 
+	Common.buttonGap(paneel, 12)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local startKnop = UI.primary(paneel, "GET ON THE BUS")
 	startKnop.LayoutOrder = 13
@@ -7261,6 +7287,7 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
+local TextService = game:GetService("TextService")
 local Season = require(ReplicatedStorage.Shared.Season)
 
 local Common = {}
@@ -7269,6 +7296,14 @@ local Common = {}
 -- de letter zelf. Met de zes pixels van `.stats-grid` ertussen komen de regels twintig uit
 -- elkaar te staan, en dat is wat de site laat zien.
 local STAT_REGEL = 14
+
+-- `.crash-header { gap: 12px; padding: 10px 0 }` om een terugknop van 32 (een regel van 14
+-- met acht lucht boven en onder plus twee randen): samen 52 hoog. `.crash-header-title` is
+-- 22px, dus een regel van 26.
+local KOP_GAT = 12
+local KOP_PAD = 10
+local KOP_REGEL = 26        -- regelvak van 22px
+local TERUG_REGEL = 8 + 14 + 8   -- `.back-btn { padding: 8px 0 }` om een regel van 14
 
 -- ---------- saldo en meldingen ----------
 -- De schil weet het saldo en heeft het meldingenvak; de schermen vragen het hier op.
@@ -7733,10 +7768,10 @@ function Common.columns(
 		-- een regel van 14 met acht lucht boven en onder plus twee randen. Samen 52. Hier
 		-- stond 34 -- de tien pixels lucht ontbraken aan beide kanten, en daardoor begon
 		-- alles in de zijkolom achttien pixels te hoog.
-		kop.Size = UDim2.new(1, 0, 0, 52)
+		kop.Size = UDim2.new(1, 0, 0, KOP_PAD * 2 + TERUG_REGEL + UI.RAND * 2)
 		kop.BackgroundTransparency = 1
 		kop.Parent = aside
-		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
+		local kopIndeling = UI.list(kop, KOP_GAT, Enum.FillDirection.Horizontal)
 		kopIndeling.VerticalAlignment = Enum.VerticalAlignment.Center
 
 		local terug = UI.backButton(kop, terugTekst)
@@ -7745,8 +7780,8 @@ function Common.columns(
 			-- `.back-btn` heeft geen vaste breedte maar padding van 8 om 12; met een
 			-- langere tekst dan "← LOBBY" moet de knop dus meegroeien.
 			terug.AutomaticSize = Enum.AutomaticSize.X
-			terug.Size = UDim2.fromOffset(0, 30)
-			UI.padding4(terug, 0, 12, 0, 12)
+			terug.Size = UDim2.fromOffset(0, terug.Size.Y.Offset)
+			UI.padding4(terug, 0, 12 + UI.RAND, 0, 12 + UI.RAND)
 		end
 		terug.Activated:Connect(function()
 			Common.navigate(terugNaar or "home")
@@ -7758,6 +7793,21 @@ function Common.columns(
 		naam.LayoutOrder = 2
 		naam.Size = UDim2.new(0, 0, 1, 0)
 		naam.AutomaticSize = Enum.AutomaticSize.X
+
+		-- `.crash-header` is een flexregel met `flex-wrap`. Past de naam niet naast de
+		-- terugknop, dan breekt de browser allebei over twee regels en wordt de kop hoger --
+		-- dat gebeurt bij WHEEL OF FORTUNE, en daar zakt de hele zijkolom twintig pixels
+		-- mee. Roblox wikkelt niet uit zichzelf, dus wordt het hier nagemeten en nagedaan.
+		local breed = TextService:GetTextSize(
+			naam.Text, naam.TextSize, naam.Font, Vector2.new(9999, 9999)).X
+		if terug.Size.X.Offset + KOP_GAT + breed &gt; Theme.size.asideWidth then
+			naam.AutomaticSize = Enum.AutomaticSize.None
+			naam.TextWrapped = true
+			naam.Size = UDim2.new(1, -(terug.Size.X.Offset + KOP_GAT), 0, KOP_REGEL * 2)
+			terug.TextWrapped = true
+			terug.Size = UDim2.fromOffset(terug.Size.X.Offset, TERUG_REGEL * 2)
+			kop.Size = UDim2.new(1, 0, 0, KOP_PAD * 2 + KOP_REGEL * 2)
+		end
 	end
 
 	-- Het saldopaneel, zoals `.panel.balance` in de markup: alles gecentreerd.
@@ -7847,14 +7897,45 @@ export type BetBox = {
 -- Het inzetveld met ½, 2×, MIN en MAX eronder. Dezelfde vier knoppen en dezelfde rekenregels
 -- als bindBet() in de webversie; het afronden gebeurt hier alleen om het netjes te tonen,
 -- de server rekent zelf na.
+-- `.btn-primary { margin-top: 8px }`: elke grote knop onderin een inzetpaneel heeft acht
+-- pixels lucht boven zich. Een `.panel` houdt zelf niets tussen zijn kinderen, dus die acht
+-- staan als een leeg vakje in de rij. Los van de knop, want een knop die verdwijnt (CASH
+-- OUT staat er alleen als er iets te verzilveren is) mag zijn marge niet meenemen -- in de
+-- CSS blijft de marge van het blok erboven dan ook gewoon staan.
+function Common.buttonGap(paneel: Instance, orde: number?): Frame
+	local v = Instance.new("Frame")
+	v.Name = "ButtonGap"
+	v.Size = UDim2.new(1, 0, 0, 8)
+	v.BackgroundTransparency = 1
+	if orde then v.LayoutOrder = orde end
+	v.Parent = paneel
+	return v
+end
+
 function Common.betBox(ouder: Instance, start: number?): BetBox
 	local paneel = UI.panel(ouder, "BetPanel")
-	UI.list(paneel, 6)
+	-- Een `.panel` heeft geen tussenruimte: elk blok erin draagt zijn eigen marge. Hier
+	-- stond zes, en dan kreeg elk blok dat een scherm er later bij zette er twaalf bij --
+	-- zes boven en zes onder -- in plaats van de marge die de CSS vraagt.
+	UI.list(paneel, 0)
+
+	-- `.field-group { margin-bottom: 14px }`: het kopje, het invoerveld en de ficherij
+	-- horen bij elkaar, met zes ertussen (`.field-label { margin-bottom: 6px }` en
+	-- `.chips { margin-top: 6px }`).
+	local veldGroep = Instance.new("Frame")
+	veldGroep.Name = "FieldGroup"
+	veldGroep.Size = UDim2.new(1, 0, 0, 0)
+	veldGroep.AutomaticSize = Enum.AutomaticSize.Y
+	veldGroep.BackgroundTransparency = 1
+	veldGroep.Parent = paneel
+	UI.list(veldGroep, 6)
+	UI.padding4(veldGroep, 0, 0, 14, 0)
+
 	-- .field-label: "STAKE" links, het dollarteken als hint rechts.
 	local kop = Instance.new("Frame")
 	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	kop.BackgroundTransparency = 1
-	kop.Parent = paneel
+	kop.Parent = veldGroep
 	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
 	-- `.field-label .hint { color: var(--neon); opacity: 0.7 }`: het dollarteken is neon en
 	-- iets doorzichtig, niet grijs.
@@ -7863,9 +7944,9 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	})
 	hint.TextTransparency = 0.3
 
-	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
+	local vak = UI.numberBox(veldGroep, Money.fmt(start or 10))
 	-- `.chips`: de rij is precies zo hoog als een fiche met zijn rand eromheen.
-	local ficherij = Common.row(paneel, 28)
+	local ficherij = Common.row(veldGroep, 28)
 
 	local function huidig(): number
 		return tonumber(vak.Text) or 0
@@ -8576,22 +8657,40 @@ function Crash.build(ouder: Instance): ()
 		bloem.Parent = grasvak
 	end
 
-	-- het spoor: drawTrail() trekt één lijn van 6 en daaroverheen een van 2. Twee lagen zou
-	-- honderd Frames per beeldje kosten, dus het is er één van vijf dik.
-	local spoor: { Frame } = {}
-	for i = 1, STAPPEN do
-		local f = Instance.new("Frame")
-		f.AnchorPoint = Vector2.new(0.5, 0.5)
-		f.Size = UDim2.fromOffset(1, 5)
-		f.BackgroundColor3 = Theme.color.white
-		f.BackgroundTransparency = 0.15
-		f.BorderSizePixel = 0
-		f.Visible = false
-		f.ZIndex = 4
-		UI.corner(f, 2)   -- lineCap: round
-		f.Parent = lucht
-		spoor[i] = f
+	-- het spoor. drawTrail() trekt twee lijnen over dezelfde punten: eerst een van zes
+	-- dik in wit op 0.85, dan een van twee eroverheen -- wit tijdens de vlucht, rood zodra
+	-- het misgaat. Dat is geen versiering: de dikke lijn is de gloed eromheen en de dunne
+	-- is de lijn zelf, en zonder die tweede laag ziet een gecrashte baan er niet rood-met-
+	-- witte-rand uit maar gewoon breed rood.
+	--
+	-- Elk stukje is een gedraaid balkje. De hoek verspringt per stukje, dus waar twee
+	-- balkjes elkaar raken viel er een hapje uit de buitenbocht -- de lijn zag er gebroken
+	-- uit. `lineCap: round` en `lineJoin: round` in de webversie ronden die uiteinden af en
+	-- vullen daarmee de knik; een UICorner op de halve hoogte doet hier hetzelfde.
+	local function spoorLaag(dikte: number, doorzicht: number, laag: number): { Frame }
+		local rij: { Frame } = {}
+		for i = 1, STAPPEN do
+			local f = Instance.new("Frame")
+			f.Name = "Trail" .. dikte .. "_" .. i
+			f.AnchorPoint = Vector2.new(0.5, 0.5)
+			f.Size = UDim2.fromOffset(1, dikte)
+			f.BackgroundColor3 = Theme.color.white
+			f.BackgroundTransparency = doorzicht
+			f.BorderSizePixel = 0
+			f.Visible = false
+			f.ZIndex = laag
+			-- Een hoek van de halve hoogte maakt van het balkje een staafje met ronde
+			-- koppen: precies wat lineCap en lineJoin op `round` doen.
+			local hoek = Instance.new("UICorner")
+			hoek.CornerRadius = UDim.new(0.5, 0)
+			hoek.Parent = f
+			f.Parent = lucht
+			rij[i] = f
+		end
+		return rij
 	end
+	local spoorGloed = spoorLaag(6, 0.15, 4)   -- rgba(255,255,255,0.85), lineWidth 6
+	local spoor = spoorLaag(2, 0, 5)           -- lineWidth 2, wit of rood
 
 	-- het vliegtuigje. De onderdelen staan in de coördinaten van drawPlane(): de neus op
 	-- x = 32, de staart op x = -32. Het vak zelf is nul groot, dus draaien draait om de neus
@@ -8668,12 +8767,40 @@ function Crash.build(ouder: Instance): ()
 		schaduw.TextTransparency = 0.7
 		schaduw.TextYAlignment = Enum.TextYAlignment.Center
 
+		-- De tweede schaduw uit `.multiplier-display`: `0 0 30px rgba(255,255,255,0.8)`, een
+		-- brede witte gloed om de cijfers. Roblox kan niet vervagen, maar een UIStroke volgt
+		-- de letters: drie kopieën van de tekst met een steeds dikkere, steeds doorzichtiger
+		-- witte rand lopen samen uit tot dezelfde halo. Ze staan achter de tekst zelf, dus
+		-- de cijfers blijven scherp.
+		local gloeden: { TextLabel } = {}
+		for _, laag in { { 20, 0.94 }, { 12, 0.86 }, { 6, 0.74 } } do
+			local g = UI.label(vak, "", {
+				size = maat, color = Theme.color.white, font = Theme.font.num,
+				align = Enum.TextXAlignment.Center, name = "Glow",
+			})
+			g.Size = UDim2.fromScale(1, 1)
+			g.TextYAlignment = Enum.TextYAlignment.Center
+			g.TextTransparency = 1          -- alleen de rand licht op, niet de letter zelf
+			local rand = UI.stroke(g, Theme.color.white, laag[1])
+			rand.Transparency = laag[2]
+			rand.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+			table.insert(gloeden, g)
+		end
+
 		local tekst = UI.label(vak, "", {
 			size = maat, color = Theme.color.white, font = Theme.font.num,
 			align = Enum.TextXAlignment.Center,
 		})
 		tekst.Size = UDim2.fromScale(1, 1)
 		tekst.TextYAlignment = Enum.TextYAlignment.Center
+		-- Wat in de tekst komt, komt ook in de schaduw en in de gloed: één plek die ze alle
+		-- drie bijwerkt, zodat de halo nooit een vorige waarde blijft tonen.
+		tekst:GetPropertyChangedSignal("Text"):Connect(function()
+			for _, g in gloeden do
+				g.Text = tekst.Text
+			end
+		end)
+
 		local rand = UI.stroke(tekst, randKleur, 2)
 		-- Contextual in plaats van Border: op een label zonder achtergrond legt Roblox de rand
 		-- dan om de letters. Met Border krijg je een kader om het vak, en dat is niet wat
@@ -8945,14 +9072,15 @@ function Crash.build(ouder: Instance): ()
 	-- De UIListLayout van Common.betBox houdt overal 6 pixels aan -- dat is de `margin-top`
 	-- van .chips. Waar de CSS meer vraagt komt er een leeg vakje bij, want één lijst kan
 	-- geen twee verschillende gaten. Hier de `margin-bottom: 14px` van .field-group.
-	local function ruimte(naam: string, hoogte: number)
+	-- Een vulvak dat de marge van het blok erboven draagt. Het inzetpaneel heeft geen
+	-- tussenruimte, net als een `.panel` in de CSS, dus staat hier precies wat de marge is.
+	local function ruimte(naam: string, marge: number)
 		local v = Instance.new("Frame")
 		v.Name = naam
-		v.Size = UDim2.new(1, 0, 0, hoogte)
+		v.Size = UDim2.new(1, 0, 0, marge)
 		v.BackgroundTransparency = 1
 		v.Parent = zetPaneel
 	end
-	ruimte("GapStake", 14 - 6)
 
 	-- .toggle-row: de schakelaar plus zijn etiket, samen aan te klikken.
 	local schakelRij = Instance.new("TextButton")
@@ -8963,7 +9091,8 @@ function Crash.build(ouder: Instance): ()
 	-- .toggle-row is 40 hoog (20 met padding 10 boven en onder) en er zit geen marge onder.
 	-- De lijst zet er zelf 6 achter, dus het vak is 34 en de schakelaar hangt op zijn eigen
 	-- 10 van boven: samen weer 40 tot het volgende veld.
-	schakelRij.Size = UDim2.new(1, 0, 0, 34)
+	-- `.toggle-row { padding: 10px 0 }` om een schakelaar van 20: 40 hoog.
+	schakelRij.Size = UDim2.new(1, 0, 0, 10 + 20 + 10)
 	schakelRij.Parent = zetPaneel
 
 	local schakelaar = Instance.new("Frame")
@@ -9018,9 +9147,10 @@ function Crash.build(ouder: Instance): ()
 
 	-- #autoField sluit af met dezelfde `margin-bottom: 14px` en .btn-primary zet er zijn
 	-- eigen `margin-top: 8px` bovenop.
-	ruimte("GapAuto", 14 + 8 - 6)
+	ruimte("GapAuto", 14 + 8)
 
 	local knop = UI.primary(zetPaneel, "PLACE BET")
+	local KNOP_H = knop.Size.Y.Offset
 	-- .btn-bet: verloop van 135 graden, neon naar neon-dim. De knop wisselt van kleur met
 	-- de fase, net als de klassen btn-bet, btn-cashout en btn-waiting.
 	local knopVerloop = UI.gradient(knop, Theme.color.neon, Theme.color.neonDim, 135)
@@ -9236,6 +9366,11 @@ function Crash.build(ouder: Instance): ()
 		knop.Active = actief
 		betBox.lock(fase ~= "waiting" or mijn ~= nil)
 
+		-- `.btn-primary` heeft `border: none`; alleen `.btn-waiting` zet er een rand omheen.
+		-- Die rand telt in de CSS mee in de hoogte, dus in die stand is de knop twee hoger
+		-- -- en het inzetpaneel dus ook, precies zoals de pagina het doet.
+		knop.Size = UDim2.new(1, 0, 0, KNOP_H + (if actief then 0 else UI.RAND * 2))
+
 		if not actief then
 			-- .btn-waiting: vlak --panel-light met een rand, plus de opacity 0.6 van :disabled
 			knop.BackgroundColor3 = Theme.color.panelLight
@@ -9327,15 +9462,22 @@ function Crash.build(ouder: Instance): ()
 
 	local function tekenSpoor(gecrasht: boolean)
 		for i = 1, STAPPEN do
+			local g = spoorGloed[i]
+			g.Visible = true
+			zetLijn(g, baanX[i], baanY[i], baanX[i + 1], baanY[i + 1], 6)
+
 			local f = spoor[i]
 			f.Visible = true
 			f.BackgroundColor3 = if gecrasht then KLEUR.spoorCrash else Theme.color.white
-			zetLijn(f, baanX[i], baanY[i], baanX[i + 1], baanY[i + 1], 5)
+			zetLijn(f, baanX[i], baanY[i], baanX[i + 1], baanY[i + 1], 2)
 		end
 	end
 
 	local function wisSpoor()
 		for _, f in spoor do
+			f.Visible = false
+		end
+		for _, f in spoorGloed do
 			f.Visible = false
 		end
 	end
@@ -11156,9 +11298,9 @@ function Horse.build(ouder: Instance): ()
 		end
 	end
 
-	-- De `.field-group` erboven heeft margin-bottom 14; de lijst van het paneel geeft er al
-	-- 6, dus komt er 8 bij. Onderaan hetzelfde verhaal voor `.hr-list { margin-bottom: 10 }`:
-	-- 6 van de lijst plus 4 hier, zodat de totaalregel net zo ver onder de paarden staat.
+	-- Het kopje `.field-label` met zijn `margin-bottom: 6px`, dan de lijst met de paarden
+	-- en daaronder de `margin-bottom: 10px` van `.hr-list`. Het paneel houdt zelf niets
+	-- tussen zijn kinderen, dus die tien staan hier.
 	local lijstGroep = Instance.new("Frame")
 	lijstGroep.Name = "HorseField"
 	lijstGroep.Size = UDim2.new(1, 0, 0, 0)
@@ -11167,7 +11309,7 @@ function Horse.build(ouder: Instance): ()
 	lijstGroep.LayoutOrder = 10
 	lijstGroep.Parent = paneel
 	UI.list(lijstGroep, 6)
-	UI.padding4(lijstGroep, 8, 0, 4, 0)
+	UI.padding4(lijstGroep, 0, 0, 10, 0)
 
 	veldKop(lijstGroep, "HORSES &amp; ODDS", "win chance", 1)
 
@@ -11297,6 +11439,8 @@ function Horse.build(ouder: Instance): ()
 
 	local totaalLabel = payoutRegel(paneel, "TOTAL STAKE", 11)
 
+	Common.buttonGap(paneel, 12)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local startKnop = UI.primary(paneel, "START THE RACE")
 	startKnop.LayoutOrder = 12
@@ -11306,7 +11450,7 @@ function Horse.build(ouder: Instance): ()
 	-- .btn-row: twee gelijke knoppen met 6 ertussen en 8 lucht erboven.
 	local knoprij = Instance.new("Frame")
 	knoprij.Name = "ButtonRow"
-	knoprij.Size = UDim2.new(1, 0, 0, 36 + 8)
+	knoprij.Size = UDim2.new(1, 0, 0, 40 + 8)
 	knoprij.BackgroundTransparency = 1
 	knoprij.LayoutOrder = 13
 	knoprij.Parent = paneel
@@ -11316,10 +11460,10 @@ function Horse.build(ouder: Instance): ()
 
 	local wissen = UI.secondary(knoprij, "CLEAR")
 	wissen.LayoutOrder = 1
-	wissen.Size = UDim2.new(0.5, -3, 0, 36)
+	wissen.Size = UDim2.new(0.5, -3, 0, wissen.Size.Y.Offset)
 	local nieuweOdds = UI.secondary(knoprij, "NEW ODDS")
 	nieuweOdds.LayoutOrder = 2
-	nieuweOdds.Size = UDim2.new(0.5, -3, 0, 36)
+	nieuweOdds.Size = UDim2.new(0.5, -3, 0, nieuweOdds.Size.Y.Offset)
 
 	-- hrRender(): alle teksten en alle aan/uit-standen in één keer bijwerken.
 	function ververs()
@@ -11817,8 +11961,8 @@ function Mines.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local paneel = betBox.panel
 
-	-- .field-group met het aantal mijnen. De 8 boven is de margin-bottom van het inzetveld
-	-- erboven, de 8 onder die van deze groep zelf (14 min de 6 uit de lijst).
+	-- .field-group met het aantal mijnen, met zijn eigen `margin-bottom: 14px` eronder. Het
+	-- inzetveld erboven draagt de zijne zelf.
 	local mijnVeld = Instance.new("Frame")
 	mijnVeld.Name = "MinesField"
 	mijnVeld.Size = UDim2.new(1, 0, 0, 0)
@@ -11827,7 +11971,7 @@ function Mines.build(ouder: Instance): ()
 	mijnVeld.LayoutOrder = 10
 	mijnVeld.Parent = paneel
 	UI.list(mijnVeld, 6)
-	UI.padding4(mijnVeld, 8, 0, 8, 0)
+	UI.padding4(mijnVeld, 0, 0, 14, 0)
 
 	veldKop(mijnVeld, "NUMBER OF MINES", "1 \u{2013} 24")
 	local mijnVak = UI.numberBox(mijnVeld, tostring(mijnen))
@@ -11885,13 +12029,12 @@ function Mines.build(ouder: Instance): ()
 	end
 
 	-- De twee `.payout-line`-regels raken elkaar in de CSS: geen marge, geen tussenruimte,
-	-- het haarlijntje van de bovenste is meteen de bovenkant van de onderste. Het paneel
-	-- houdt zes pixels tussen zijn kinderen, dus de twee regels gaan samen in één blok dat
-	-- zelf niets tussen zijn kinderen laat. De twee pixels onderaan maken van die zes de
-	-- acht van `.btn-primary { margin-top: 8px }` onder het blok.
+	-- het haarlijntje van de bovenste is meteen de bovenkant van de onderste. De twee
+	-- regels gaan daarom samen in één blok dat zelf niets tussen zijn kinderen laat, met
+	-- eronder de acht van `.btn-primary { margin-top: 8px }`.
 	local payoutBlok = Instance.new("Frame")
 	payoutBlok.Name = "PayoutLines"
-	payoutBlok.Size = UDim2.new(1, 0, 0, PAYOUT_HOOG * 2 + 2)
+	payoutBlok.Size = UDim2.new(1, 0, 0, PAYOUT_HOOG * 2 + 8)
 	payoutBlok.BackgroundTransparency = 1
 	payoutBlok.LayoutOrder = 11
 	payoutBlok.Parent = paneel
@@ -12499,7 +12642,7 @@ function Plinko.build(ouder: Instance): ()
 	-- Een `.field-group` heeft alleen `margin-bottom: 14`. Het paneel zet zelf al 6 pixels
 	-- tussen zijn kinderen, dus elke groep legt er 8 onder bij. Het inzetblok erboven komt
 	-- uit Common.betBox en heeft die 8 niet, dus de eerste groep zet ze ook boven zichzelf.
-	local function veldGroep(orde: number, eerste: boolean?): Frame
+	local function veldGroep(orde: number): Frame
 		local f = Instance.new("Frame")
 		f.Name = "FieldGroup"
 		f.Size = UDim2.new(1, 0, 0, 0)
@@ -12508,11 +12651,11 @@ function Plinko.build(ouder: Instance): ()
 		f.LayoutOrder = orde
 		f.Parent = paneel
 		UI.list(f, 6)
-		UI.padding4(f, if eerste then 8 else 0, 0, 8, 0)
+		UI.padding4(f, 0, 0, 14, 0)   -- `.field-group { margin-bottom: 14px }`
 		return f
 	end
 
-	local rijenVeld = veldGroep(10, true)
+	local rijenVeld = veldGroep(10)
 	veldKop(rijenVeld, "ROWS")
 	local _, rijKnop = segRij(rijenVeld, #RIJEN, 2)
 	local rijKnoppen: { [number]: { knop: TextButton, rand: UIStroke } } = {}
@@ -12532,7 +12675,7 @@ function Plinko.build(ouder: Instance): ()
 	uitbetaling.LayoutOrder = 12
 	uitbetaling.Parent = paneel
 	UI.list(uitbetaling, 0)
-	UI.padding4(uitbetaling, 0, 0, 2, 0)
+	UI.padding4(uitbetaling, 0, 0, 8, 0)
 
 	local maxLabel = payoutRegel(uitbetaling, "MAX MULTIPLIER", 1)
 
@@ -13687,7 +13830,8 @@ function Roulette.build(ouder: Instance): ()
 
 	-- ---------- de bediening links ----------
 	local vakBediening = UI.panel(bediening, "Controls")
-	UI.list(vakBediening, 6)
+	-- Een `.panel` heeft geen tussenruimte: elk blok erin draagt zijn eigen marge.
+	UI.list(vakBediening, 0)
 
 	-- .field-group: "CHIP VALUE" links, het dollarteken in neon als hint rechts.
 	local veld = Instance.new("Frame")
@@ -13697,7 +13841,7 @@ function Roulette.build(ouder: Instance): ()
 	veld.BackgroundTransparency = 1
 	veld.Parent = vakBediening
 	UI.list(veld, 6)
-	UI.padding4(veld, 0, 0, 8, 0)   -- .field-group margin-bottom 14, met de 6 uit de lijst erbij
+	UI.padding4(veld, 0, 0, 14, 0)   -- .field-group { margin-bottom: 14px }
 
 	local kop = Instance.new("Frame")
 	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
@@ -13767,17 +13911,21 @@ function Roulette.build(ouder: Instance): ()
 	local totaalLabel = payoutRegel(vakBediening, "TOTAL STAKE", "$0.00", Theme.color.gold)
 	local laatsteLabel = payoutRegel(vakBediening, "LAST RESULT", "\u{2014}", Theme.color.neon)
 
+	Common.buttonGap(vakBediening)
+
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, over de volle breedte.
 	local draaien = UI.primary(vakBediening, "SPIN")
 	draaien.Font = Theme.font.uiBold
 	UI.gradient(draaien, Theme.color.neon, Theme.color.neonDim, 135)
 
-	local knoprij = Common.row(vakBediening, 36, 6)   -- .btn-row { gap: 6px }
-	UI.padding4(knoprij, 2, 0, 0, 0)   -- .btn-row margin-top 8, waarvan 6 uit de lijst komt
+	-- `.btn-row { gap: 6px; margin-top: 8px }` met twee `.btn-secondary`s van 40 hoog
+	-- (`padding: 12px 0` om een regel van 14, plus twee randen).
+	local knoprij = Common.row(vakBediening, 40 + 8, 6)   -- de rij plus zijn marge erboven
+	UI.padding4(knoprij, 8, 0, 0, 0)
 	local wissen = UI.secondary(knoprij, "CLEAR")
-	wissen.Size = UDim2.new(0.5, -3, 0, 36)
+	wissen.Size = UDim2.new(0.5, -3, 0, wissen.Size.Y.Offset)
 	local herhalen = UI.secondary(knoprij, "REPEAT")
-	herhalen.Size = UDim2.new(0.5, -3, 0, 36)
+	herhalen.Size = UDim2.new(0.5, -3, 0, herhalen.Size.Y.Offset)
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "roulette")
@@ -14002,10 +14150,9 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 -- Geeft allebei de labels terug, want hier verandert ook de naam mee: TO GO zolang je
 -- krast, RESULT zodra het lot af is.
 local function payoutRegel(ouder: Instance, naam: string, orde: number): (TextLabel, TextLabel)
-	-- De regel zelf is 27 hoog: 11px tekst met padding 6 boven en onder plus de haarlijn.
-	-- De 8 pixels erboven zijn de `margin-bottom: 14px` van `.field-group` min de 6 die de
-	-- UIListLayout van het paneel er al tussen zet; één lijst kan maar één tussenruimte.
-	local LUCHT = 8
+	-- De regel is 27 hoog: 11px tekst met padding 6 boven en onder plus de haarlijn. De
+	-- `.field-group` erboven draagt zijn eigen marge, dus er hoeft hier niets bij.
+	local LUCHT = 0
 	local HOOG = Theme.size.payoutRow
 
 	local rij = Instance.new("Frame")
@@ -14221,6 +14368,8 @@ function Scratch.build(ouder: Instance): ()
 	end
 
 	local statusNaam, statusWaarde = payoutRegel(paneel, "RESULT", 11)
+
+	Common.buttonGap(paneel, 11)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local kopen = UI.primary(paneel, "BUY A CARD")
@@ -14550,14 +14699,8 @@ function Slots.build(ouder: Instance): ()
 	-- inzetvak en de knop; hier volgt SPIN er meteen op, en dan valt op dat hij te hoog
 	-- hangt. In de CSS sluit `.field-group` af met 14 pixels lucht en begint
 	-- `.btn-primary` met 8, samen 22. De lijst van het paneel geeft er zelf 6 voor en 6 na
-	-- een kind, dus een leeg vakje van 10 vult het aan. Padding op de knop zelf zou de
-	-- tekst verschuiven in plaats van de knop.
-	local lucht = Instance.new("Frame")
-	lucht.Name = "Gap"
-	lucht.Size = UDim2.new(1, 0, 0, 22 - 6 - 6)
-	lucht.BackgroundTransparency = 1
-	lucht.LayoutOrder = 10
-	lucht.Parent = betBox.panel
+	-- een kind, dus een leeg vakje vult het aan.
+	Common.buttonGap(betBox.panel, 10)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	local knop = UI.primary(betBox.panel, "SPIN")
@@ -14793,8 +14936,8 @@ function Tower.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local paneel = betBox.panel
 
-	-- .field-group met de knoppenbalk. De 8 boven is de margin-bottom van het
-	-- inzetveld erboven, de 8 onder die van deze groep zelf (14 min de 6 uit de lijst).
+	-- .field-group met de knoppenbalk, met zijn eigen `margin-bottom: 14px` eronder. Het
+	-- inzetveld erboven draagt de zijne zelf, dus hier hoeft er niets boven.
 	local diffVeld = Instance.new("Frame")
 	diffVeld.Name = "DifficultyField"
 	diffVeld.Size = UDim2.new(1, 0, 0, 0)
@@ -14803,7 +14946,7 @@ function Tower.build(ouder: Instance): ()
 	diffVeld.LayoutOrder = 10
 	diffVeld.Parent = paneel
 	UI.list(diffVeld, 6)
-	UI.padding4(diffVeld, 8, 0, 8, 0)
+	UI.padding4(diffVeld, 0, 0, 14, 0)
 
 	local hint = veldKop(diffVeld, "DIFFICULTY", Odds.TOWER_DIFF[diff].label)
 
@@ -14882,8 +15025,8 @@ function Tower.build(ouder: Instance): ()
 	end
 
 	-- De twee `.payout-line`s raken elkaar in de CSS: geen marge, alleen het haarlijntje
-	-- ertussen. Het paneel zet zelf 6 pixels tussen zijn kinderen, dus ze gaan samen in een
-	-- eigen blok met ruimte nul. De 2 eronder maakt van die 6 de 8 van `.btn-primary`.
+	-- ertussen. Ze gaan daarom samen in een eigen blok met ruimte nul, met eronder de
+	-- `margin-top: 8px` van de knop die erop volgt.
 	local uitbetaling = Instance.new("Frame")
 	uitbetaling.Name = "Payout"
 	uitbetaling.Size = UDim2.new(1, 0, 0, 0)
@@ -14892,7 +15035,7 @@ function Tower.build(ouder: Instance): ()
 	uitbetaling.LayoutOrder = 11
 	uitbetaling.Parent = paneel
 	UI.list(uitbetaling, 0)
-	UI.padding4(uitbetaling, 0, 0, 2, 0)
+	UI.padding4(uitbetaling, 0, 0, 8, 0)
 
 	local huidigLabel = payoutRegel(uitbetaling, "CURRENT WIN", Theme.color.neon, 1)
 	local volgendLabel = payoutRegel(uitbetaling, "NEXT FLOOR", Theme.color.gold, 2)
@@ -15920,6 +16063,8 @@ function Wheel.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
+	Common.buttonGap(betBox.panel)
+
 	local knop = UI.primary(betBox.panel, "SPIN THE WHEEL")
 	knop.LayoutOrder = 11
 	knop.Font = Theme.font.uiBold

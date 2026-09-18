@@ -303,8 +303,8 @@ function Mines.build(ouder: Instance): ()
 	local betBox = Common.betBox(bediening, 10)
 	local paneel = betBox.panel
 
-	-- .field-group met het aantal mijnen. De 8 boven is de margin-bottom van het inzetveld
-	-- erboven, de 8 onder die van deze groep zelf (14 min de 6 uit de lijst).
+	-- .field-group met het aantal mijnen, met zijn eigen `margin-bottom: 14px` eronder. Het
+	-- inzetveld erboven draagt de zijne zelf.
 	local mijnVeld = Instance.new("Frame")
 	mijnVeld.Name = "MinesField"
 	mijnVeld.Size = UDim2.new(1, 0, 0, 0)
@@ -313,7 +313,7 @@ function Mines.build(ouder: Instance): ()
 	mijnVeld.LayoutOrder = 10
 	mijnVeld.Parent = paneel
 	UI.list(mijnVeld, 6)
-	UI.padding4(mijnVeld, 8, 0, 8, 0)
+	UI.padding4(mijnVeld, 0, 0, 14, 0)
 
 	veldKop(mijnVeld, "NUMBER OF MINES", "1 \u{2013} 24")
 	local mijnVak = UI.numberBox(mijnVeld, tostring(mijnen))
@@ -371,13 +371,12 @@ function Mines.build(ouder: Instance): ()
 	end
 
 	-- De twee `.payout-line`-regels raken elkaar in de CSS: geen marge, geen tussenruimte,
-	-- het haarlijntje van de bovenste is meteen de bovenkant van de onderste. Het paneel
-	-- houdt zes pixels tussen zijn kinderen, dus de twee regels gaan samen in één blok dat
-	-- zelf niets tussen zijn kinderen laat. De twee pixels onderaan maken van die zes de
-	-- acht van `.btn-primary { margin-top: 8px }` onder het blok.
+	-- het haarlijntje van de bovenste is meteen de bovenkant van de onderste. De twee
+	-- regels gaan daarom samen in één blok dat zelf niets tussen zijn kinderen laat, met
+	-- eronder de acht van `.btn-primary { margin-top: 8px }`.
 	local payoutBlok = Instance.new("Frame")
 	payoutBlok.Name = "PayoutLines"
-	payoutBlok.Size = UDim2.new(1, 0, 0, PAYOUT_HOOG * 2 + 2)
+	payoutBlok.Size = UDim2.new(1, 0, 0, PAYOUT_HOOG * 2 + 8)
 	payoutBlok.BackgroundTransparency = 1
 	payoutBlok.LayoutOrder = 11
 	payoutBlok.Parent = paneel

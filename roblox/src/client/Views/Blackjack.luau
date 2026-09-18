@@ -49,7 +49,8 @@ local ACTIE_H = 40         -- .btn-secondary: 11px tekst (regel 14), padding 12 
 -- Boven DEAL zit twee keer lucht: de margin-bottom van de `.field-group` met het inzetveld
 -- en de margin-top van `.btn-primary` zelf. Samen 22, en dat is meer dan de 6 die de lijst
 -- van het paneel ertussen zet -- vandaar dat de knop hier in een eigen vakje hangt.
-local DEAL_MARGE = 14 + 8  -- .field-group margin-bottom + .btn-primary margin-top
+local DEAL_MARGE = 8       -- .btn-primary { margin-top: 8px }; de 14 van de
+                           -- `.field-group` erboven draagt die groep zelf
 
 -- .btn-primary:disabled is opacity 0.6 en .btn-secondary:disabled 0.35. UI.setEnabled kent
 -- dat verschil niet en dimt alles even hard, dus DEAL wordt hier zelf gezet.
@@ -290,7 +291,7 @@ function Blackjack.build(ouder: Instance): ()
 	dealVak.BackgroundTransparency = 1
 	dealVak.LayoutOrder = 10
 	dealVak.Parent = paneel
-	UI.padding4(dealVak, DEAL_MARGE - 6, 0, 0, 0)
+	UI.padding4(dealVak, DEAL_MARGE, 0, 0, 0)
 
 	-- .btn-primary.btn-bet: het verloop van neon naar neon-dim, vet, volle breedte.
 	--
@@ -312,7 +313,7 @@ function Blackjack.build(ouder: Instance): ()
 	UI.list(acties, ACTIE_GAT)
 	-- `.bj-actions` heeft margin-top 8. Het paneel van betBox zet zijn onderdelen al met 6
 	-- uit elkaar, dus er hoeft hier nog 2 bij om op diezelfde 8 uit te komen.
-	UI.padding4(acties, ACTIE_MARGE - 6, 0, 0, 0)
+	UI.padding4(acties, ACTIE_MARGE, 0, 0, 0)
 
 	local bovenRij = Instance.new("Frame")
 	bovenRij.Name = "Row"

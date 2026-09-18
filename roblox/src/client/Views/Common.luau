@@ -11,6 +11,7 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
+local TextService = game:GetService("TextService")
 local Season = require(ReplicatedStorage.Shared.Season)
 
 local Common = {}
@@ -19,6 +20,14 @@ local Common = {}
 -- de letter zelf. Met de zes pixels van `.stats-grid` ertussen komen de regels twintig uit
 -- elkaar te staan, en dat is wat de site laat zien.
 local STAT_REGEL = 14
+
+-- `.crash-header { gap: 12px; padding: 10px 0 }` om een terugknop van 32 (een regel van 14
+-- met acht lucht boven en onder plus twee randen): samen 52 hoog. `.crash-header-title` is
+-- 22px, dus een regel van 26.
+local KOP_GAT = 12
+local KOP_PAD = 10
+local KOP_REGEL = 26        -- regelvak van 22px
+local TERUG_REGEL = 8 + 14 + 8   -- `.back-btn { padding: 8px 0 }` om een regel van 14
 
 -- ---------- saldo en meldingen ----------
 -- De schil weet het saldo en heeft het meldingenvak; de schermen vragen het hier op.
@@ -483,10 +492,10 @@ function Common.columns(
 		-- een regel van 14 met acht lucht boven en onder plus twee randen. Samen 52. Hier
 		-- stond 34 -- de tien pixels lucht ontbraken aan beide kanten, en daardoor begon
 		-- alles in de zijkolom achttien pixels te hoog.
-		kop.Size = UDim2.new(1, 0, 0, 52)
+		kop.Size = UDim2.new(1, 0, 0, KOP_PAD * 2 + TERUG_REGEL + UI.RAND * 2)
 		kop.BackgroundTransparency = 1
 		kop.Parent = aside
-		local kopIndeling = UI.list(kop, 12, Enum.FillDirection.Horizontal)
+		local kopIndeling = UI.list(kop, KOP_GAT, Enum.FillDirection.Horizontal)
 		kopIndeling.VerticalAlignment = Enum.VerticalAlignment.Center
 
 		local terug = UI.backButton(kop, terugTekst)
@@ -495,8 +504,8 @@ function Common.columns(
 			-- `.back-btn` heeft geen vaste breedte maar padding van 8 om 12; met een
 			-- langere tekst dan "← LOBBY" moet de knop dus meegroeien.
 			terug.AutomaticSize = Enum.AutomaticSize.X
-			terug.Size = UDim2.fromOffset(0, 30)
-			UI.padding4(terug, 0, 12, 0, 12)
+			terug.Size = UDim2.fromOffset(0, terug.Size.Y.Offset)
+			UI.padding4(terug, 0, 12 + UI.RAND, 0, 12 + UI.RAND)
 		end
 		terug.Activated:Connect(function()
 			Common.navigate(terugNaar or "home")
@@ -508,6 +517,21 @@ function Common.columns(
 		naam.LayoutOrder = 2
 		naam.Size = UDim2.new(0, 0, 1, 0)
 		naam.AutomaticSize = Enum.AutomaticSize.X
+
+		-- `.crash-header` is een flexregel met `flex-wrap`. Past de naam niet naast de
+		-- terugknop, dan breekt de browser allebei over twee regels en wordt de kop hoger --
+		-- dat gebeurt bij WHEEL OF FORTUNE, en daar zakt de hele zijkolom twintig pixels
+		-- mee. Roblox wikkelt niet uit zichzelf, dus wordt het hier nagemeten en nagedaan.
+		local breed = TextService:GetTextSize(
+			naam.Text, naam.TextSize, naam.Font, Vector2.new(9999, 9999)).X
+		if terug.Size.X.Offset + KOP_GAT + breed > Theme.size.asideWidth then
+			naam.AutomaticSize = Enum.AutomaticSize.None
+			naam.TextWrapped = true
+			naam.Size = UDim2.new(1, -(terug.Size.X.Offset + KOP_GAT), 0, KOP_REGEL * 2)
+			terug.TextWrapped = true
+			terug.Size = UDim2.fromOffset(terug.Size.X.Offset, TERUG_REGEL * 2)
+			kop.Size = UDim2.new(1, 0, 0, KOP_PAD * 2 + KOP_REGEL * 2)
+		end
 	end
 
 	-- Het saldopaneel, zoals `.panel.balance` in de markup: alles gecentreerd.
@@ -597,14 +621,45 @@ export type BetBox = {
 -- Het inzetveld met ½, 2×, MIN en MAX eronder. Dezelfde vier knoppen en dezelfde rekenregels
 -- als bindBet() in de webversie; het afronden gebeurt hier alleen om het netjes te tonen,
 -- de server rekent zelf na.
+-- `.btn-primary { margin-top: 8px }`: elke grote knop onderin een inzetpaneel heeft acht
+-- pixels lucht boven zich. Een `.panel` houdt zelf niets tussen zijn kinderen, dus die acht
+-- staan als een leeg vakje in de rij. Los van de knop, want een knop die verdwijnt (CASH
+-- OUT staat er alleen als er iets te verzilveren is) mag zijn marge niet meenemen -- in de
+-- CSS blijft de marge van het blok erboven dan ook gewoon staan.
+function Common.buttonGap(paneel: Instance, orde: number?): Frame
+	local v = Instance.new("Frame")
+	v.Name = "ButtonGap"
+	v.Size = UDim2.new(1, 0, 0, 8)
+	v.BackgroundTransparency = 1
+	if orde then v.LayoutOrder = orde end
+	v.Parent = paneel
+	return v
+end
+
 function Common.betBox(ouder: Instance, start: number?): BetBox
 	local paneel = UI.panel(ouder, "BetPanel")
-	UI.list(paneel, 6)
+	-- Een `.panel` heeft geen tussenruimte: elk blok erin draagt zijn eigen marge. Hier
+	-- stond zes, en dan kreeg elk blok dat een scherm er later bij zette er twaalf bij --
+	-- zes boven en zes onder -- in plaats van de marge die de CSS vraagt.
+	UI.list(paneel, 0)
+
+	-- `.field-group { margin-bottom: 14px }`: het kopje, het invoerveld en de ficherij
+	-- horen bij elkaar, met zes ertussen (`.field-label { margin-bottom: 6px }` en
+	-- `.chips { margin-top: 6px }`).
+	local veldGroep = Instance.new("Frame")
+	veldGroep.Name = "FieldGroup"
+	veldGroep.Size = UDim2.new(1, 0, 0, 0)
+	veldGroep.AutomaticSize = Enum.AutomaticSize.Y
+	veldGroep.BackgroundTransparency = 1
+	veldGroep.Parent = paneel
+	UI.list(veldGroep, 6)
+	UI.padding4(veldGroep, 0, 0, 14, 0)
+
 	-- .field-label: "STAKE" links, het dollarteken als hint rechts.
 	local kop = Instance.new("Frame")
 	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	kop.BackgroundTransparency = 1
-	kop.Parent = paneel
+	kop.Parent = veldGroep
 	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
 	-- `.field-label .hint { color: var(--neon); opacity: 0.7 }`: het dollarteken is neon en
 	-- iets doorzichtig, niet grijs.
@@ -613,9 +668,9 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	})
 	hint.TextTransparency = 0.3
 
-	local vak = UI.numberBox(paneel, Money.fmt(start or 10))
+	local vak = UI.numberBox(veldGroep, Money.fmt(start or 10))
 	-- `.chips`: de rij is precies zo hoog als een fiche met zijn rand eromheen.
-	local ficherij = Common.row(paneel, 28)
+	local ficherij = Common.row(veldGroep, 28)
 
 	local function huidig(): number
 		return tonumber(vak.Text) or 0
