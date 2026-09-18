@@ -840,4 +840,35 @@ do
 	h.check("zonder inzet kan het niet", false, w2.Crash.setAuto(s2, 5).ok)
 end
 
+-- ---------- de ranglijst krijgt alles wat de drie kolommen nodig hebben ----------
+-- De pagina heeft MOST MONEY, WIN / LOSS RATIO en SPRINT PROFIT naast elkaar staan. Een
+-- OrderedDataStore sorteert op één getal, dus er moeten drie getallen langskomen. Ging er
+-- alleen de sprintwinst mee -- zoals eerst -- dan blijven twee van de drie kolommen leeg.
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	local gezien: any = nil
+	w.Profiles.setPublisher(function(speler, sprint, winst, saldo, gewonnen, verloren)
+		gezien = {
+			id = speler.UserId, sprint = sprint, winst = winst,
+			saldo = saldo, gewonnen = gewonnen, verloren = verloren,
+		}
+	end)
+
+	p.balance = 1234.5
+	p.sprintProfit = 234.5
+	p.stats.crash = { rounds = 6, won = 4, lost = 2, profit = 100, highest = 3 }
+	p.stats.mines = { rounds = 5, won = 1, lost = 4, profit = -50, highest = 0 }
+
+	w.Profiles.save(s)
+	h.check("de ranglijst is bijgewerkt", true, gezien ~= nil)
+	h.check("met de juiste speler", 1, gezien.id)
+	h.check("de sprintwinst gaat mee", 234.5, gezien.winst)
+	h.check("het saldo ook", 1234.5, gezien.saldo)
+	-- Alle spellen bij elkaar opgeteld, zoals lbRatio het in de webversie doet.
+	h.check("en het aantal gewonnen rondes over alle spellen", 5, gezien.gewonnen)
+	h.check("en het aantal verloren rondes", 6, gezien.verloren)
+end
+
 h.report("SERVER")

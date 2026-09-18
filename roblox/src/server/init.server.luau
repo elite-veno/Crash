@@ -20,8 +20,8 @@ Net.build()
 
 -- Profiles regelt het profiel en weet niets van ranglijsten of het netwerk; hier worden
 -- die draadjes aan elkaar geknoopt.
-Profiles.setPublisher(function(speler, sprint, winst)
-	Ranking.publish(speler, sprint, winst)
+Profiles.setPublisher(function(speler, sprint, winst, saldo, gewonnen, verloren)
+	Ranking.publish(speler, sprint, winst, saldo, gewonnen, verloren)
 end)
 Profiles.setPlaceLookup(function(sprint, userId)
 	return Ranking.placeOf(sprint, userId)
@@ -86,6 +86,10 @@ Net.fn("Leaderboard").OnServerInvoke = function(speler, welke)
 		sprintsLeft = Season.sprintsLeft(),
 		now = os.time(),
 		top = Ranking.top(sprint, 25),
+		-- De twee andere kolommen van `.lb-grid`. Ze lopen over het hele spel, niet per
+		-- sprint, net als in de webversie waar ze uit dezelfde spelerstabel komen.
+		money = Ranking.topMoney(10),
+		ratio = Ranking.topRatio(10),
 		mine = if p then p.sprintProfit else 0,
 		vipActive = Profiles.vipActive(speler),
 	}

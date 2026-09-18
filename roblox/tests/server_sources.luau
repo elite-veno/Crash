@@ -420,10 +420,12 @@ function Profiles.vipActive(speler: Player): boolean
 	return p ~= nil and Season.vipActive(p.vipSeason)
 end
 
--- Wie de sprintstand naar de ranglijst brengt. Ranking hangt zichzelf hier in.
-local publiceer: ((Player, number, number) -> ())? = nil
+-- Wie de stand naar de ranglijst brengt. Ranking hangt zichzelf hier in. De drie kolommen
+-- op de pagina sorteren op iets anders, dus er gaat meer mee dan alleen de sprintwinst:
+-- het saldo, en hoeveel rondes er gewonnen en verloren zijn.
+local publiceer: ((Player, number, number, number, number, number) -> ())? = nil
 
-function Profiles.setPublisher(f: (Player, number, number) -> ()): ()
+function Profiles.setPublisher(f: (Player, number, number, number, number, number) -> ()): ()
 	publiceer = f
 end
 
@@ -436,8 +438,14 @@ local function schrijf(speler: Player, vrijgeven: boolean): ()
 	-- weggaan. Dat is vaak genoeg voor een stand die drie dagen loopt.
 	local pub = publiceer
 	if pub and p.sprint then
+		-- Alle spellen bij elkaar: zo telt de webversie het ook op voor de verhouding.
+		local gewonnen, verloren = 0, 0
+		for _, st in p.stats do
+			gewonnen += tonumber(st.won) or 0
+			verloren += tonumber(st.lost) or 0
+		end
 		pcall(function(): any
-			pub(speler, p.sprint :: number, p.sprintProfit)
+			pub(speler, p.sprint :: number, p.sprintProfit, p.balance, gewonnen, verloren)
 			return nil
 		end)
 	end

@@ -527,16 +527,32 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 			for _, k in kol.lijst:GetChildren() do
 				if k:IsA("Frame") then k:Destroy() end
 			end
-			kol.leeg.Visible = #res.top == 0
 		end
-		for _, plek in res.top do
-			local naam = "#" .. plek.rank .. "  " .. plek.name
-			local a = Common.statRow(kolommen.sprint.lijst, naam,
-				(if plek.profit >= 0 then "+$" else "-$") .. Money.fmt(math.abs(plek.profit)))
-			a.TextColor3 = if plek.profit >= 0 then Theme.color.neon else Theme.color.red
-			local b = Common.statRow(kolommen.money.lijst, naam, "\u{2014}")
-			b.TextColor3 = Theme.color.muted
+
+		-- Elke kolom heeft zijn eigen lijst van de server en zijn eigen lege regel: een
+		-- ranglijst die nog niemand heeft is niet hetzelfde als een die wel gevuld is.
+		local function vul(kol: Kolom, rijen: any, waarde: (any) -> (string, Color3))
+			local n = if typeof(rijen) == "table" then #rijen else 0
+			kol.leeg.Visible = n == 0
+			if n == 0 then return end
+			for _, plek in rijen do
+				local tekst, kleur = waarde(plek)
+				local r = Common.statRow(kol.lijst, "#" .. plek.rank .. "  " .. plek.name, tekst)
+				r.TextColor3 = kleur
+			end
 		end
+
+		vul(kolommen.sprint, res.top, function(plek)
+			local w = tonumber(plek.profit) or 0
+			return (if w >= 0 then "+$" else "-$") .. Money.fmt(math.abs(w)),
+				if w >= 0 then Theme.color.neon else Theme.color.red
+		end)
+		vul(kolommen.money, res.money, function(plek)
+			return "$" .. Money.fmt(tonumber(plek.profit) or 0), Theme.color.gold
+		end)
+		vul(kolommen.ratio, res.ratio, function(plek)
+			return string.format("%.2f", tonumber(plek.profit) or 0), Theme.color.gold
+		end)
 	end
 
 	task.spawn(function()

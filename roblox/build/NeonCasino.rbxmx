@@ -1873,8 +1873,8 @@ Net.build()
 
 -- Profiles regelt het profiel en weet niets van ranglijsten of het netwerk; hier worden
 -- die draadjes aan elkaar geknoopt.
-Profiles.setPublisher(function(speler, sprint, winst)
-	Ranking.publish(speler, sprint, winst)
+Profiles.setPublisher(function(speler, sprint, winst, saldo, gewonnen, verloren)
+	Ranking.publish(speler, sprint, winst, saldo, gewonnen, verloren)
 end)
 Profiles.setPlaceLookup(function(sprint, userId)
 	return Ranking.placeOf(sprint, userId)
@@ -1939,6 +1939,10 @@ Net.fn("Leaderboard").OnServerInvoke = function(speler, welke)
 		sprintsLeft = Season.sprintsLeft(),
 		now = os.time(),
 		top = Ranking.top(sprint, 25),
+		-- De twee andere kolommen van `.lb-grid`. Ze lopen over het hele spel, niet per
+		-- sprint, net als in de webversie waar ze uit dezelfde spelerstabel komen.
+		money = Ranking.topMoney(10),
+		ratio = Ranking.topRatio(10),
 		mine = if p then p.sprintProfit else 0,
 		vipActive = Profiles.vipActive(speler),
 	}
@@ -3693,10 +3697,12 @@ function Profiles.vipActive(speler: Player): boolean
 	return p ~= nil and Season.vipActive(p.vipSeason)
 end
 
--- Wie de sprintstand naar de ranglijst brengt. Ranking hangt zichzelf hier in.
-local publiceer: ((Player, number, number) -&gt; ())? = nil
+-- Wie de stand naar de ranglijst brengt. Ranking hangt zichzelf hier in. De drie kolommen
+-- op de pagina sorteren op iets anders, dus er gaat meer mee dan alleen de sprintwinst:
+-- het saldo, en hoeveel rondes er gewonnen en verloren zijn.
+local publiceer: ((Player, number, number, number, number, number) -&gt; ())? = nil
 
-function Profiles.setPublisher(f: (Player, number, number) -&gt; ()): ()
+function Profiles.setPublisher(f: (Player, number, number, number, number, number) -&gt; ()): ()
 	publiceer = f
 end
 
@@ -3709,8 +3715,14 @@ local function schrijf(speler: Player, vrijgeven: boolean): ()
 	-- weggaan. Dat is vaak genoeg voor een stand die drie dagen loopt.
 	local pub = publiceer
 	if pub and p.sprint then
+		-- Alle spellen bij elkaar: zo telt de webversie het ook op voor de verhouding.
+		local gewonnen, verloren = 0, 0
+		for _, st in p.stats do
+			gewonnen += tonumber(st.won) or 0
+			verloren += tonumber(st.lost) or 0
+		end
 		pcall(function(): any
-			pub(speler, p.sprint :: number, p.sprintProfit)
+			pub(speler, p.sprint :: number, p.sprintProfit, p.balance, gewonnen, verloren)
 			return nil
 		end)
 	end
@@ -3965,20 +3977,35 @@ local Money = require(Gedeeld.Money)
 local Ranking = {}
 
 local PLAATSEN = 25
-local lijsten: { [number]: OrderedDataStore } = {}
 local naamCache: { [number]: string } = {}
 local aanUit = not RunService:IsStudio()
 
-local function lijstVan(sprint: number): OrderedDataStore?
+-- Drie ranglijsten, want de pagina heeft er drie naast elkaar staan. Een OrderedDataStore
+-- sorteert op één getal, dus elke kolom heeft zijn eigen lijst:
+--   sprint -- wat je deze sprint overhoudt; hier hangen de titels en de VIP-pas aan
+--   money  -- je saldo, over sprints heen
+--   ratio  -- gewonnen gedeeld door verloren, voor wie genoeg rondes heeft gespeeld
+--
+-- De laatste twee staan niet per sprint maar over het hele spel, net als in de webversie:
+-- daar komen ze uit dezelfde spelerstabel en resetten ze niet mee.
+local WINST_MIN_RONDES = 10
+
+local lijsten: { [string]: OrderedDataStore } = {}
+
+local function lijstMet(naam: string): OrderedDataStore?
 	if not aanUit then return nil end
-	local l = lijsten[sprint]
+	local l = lijsten[naam]
 	if l then return l end
 	local ok, nieuw = pcall(function()
-		return DataStoreService:GetOrderedDataStore("NeonSprint_v1_" .. sprint)
+		return DataStoreService:GetOrderedDataStore(naam)
 	end)
 	if not ok then return nil end
-	lijsten[sprint] = nieuw
+	lijsten[naam] = nieuw
 	return nieuw
+end
+
+local function lijstVan(sprint: number): OrderedDataStore?
+	return lijstMet("NeonSprint_v1_" .. sprint)
 end
 
 -- Centen, want een OrderedDataStore neemt alleen hele getallen. De grens houdt hem binnen
@@ -3991,15 +4018,48 @@ function Ranking.fromScore(score: number): number
 	return Money.round2(score / 100)
 end
 
--- De stand van deze speler in de lopende sprint wegschrijven. Wordt bij elke save gedaan,
--- dus ongeveer elke twee minuten en bij het weggaan.
-function Ranking.publish(speler: Player, sprint: number, winst: number): ()
-	local l = lijstVan(sprint)
-	if not l then return end
+-- De verhouding gewonnen/verloren als geheel getal, want een OrderedDataStore kan niet
+-- anders: twee decimalen, dus 1,75 wordt 175. Delen door minstens één, net als lbRatio in
+-- de webversie -- zonder verliezen zou de verhouding oneindig zijn.
+function Ranking.ratioScore(gewonnen: number, verloren: number): number
+	return math.clamp(math.floor(gewonnen / math.max(1, verloren) * 100), 0, 1e9)
+end
+
+-- De stand van deze speler wegschrijven. Wordt bij elke save gedaan, dus ongeveer elke
+-- minuut en bij het weggaan.
+--
+-- Drie schrijfbeurten in plaats van één. Dat past ruim binnen wat Roblox per speler
+-- toestaat, en het is de enige manier om op drie dingen te kunnen sorteren.
+function Ranking.publish(speler: Player, sprint: number, winst: number, saldo: number?, gewonnen: number?, verloren: number?): ()
 	naamCache[speler.UserId] = speler.DisplayName
-	pcall(function()
-		l:SetAsync(tostring(speler.UserId), Ranking.toScore(winst))
-	end)
+	local sleutel = tostring(speler.UserId)
+
+	local l = lijstVan(sprint)
+	if l then
+		pcall(function()
+			l:SetAsync(sleutel, Ranking.toScore(winst))
+		end)
+	end
+
+	if saldo then
+		local m = lijstMet("NeonMoney_v1")
+		if m then
+			pcall(function()
+				m:SetAsync(sleutel, Ranking.toScore(saldo))
+			end)
+		end
+	end
+
+	-- Onder de tien rondes telt een verhouding niet mee: met één gewonnen ronde en nul
+	-- verloren zou je bovenaan staan. `MIN. 10 ROUNDS` staat ook op het kopje.
+	if gewonnen and verloren and gewonnen + verloren &gt;= WINST_MIN_RONDES then
+		local r = lijstMet("NeonRatio_v1")
+		if r then
+			pcall(function()
+				r:SetAsync(sleutel, Ranking.ratioScore(gewonnen, verloren))
+			end)
+		end
+	end
 end
 
 local function naamVan(id: number): string
@@ -4019,6 +4079,48 @@ local function naamVan(id: number): string
 end
 
 export type Plek = { rank: number, userId: number, name: string, profit: number }
+
+-- De bovenste plaatsen van een lijst, hoogste eerst. `waarde` zet het opgeslagen getal om
+-- naar wat de pagina wil zien.
+local function bovenaan(l: OrderedDataStore?, hoeveel: number, waarde: (number) -&gt; number): { Plek }
+	if not l then return {} end
+	local n = math.clamp(hoeveel, 1, 100)
+	local ok, pagina = pcall(function()
+		return l:GetSortedAsync(false, n)
+	end)
+	if not ok then return {} end
+	local ok2, rij = pcall(function()
+		return pagina:GetCurrentPage()
+	end)
+	if not ok2 then return {} end
+
+	local uit: { Plek } = {}
+	for i, item in rij do
+		local id = tonumber(item.key)
+		if id then
+			table.insert(uit, {
+				rank = i,
+				userId = id,
+				name = naamVan(id),
+				profit = waarde(item.value),
+			})
+		end
+	end
+	return uit
+end
+
+-- `MOST MONEY`: het saldo, over sprints heen.
+function Ranking.topMoney(hoeveel: number?): { Plek }
+	return bovenaan(lijstMet("NeonMoney_v1"), hoeveel or 10, Ranking.fromScore)
+end
+
+-- `WIN / LOSS RATIO`: alleen spelers met genoeg rondes staan erin, want dat filtert
+-- Ranking.publish er al uit.
+function Ranking.topRatio(hoeveel: number?): { Plek }
+	return bovenaan(lijstMet("NeonRatio_v1"), hoeveel or 10, function(v: number): number
+		return v / 100
+	end)
+end
 
 -- De bovenste plaatsen van een sprint, hoogste winst eerst.
 function Ranking.top(sprint: number, hoeveel: number?): { Plek }
@@ -10353,16 +10455,32 @@ function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
 			for _, k in kol.lijst:GetChildren() do
 				if k:IsA("Frame") then k:Destroy() end
 			end
-			kol.leeg.Visible = #res.top == 0
 		end
-		for _, plek in res.top do
-			local naam = "#" .. plek.rank .. "  " .. plek.name
-			local a = Common.statRow(kolommen.sprint.lijst, naam,
-				(if plek.profit &gt;= 0 then "+$" else "-$") .. Money.fmt(math.abs(plek.profit)))
-			a.TextColor3 = if plek.profit &gt;= 0 then Theme.color.neon else Theme.color.red
-			local b = Common.statRow(kolommen.money.lijst, naam, "\u{2014}")
-			b.TextColor3 = Theme.color.muted
+
+		-- Elke kolom heeft zijn eigen lijst van de server en zijn eigen lege regel: een
+		-- ranglijst die nog niemand heeft is niet hetzelfde als een die wel gevuld is.
+		local function vul(kol: Kolom, rijen: any, waarde: (any) -&gt; (string, Color3))
+			local n = if typeof(rijen) == "table" then #rijen else 0
+			kol.leeg.Visible = n == 0
+			if n == 0 then return end
+			for _, plek in rijen do
+				local tekst, kleur = waarde(plek)
+				local r = Common.statRow(kol.lijst, "#" .. plek.rank .. "  " .. plek.name, tekst)
+				r.TextColor3 = kleur
+			end
 		end
+
+		vul(kolommen.sprint, res.top, function(plek)
+			local w = tonumber(plek.profit) or 0
+			return (if w &gt;= 0 then "+$" else "-$") .. Money.fmt(math.abs(w)),
+				if w &gt;= 0 then Theme.color.neon else Theme.color.red
+		end)
+		vul(kolommen.money, res.money, function(plek)
+			return "$" .. Money.fmt(tonumber(plek.profit) or 0), Theme.color.gold
+		end)
+		vul(kolommen.ratio, res.ratio, function(plek)
+			return string.format("%.2f", tonumber(plek.profit) or 0), Theme.color.gold
+		end)
 	end
 
 	task.spawn(function()
