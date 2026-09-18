@@ -276,8 +276,22 @@ do
 	h.check("zonder slot is het vrij", true, P.slotVrij({}, "A", nu))
 	h.check("je eigen slot is vrij", true, P.slotVrij({ lockJob = "A", lockAt = nu }, "A", nu))
 	h.check("andermans verse slot is bezet", false, P.slotVrij({ lockJob = "B", lockAt = nu }, "A", nu))
-	h.check("na een minuut nog steeds bezet", false, P.slotVrij({ lockJob = "B", lockAt = nu - 60 }, "A", nu))
-	h.check("na twee minuten vervallen", true, P.slotVrij({ lockJob = "B", lockAt = nu - 120 }, "A", nu))
+	-- Dit is waar het slot om draait. Het levensteken komt met elke tussentijdse
+	-- schrijfbeurt mee, dus een slot dat eerder vervalt dan de volgende schrijfbeurt laat
+	-- een speler die gewoon zit te spelen er verlaten uitzien -- en dan pakt een tweede
+	-- server zijn profiel op. Twee servers op hetzelfde saldo is geld dat verdwijnt of
+	-- geld dat er ineens twee keer is.
+	h.check("het slot vervalt later dan de volgende schrijfbeurt", true, P.SLOT_VERVAL > P.AUTOSAVE)
+	h.check("en niet op het nippertje: drie beurten mogen missen", true, P.SLOT_VERVAL >= P.AUTOSAVE * 3)
+
+	-- Een levensteken van vlak geleden is nooit vervallen, hoe je de getallen ook zet.
+	h.check("een verse schrijfbeurt houdt het slot vast", false,
+		P.slotVrij({ lockJob = "B", lockAt = nu - P.AUTOSAVE }, "A", nu))
+	h.check("twee gemiste beurten ook nog", false,
+		P.slotVrij({ lockJob = "B", lockAt = nu - P.AUTOSAVE * 2 }, "A", nu))
+	-- En een server die echt weg is blokkeert de speler niet voor altijd.
+	h.check("na lang stil te zijn valt het slot vrij", true,
+		P.slotVrij({ lockJob = "B", lockAt = nu - P.SLOT_VERVAL - 1 }, "A", nu))
 end
 
 -- ---------- het profiel dat naar de client gaat ----------

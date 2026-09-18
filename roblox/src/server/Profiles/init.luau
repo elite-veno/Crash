@@ -64,12 +64,30 @@ local laden: { [number]: boolean } = {}       -- er wordt nu gelezen (GetAsync h
 local verlaten: { [number]: boolean } = {}    -- vertrokken terwijl er nog gelezen werd
 local afgerond: { [number]: boolean } = {}    -- al afgesloten; niet twee keer schrijven
 
--- Zoveel seconden zonder levensteken en het slot van een andere server vervalt. Lager en
--- een server die crasht blokkeert de speler onnodig lang; hoger en twee servers kunnen
--- elkaar overschrijven.
-local SLOT_VERVAL = 90
-local AUTOSAVE = 120
 local POGINGEN = 4
+
+-- Hoe vaak het profiel tussentijds wordt weggeschreven. Elke schrijfbeurt zet het slot
+-- opnieuw op de klok, dus dit is ook het tempo van het levensteken.
+local AUTOSAVE = 60
+
+-- Zoveel seconden zonder levensteken en het slot van een andere server vervalt.
+--
+-- Dit moet ruim boven AUTOSAVE liggen en niet eronder. Stond het slot eerder af dan het
+-- volgende levensteken -- 90 tegen 120, zoals hier eerst -- dan lijkt een speler die
+-- gewoon zit te spelen elke ronde dertig seconden lang verlaten, en kan een tweede server
+-- zijn profiel oppakken. Twee servers die hetzelfde saldo bijhouden is geld dat verdwijnt
+-- of geld dat er twee keer is.
+--
+-- Drie beurten missen mag dus, en dan pas is het slot van iemand anders. Een schrijfbeurt
+-- die stukloopt doet er hooguit een paar seconden over (POGINGEN met verdubbelende wacht),
+-- dus een server die leeft haalt die drie ruimschoots. Eentje die crasht houdt de speler
+-- drie minuten tegen, en dat is de goede kant om op te missen.
+local SLOT_VERVAL = AUTOSAVE * 3
+
+-- Naar buiten toe zichtbaar zodat de test het verband kan nakijken in plaats van de
+-- getallen over te schrijven: hij faalt als iemand ze ooit weer langs elkaar heen zet.
+Profiles.AUTOSAVE = AUTOSAVE
+Profiles.SLOT_VERVAL = SLOT_VERVAL
 
 -- De haakjes die vlak voor het opslaan nog iets recht moeten zetten: een openstaande
 -- inzet teruggeven bijvoorbeeld. Ze draaien BINNEN dit bestand, zodat de volgorde
