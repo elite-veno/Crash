@@ -232,6 +232,21 @@ def meet(n, ouderB, ouderH):
             som += kb
         b = som + gap * max(0, len(echteKinderen) - 1) + pl + pr
 
+    # Een tekstlabel dat zelf hoog mag worden: Roblox meet de tekst en maakt het label zo
+    # hoog als de regels die eruit komen. Zonder dit werd zo'n label op zijn Size gelegd --
+    # en dat is bij een omlopende regel nul, waardoor het in de tekening verdween en alles
+    # eronder te hoog kwam te staan.
+    if auto in ("Y", "XY") and not echteKinderen \
+            and n["class"] in ("TextLabel", "TextButton", "TextBox"):
+        tekst = p.get("Text", "")
+        maat = p.get("TextSize", 14)
+        stukken = ontleedRijk(tekst) if p.get("RichText") else [(tekst, None)]
+        if p.get("TextWrapped"):
+            regels = breekRegels(stukken, maat, p.get("Font", ""), max(1.0, b - pl - pr - 4))
+        else:
+            regels = [stukken]
+        h = len(regels) * maat * (p.get("LineHeight", 1) or 1) + pt + pb
+
     if auto in ("Y", "XY") and echteKinderen:
         binnenB = max(0.0, b - pl - pr)
         if lijst:

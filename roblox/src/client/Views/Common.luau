@@ -11,6 +11,7 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Money = require(ReplicatedStorage.Shared.Money)
+local Season = require(ReplicatedStorage.Shared.Season)
 
 local Common = {}
 
@@ -866,6 +867,125 @@ function Common.banner(ouder: Instance): Banner
 			rand.Color = kleur
 		end,
 	}
+end
+
+-- ---------- .season-strip ----------
+-- De seizoenstrip: links de aftelklok van de sprint, rechts wat de eerste drie plekken
+-- opleveren. De lobby, de VIP-zone en het prestatiescherm laten alle drie dezelfde strip
+-- zien -- in de webversie tekent één renderSeasonStrip() ze alle drie, en op precies die
+-- manier staat hij hier nu ook één keer. Daarvoor bouwde elk scherm zijn eigen versie, en
+-- die liepen uiteen: de klok was er 34, 35 of 38 hoog, de prijsvakjes 26 of 32, en de
+-- lobby zette er zelfs andere woorden in.
+--
+-- De maten komen uit de CSS: `padding: 18px 22px` om een linkerkolom van 75 (10px-regel 12,
+-- 26px-klok 35, twee 11px-regels van 14, zonder ruimte ertussen) en prijsvakjes van 34
+-- (`padding: 8px 12px` om een regel van 16, plus de rand). Dat is samen 113 hoog, en dat is
+-- wat de pagina laat zien.
+export type SeasonStrip = {
+	frame: Frame,
+	zet: (sprint: number, sprintEinde: number, seizoenEinde: number, sprintsOver: number, nu: number?) -> (),
+}
+
+local SEIZOEN_PRIJS_HOOG = 34
+
+function Common.seasonStrip(ouder: Instance): SeasonStrip
+	local strip = Instance.new("Frame")
+	strip.Name = "Season"
+	strip.Size = UDim2.new(1, 0, 0, 0)
+	strip.AutomaticSize = Enum.AutomaticSize.Y
+	strip.BackgroundColor3 = Theme.color.panel
+	strip.BorderSizePixel = 0
+	UI.gradient(strip, Theme.color.panel, Theme.color.panelLight)
+	UI.corner(strip, Theme.radius.card)
+	UI.stroke(strip, Theme.color.border)
+	UI.padding4(strip, 18, 22, 18, 22)
+	strip.Parent = ouder
+
+	-- `.season-now` is een gewoon blok: de vier regels staan er zonder ruimte ertussen op
+	-- elkaar, elk zo hoog als zijn eigen regelvak.
+	local links = Instance.new("Frame")
+	links.Name = "Now"
+	links.Size = UDim2.new(1, -580, 0, 0)
+	links.AutomaticSize = Enum.AutomaticSize.Y
+	links.BackgroundTransparency = 1
+	links.Parent = strip
+	UI.list(links, 0)
+
+	-- `.season-label` staat op 10, een maat lager dan de gewone paneelkopjes.
+	local sprintKop = UI.label(links, "", { size = 10, color = Theme.color.muted })
+	local klok = UI.label(links, "", {
+		size = 26, color = Theme.color.neon, font = Theme.font.num,   -- .season-time
+	})
+	UI.label(links, "until the standings reset to zero \u{00B7} whoever gains the most takes the title and a VIP pass", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+	local seizoenRegel = UI.label(links, "", {
+		size = Theme.text.tiny, color = Theme.color.muted,
+	})
+
+	-- `.season-prizes` staan rechts in de strip, verticaal in het midden.
+	local prijzen = Instance.new("Frame")
+	prijzen.Name = "Prizes"
+	prijzen.AnchorPoint = Vector2.new(1, 0.5)
+	prijzen.Position = UDim2.new(1, 0, 0.5, 0)
+	prijzen.Size = UDim2.fromOffset(560, SEIZOEN_PRIJS_HOOG)
+	prijzen.BackgroundTransparency = 1
+	prijzen.Parent = strip
+	local prijsLijst = UI.list(prijzen, 10, Enum.FillDirection.Horizontal)
+	prijsLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	prijsLijst.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	for i, wat in Season.PRIZES do
+		local rang = Season.RANKS[i]
+		local vak = Instance.new("Frame")
+		vak.Name = "Prize" .. i
+		vak.LayoutOrder = i
+		vak.AutomaticSize = Enum.AutomaticSize.X
+		vak.Size = UDim2.fromOffset(0, SEIZOEN_PRIJS_HOOG)
+		vak.BackgroundColor3 = Theme.color.black
+		vak.BackgroundTransparency = 0.65   -- rgba(0,0,0,0.35)
+		vak.BorderSizePixel = 0
+		UI.corner(vak, Theme.radius.panel)
+		UI.stroke(vak, Theme.color.border)
+		UI.padding4(vak, 0, 12, 0, 12)
+		vak.Parent = prijzen
+		local rij = UI.list(vak, 8, Enum.FillDirection.Horizontal)
+		rij.VerticalAlignment = Enum.VerticalAlignment.Center
+
+		local teken = UI.label(vak, rang.teken, {
+			size = Theme.text.body, align = Enum.TextXAlignment.Center,
+		})
+		teken.LayoutOrder = 1
+		teken.Size = UDim2.fromOffset(16, SEIZOEN_PRIJS_HOOG)
+
+		-- De naam staat in `<b>`, dus vet en in de tekstkleur; alleen het bedrag ernaast
+		-- is goud en mono (`.amount`).
+		local naam = UI.label(vak, rang.naam, { size = Theme.text.body, font = Theme.font.uiBold })
+		naam.LayoutOrder = 2
+		naam.AutomaticSize = Enum.AutomaticSize.X
+		naam.Size = UDim2.new(0, 0, 0, SEIZOEN_PRIJS_HOOG)
+
+		local bedrag = UI.label(vak, wat, {
+			size = Theme.text.body, color = Theme.color.gold, font = Theme.font.num,
+		})
+		bedrag.LayoutOrder = 3
+		bedrag.AutomaticSize = Enum.AutomaticSize.X
+		bedrag.Size = UDim2.new(0, 0, 0, SEIZOEN_PRIJS_HOOG)
+	end
+
+	-- De twee klokken zijn rekenwerk op een tijdstempel, dus de strip kan zichzelf meteen
+	-- vullen -- net als renderSeasonStrip(), dat ook niets aan de server vraagt. De
+	-- ranglijst zet er daarna de tijd van de server overheen.
+	local function zet(sprint: number, sprintEinde: number, seizoenEinde: number, sprintsOver: number, nu: number?)
+		sprintKop.Text = Season.sprintHeading(sprint)
+		klok.Text = Season.countdown(sprintEinde, nu)
+		seizoenRegel.Text = "SEASON " .. Season.seasonNoOf(sprint) .. " ends in "
+			.. Season.countdown(seizoenEinde, nu) .. " \u{00B7} "
+			.. sprintsOver .. (if sprintsOver == 1 then " sprint" else " sprints")
+			.. " left to earn a pass \u{00B7} a pass runs until the season ends"
+	end
+
+	return { frame = strip, zet = zet }
 end
 
 return Common

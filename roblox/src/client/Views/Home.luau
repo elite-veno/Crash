@@ -11,7 +11,6 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
 local Art = require(script.Parent.Art)
-local Season = require(ReplicatedStorage.Shared.Season)
 local Common = require(script.Parent.Common)
 
 local Home = {}
@@ -336,65 +335,11 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	end
 
 	-- ---------- .season-strip ----------
-	-- De aftelklok van de sprint, met rechts wat elke plek oplevert.
-	local strip = UI.panel(blad, "Season")
-	strip.LayoutOrder = 6
-	UI.list(strip, 4)
-	local sprintKop = UI.label(strip, "SPRINT 1 OF 4", {
-		size = Theme.text.small, color = Theme.color.muted,
-	})
-	local klok = UI.label(strip, "\u{2014}", {
-		size = 26, color = Theme.color.neon, font = Theme.font.num,   -- .season-time
-	})
-	klok.Size = UDim2.new(1, 0, 0, 38)
-	UI.label(strip, "until the standings reset to zero \u{00B7} whoever gains the most takes the title and a VIP pass", {
-		size = Theme.text.tiny, color = Theme.color.muted,
-	})
-	local regel2 = UI.label(strip, "\u{2014}", { size = Theme.text.tiny, color = Theme.color.muted })
-
-	local prijzen = Instance.new("Frame")
-	prijzen.AnchorPoint = Vector2.new(1, 0)
-	prijzen.Position = UDim2.new(1, 0, 0, 6)
-	prijzen.Size = UDim2.fromOffset(460, 26)
-	prijzen.BackgroundTransparency = 1
-	prijzen.Parent = strip
-	local prijsLijst = UI.list(prijzen, 8, Enum.FillDirection.Horizontal)
-	prijsLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	prijsLijst.VerticalAlignment = Enum.VerticalAlignment.Center
-	type Prijs = { naam: string, wat: string, kleur: Color3 }
-	local PRIJZEN: { Prijs } = {
-		-- De iconen en de namen uit RANKS, en de prijzen uit SPRINT_PRIZE. De naam staat in
-		-- `<b>`, dus in de tekstkleur; alleen het bedrag ernaast is goud (`.amount`).
-		{ naam = "\u{1F451} House Boss", wat = "VIP PASS + TITLE", kleur = Theme.color.text },
-		{ naam = "\u{1F948} Challenger", wat = "TITLE", kleur = Theme.color.text },
-		{ naam = "\u{1F949} Podium", wat = "TITLE", kleur = Theme.color.text },
-	}
-	for i, pr in PRIJZEN do
-		local vak = Instance.new("Frame")
-		vak.LayoutOrder = i
-		vak.Size = UDim2.fromOffset(0, 26)
-		vak.AutomaticSize = Enum.AutomaticSize.X
-		vak.BackgroundColor3 = Theme.color.black
-		vak.BackgroundTransparency = Theme.alpha.buttonBg
-		vak.BorderSizePixel = 0
-		UI.corner(vak, Theme.radius.button)
-		UI.stroke(vak)
-		UI.padding4(vak, 0, 10, 0, 10)
-		local rij = UI.list(vak, 6, Enum.FillDirection.Horizontal)
-		rij.VerticalAlignment = Enum.VerticalAlignment.Center
-		vak.Parent = prijzen
-
-		local naam = UI.label(vak, pr.naam, { size = Theme.text.tiny, color = pr.kleur })
-		naam.AutomaticSize = Enum.AutomaticSize.X
-		naam.Size = UDim2.new(0, 0, 1, 0)
-		naam.LayoutOrder = 1
-		local wat = UI.label(vak, pr.wat, {
-			size = Theme.text.tiny, color = Theme.color.gold, font = Theme.font.num,
-		})
-		wat.AutomaticSize = Enum.AutomaticSize.X
-		wat.Size = UDim2.new(0, 0, 1, 0)
-		wat.LayoutOrder = 2
-	end
+	-- Dezelfde strip als in de VIP-zone en op het prestatiescherm, uit Common. De lobby had
+	-- hier lang zijn eigen versie staan, met andere maten en andere woorden erin.
+	local seizoen = Common.seasonStrip(blad)
+	seizoen.frame.LayoutOrder = 6
+	local zetStrip = seizoen.zet
 
 	-- ---------- LIVE LEADERBOARD ----------
 	local lbKop = Instance.new("Frame")
@@ -551,14 +496,8 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 		vipChip.BackgroundColor3 = if vipAan then Theme.color.gold else Theme.color.black
 		vipChip.BackgroundTransparency = if vipAan then 0.9 else Theme.alpha.buttonBg
 
-		-- `SPRINT n OF 4`; het seizoensnummer hoort in de regel eronder.
-		sprintKop.Text = Season.sprintHeading(tonumber(res.sprint) or 0)
-		klok.Text = Season.countdown(res.endsAt, res.now)
-		local n = tonumber(res.sprintsLeft) or 0
-		regel2.Text = "SEASON " .. Season.seasonNoOf(tonumber(res.sprint) or 0)
-			.. " ends in " .. Season.countdown(res.seasonEndsAt, res.now)
-			.. " \u{00B7} " .. n .. (if n == 1 then " sprint" else " sprints")
-			.. " left to earn a pass \u{00B7} a pass runs until the season ends"
+		zetStrip(tonumber(res.sprint) or 0, tonumber(res.endsAt) or 0,
+			tonumber(res.seasonEndsAt) or 0, tonumber(res.sprintsLeft) or 0, tonumber(res.now))
 
 		for _, kol in kolommen do
 			for _, k in kol.lijst:GetChildren() do

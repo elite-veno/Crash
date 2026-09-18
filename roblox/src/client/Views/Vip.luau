@@ -28,16 +28,6 @@ local PERKS = {
 	{ "\u{1F39F}", "Four ways in", "Every three-day sprint crowns a new number one, so a season has four." },
 }
 
--- De drie plekken die een sprint uitbetaalt, met de tekens uit RANKS. Geen geld: een titel,
--- en voor de winnaar de pas. De breedte staat er per chip bij, want de rij hangt rechts in
--- de strip: met AutomaticSize zou hij pas een frame later de goede maat hebben en dan
--- zichtbaar op zijn plek springen.
-local PRIJZEN = {
-	{ teken = "\u{1F451}", naam = "House Boss", wat = Season.PRIZES[1], breed = 240 },
-	{ teken = "\u{1F948}", naam = "Challenger", wat = Season.PRIZES[2], breed = 160 },
-	{ teken = "\u{1F949}", naam = "Podium", wat = Season.PRIZES[3], breed = 140 },
-}
-
 -- `.game-card.vip-card` heeft een gouden rand van rgba(224,181,85,0.35). Staat de kaart op
 -- slot, dan gaat er in de CSS opacity 0.45 overheen; die twee samen zijn hier één getal,
 -- want een UIStroke ligt buiten de CanvasGroup en dimt dus niet met de inhoud mee.
@@ -224,98 +214,9 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 	end
 
 	-- ---------- .season-strip ----------
-	-- Dezelfde strip als in de lobby: links de aftelklok van de sprint, rechts wat elke
-	-- plek oplevert.
-	local strip = Instance.new("Frame")
-	strip.Name = "Season"
-	strip.Size = UDim2.new(1, 0, 0, 0)
-	strip.AutomaticSize = Enum.AutomaticSize.Y
-	strip.BackgroundColor3 = Theme.color.panel
-	strip.BorderSizePixel = 0
-	UI.gradient(strip, Theme.color.panel, Theme.color.panelLight)
-	UI.corner(strip, Theme.radius.card)
-	UI.stroke(strip, Theme.color.border)
-	UI.padding4(strip, 18, 22, 18, 22)
-	strip.Parent = omhulsel(blad, "SeasonWrap", 26, 3)
-
-	local stripLinks = Instance.new("Frame")
-	stripLinks.Name = "Now"
-	stripLinks.Size = UDim2.new(1, -580, 0, 0)
-	stripLinks.AutomaticSize = Enum.AutomaticSize.Y
-	stripLinks.BackgroundTransparency = 1
-	stripLinks.Parent = strip
-	UI.list(stripLinks, 4)
-
-	-- `.season-label` staat op 10, een maat lager dan de gewone paneelkopjes.
-	local sprintKop = UI.label(stripLinks, "", { size = 10, color = Theme.color.muted })
-
-	local klok = UI.label(stripLinks, "", {
-		size = 26, color = Theme.color.neon, font = Theme.font.num,
-	})
-	klok.Size = UDim2.new(1, 0, 0, 34)
-
-	UI.label(stripLinks, "until the standings reset to zero \u{00B7} whoever gains the most takes the title and a VIP pass", {
-		size = Theme.text.tiny, color = Theme.color.muted,
-	})
-	local seizoenRegel = UI.label(stripLinks, "", {
-		size = Theme.text.tiny, color = Theme.color.muted,
-	})
-
-	-- De twee klokken zijn rekenwerk op een tijdstempel, dus de strip kan zichzelf meteen
-	-- vullen -- net als in de webversie, waar renderSeasonStrip() ook niets aan de server
-	-- vraagt. De ranglijst zet er daarna de tijd van de server overheen.
-	local function zetStrip(sprint: number, sprintEinde: number, seizoenEinde: number, sprintsOver: number, nu: number?)
-		sprintKop.Text = "SPRINT " .. Season.sprintNoOf(sprint) .. " OF 4"
-		klok.Text = Season.countdown(sprintEinde, nu)
-		seizoenRegel.Text = "SEASON " .. Season.seasonNoOf(sprint) .. " ends in "
-			.. Season.countdown(seizoenEinde, nu) .. " \u{00B7} "
-			.. sprintsOver .. (if sprintsOver == 1 then " sprint" else " sprints")
-			.. " left to earn a pass \u{00B7} a pass runs until the season ends"
-	end
-
-	-- .season-prizes staan rechts in de strip, verticaal in het midden.
-	local prijzen = Instance.new("Frame")
-	prijzen.Name = "Prizes"
-	prijzen.AnchorPoint = Vector2.new(1, 0.5)
-	prijzen.Position = UDim2.new(1, 0, 0.5, 0)
-	prijzen.Size = UDim2.fromOffset(560, 30)
-	prijzen.BackgroundTransparency = 1
-	prijzen.Parent = strip
-	local prijsLijst = UI.list(prijzen, 10, Enum.FillDirection.Horizontal)
-	prijsLijst.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	prijsLijst.VerticalAlignment = Enum.VerticalAlignment.Center
-
-	for i, pr in PRIJZEN do
-		local vak = Instance.new("Frame")
-		vak.Name = "Prize" .. i
-		vak.LayoutOrder = i
-		vak.Size = UDim2.fromOffset(pr.breed, 30)
-		vak.BackgroundColor3 = Theme.color.black
-		vak.BackgroundTransparency = 0.65   -- rgba(0,0,0,0.35)
-		vak.BorderSizePixel = 0
-		UI.corner(vak, Theme.radius.panel)
-		UI.stroke(vak, Theme.color.border)
-		UI.padding4(vak, 0, 12, 0, 12)
-		vak.Parent = prijzen
-		local rij = UI.list(vak, 8, Enum.FillDirection.Horizontal)
-		rij.VerticalAlignment = Enum.VerticalAlignment.Center
-
-		local teken = UI.label(vak, pr.teken, { size = Theme.text.body, align = Enum.TextXAlignment.Center })
-		teken.LayoutOrder = 1
-		teken.Size = UDim2.fromOffset(16, 30)
-
-		local naam = UI.label(vak, pr.naam, { size = Theme.text.body, font = Theme.font.uiMed })
-		naam.LayoutOrder = 2
-		naam.AutomaticSize = Enum.AutomaticSize.X
-		naam.Size = UDim2.new(0, 0, 1, 0)
-
-		local bedrag = UI.label(vak, pr.wat, {
-			size = Theme.text.body, color = Theme.color.gold, font = Theme.font.num,
-		})
-		bedrag.LayoutOrder = 3
-		bedrag.AutomaticSize = Enum.AutomaticSize.X
-		bedrag.Size = UDim2.new(0, 0, 1, 0)
-	end
+	-- Dezelfde strip als in de lobby en op het prestatiescherm, uit Common.
+	local seizoen = Common.seasonStrip(omhulsel(blad, "SeasonWrap", 26, 3))
+	local zetStrip = seizoen.zet
 
 	-- ---------- .section-heading + .games-grid ----------
 	local kopRij = Instance.new("Frame")

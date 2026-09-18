@@ -15,6 +15,24 @@ Season.SPRINTS_PER_SEASON = 4
 -- voor de VIP-zone tot het einde van het seizoen.
 Season.PRIZES = {"VIP PASS + TITLE", "TITLE", "TITLE"}
 
+-- RANKS uit de webversie: de tien plekken met hun teken, hun naam en waar ze goed voor
+-- zijn. Drie schermen tekenden hier ieder hun eigen lijstje van, en die liepen uiteen.
+-- Nu staat hij hier, naast de prijzen die erbij horen.
+export type Rang = { teken: string, naam: string, wat: string }
+local RANKS: { Rang } = {
+	{ teken = "\u{1F451}", naam = "House Boss", wat = "The highest balance in the whole casino" },
+	{ teken = "\u{1F948}", naam = "Challenger", wat = "Second in the lobby, within reach of the top" },
+	{ teken = "\u{1F949}", naam = "Podium", wat = "Third in the lobby" },
+	{ teken = "\u{1F525}", naam = "Sharpshooter", wat = "A gold border around your name in the lobby" },
+	{ teken = "\u{1F525}", naam = "Stormchaser", wat = "A gold border around your name in the lobby" },
+	{ teken = "\u{2B50}", naam = "Chancer", wat = "Your name sits in the top ten" },
+	{ teken = "\u{2B50}", naam = "Card Counter", wat = "Your name sits in the top ten" },
+	{ teken = "\u{2B50}", naam = "Regular", wat = "Your name sits in the top ten" },
+	{ teken = "\u{2726}", naam = "Grinder", wat = "Your name sits in the top ten" },
+	{ teken = "\u{2726}", naam = "Lister", wat = "The last place with a name on it" },
+}
+Season.RANKS = RANKS
+
 -- De dag dat het casino openging (16 september 2026, UTC). De blokken worden vanaf het
 -- epoch geteld en zijn daardoor enorm; spelers zien het aantal sinds de opening.
 Season.OPENING = 1789516800   -- os.time van 2026-09-16 00:00 UTC

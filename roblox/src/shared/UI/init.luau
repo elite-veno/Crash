@@ -121,7 +121,11 @@ function UI.label(parent: Instance, text: string, opts: LabelOpts?): TextLabel
 	t.TextColor3 = o.color or Theme.color.text
 	t.Font = o.font or Theme.font.ui
 	t.TextXAlignment = o.align or Enum.TextXAlignment.Left
-	t.Size = UDim2.new(1, 0, 0, (o.size or Theme.text.body) + 6)
+	-- De hoogte is het regelvak dat de browser voor deze maat en dit font kiest, opgemeten
+	-- op de pagina zelf. Hier stond ooit `maat + 6`, en dat scheelde per label een pixel of
+	-- drie -- onzichtbaar op zichzelf, maar een blad met dertig labels eronder liep er
+	-- tientallen pixels mee uit de pas.
+	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(o.size or Theme.text.body, t.Font))
 	t.RichText = false        -- spelersnamen komen hier langs; nooit als opmaak uitvoeren
 	t.Parent = parent
 	return t
