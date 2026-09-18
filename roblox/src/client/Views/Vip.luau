@@ -186,7 +186,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		vak.BorderSizePixel = 0
 		UI.corner(vak, Theme.radius.card)
 		UI.stroke(vak, Theme.color.border)
-		UI.padding4(vak, 10, 12, 10, 12)
+		UI.padding4(vak, 10 + UI.RAND, 12 + UI.RAND, 10 + UI.RAND, 12 + UI.RAND)
 		vak.Parent = perkRij
 		local vakLijst = UI.list(vak, 10, Enum.FillDirection.Horizontal)
 		vakLijst.VerticalAlignment = Enum.VerticalAlignment.Center

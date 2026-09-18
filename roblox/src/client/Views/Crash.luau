@@ -528,7 +528,7 @@ function Crash.build(ouder: Instance): ()
 		pil.BorderSizePixel = 0
 		UI.corner(pil, Theme.radius.pill)
 		UI.stroke(pil)
-		UI.padding4(pil, 0, 8, 0, 8)
+		UI.padding4(pil, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 		pil.Parent = ouderVak
 		local pilRij = UI.list(pil, 5, Enum.FillDirection.Horizontal)
 		pilRij.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -746,7 +746,7 @@ function Crash.build(ouder: Instance): ()
 	UI.list(autoVak, 6)
 
 	local autoKop = Instance.new("Frame")
-	autoKop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	autoKop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	autoKop.BackgroundTransparency = 1
 	autoKop.Parent = autoVak
 	UI.label(autoKop, "CASH OUT AT", { size = Theme.text.small, color = Theme.color.muted })
@@ -909,7 +909,7 @@ function Crash.build(ouder: Instance): ()
 			UI.corner(fiche, 12)
 			local s = UI.stroke(fiche, randKleur)
 			s.Transparency = randDoorzicht
-			UI.padding4(fiche, 0, 10, 0, 10)
+			UI.padding4(fiche, 0, 10 + UI.RAND, 0, 10 + UI.RAND)
 			fiche.Parent = balkVak
 
 			local t = UI.label(fiche, tekst, {

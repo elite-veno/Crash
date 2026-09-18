@@ -145,7 +145,7 @@ end
 -- .field-label: alleen een naam, want ROWS en RISK hebben geen hint.
 local function veldKop(ouder: Instance, naam: string): TextLabel
 	local t = UI.label(ouder, naam, { size = Theme.text.small, color = Theme.color.muted })
-	t.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	return t
 end
 
@@ -183,7 +183,7 @@ local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (s
 	seg.Name = "Seg"
 	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
 	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
-	seg.Size = UDim2.new(1, 0, 0, 32 - 2)   -- 11px tekst met padding 8 boven en onder
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.LayoutOrder = orde
 	seg.Parent = ouder
@@ -352,7 +352,7 @@ function Plinko.build(ouder: Instance): ()
 			c.Size = UDim2.fromOffset(0, STRIP_H)
 			UI.corner(c, 10)
 			UI.stroke(c, r.kleur)
-			UI.padding4(c, 4, 9, 4, 9)
+			UI.padding4(c, 4 + UI.RAND, 9 + UI.RAND, 4 + UI.RAND, 9 + UI.RAND)
 			c.Parent = strip
 		end
 	end

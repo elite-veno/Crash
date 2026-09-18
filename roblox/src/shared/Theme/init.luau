@@ -75,6 +75,12 @@ Theme.size = {
 	viewPad     = 16,    -- .game-view padding
 	viewGap     = 16,    -- .game-view gap
 	asideGap    = 14,    -- aside.game-aside gap
+	-- Een UIStroke ligt buiten het vak waar hij omheen zit, een CSS-rand binnen de hoogte
+	-- die je opgeeft. Een paneel is hier dus twee lager dan in de CSS, en die twee pixels
+	-- eten aan weerskanten van de tussenruimte. Staan er vijf panelen onder elkaar, dan
+	-- loopt het onderste er acht pixels mee uit de pas; met deze twee erbij blijft het
+	-- verschil één pixel, voor de hele kolom dezelfde.
+	strokeGap   = 0,
 	panelPad    = 18,    -- .panel padding
 	homePadY    = 40,    -- #homeView padding
 	homePadX    = 50,

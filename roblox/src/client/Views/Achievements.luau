@@ -68,7 +68,7 @@ end
 local function paneelKop(paneel: Frame, kop: string, sub: string): ()
 	local rij = Instance.new("Frame")
 	rij.Name = "Title"
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = 1
 	rij.Parent = paneel
@@ -170,7 +170,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	local sprintVak = UI.panel(tweeluik, "LastSprint")
 	sprintVak.Size = UDim2.new(0.5, -10, 0, 0)
 	sprintVak.LayoutOrder = 1
-	UI.list(sprintVak, 4)
+	UI.list(sprintVak, 0)
 	paneelKop(sprintVak, "\u{25BA} last sprint", "EVERY 3 DAYS")
 
 	local sprintLijst = Instance.new("Frame")
@@ -195,7 +195,7 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	local ladderVak = UI.panel(tweeluik, "RankLadder")
 	ladderVak.Size = UDim2.new(0.5, -10, 0, 0)
 	ladderVak.LayoutOrder = 2
-	UI.list(ladderVak, 4)
+	UI.list(ladderVak, 0)
 	paneelKop(ladderVak, "\u{25BA} what each place is worth", "TOP 10")
 
 	local ladder = Instance.new("Frame")

@@ -289,10 +289,11 @@ function Scratch.build(ouder: Instance): ()
 
 	-- ► PRIZES: de zes winnende rijen, drie keer het symbool en wat het uitkeert.
 	local prijzen = UI.panel(bediening, "Prizes")
-	UI.list(prijzen, 6)   -- .sc-legend gap
+	UI.list(prijzen, 0)
 	UI.panelTitle(prijzen, "\u{25BA} prizes")
+	local prijsLijst = UI.panelBody(prijzen, 6)   -- .sc-legend gap
 	for i, p in Odds.SCRATCH_PRIZES do
-		prijsRegel(prijzen, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}", i)
+		prijsRegel(prijsLijst, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}", i)
 	end
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.

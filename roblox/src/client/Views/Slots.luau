@@ -74,7 +74,7 @@ local function histVakje(ouder: Instance, symbolen: string, mult: number, orde: 
 	-- .sl-hist.win: rgba(62,207,142,0.45) -- kleur plus doorzichtigheid.
 	local rand = UI.stroke(t, if won then Theme.color.neon else Theme.color.border)
 	if won then rand.Transparency = 0.55 end
-	UI.padding4(t, 0, 8, 0, 8)
+	UI.padding4(t, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 end
 
 -- .sc-prize: de symbolen links, de multiplier rechts in goud in het cijferlettertype.
@@ -127,7 +127,7 @@ function Slots.build(ouder: Instance): ()
 	UI.corner(kast, 10)                             -- .slot-reels border-radius
 	local kastRand = UI.stroke(kast, Theme.color.gold)
 	kastRand.Transparency = KAST_RAND
-	UI.padding(kast, KAST_PAD)
+	UI.padding(kast, KAST_PAD + UI.RAND)
 	local kastLijst = UI.list(kast, ROL_GAT, Enum.FillDirection.Horizontal)
 	kastLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
@@ -211,11 +211,12 @@ function Slots.build(ouder: Instance): ()
 	-- volgens de tabel, twee kersen met wat dan ook erbij betalen klein -- vandaar het
 	-- plusje achter het paar.
 	local tabel = UI.panel(bediening, "Payouts")
-	UI.list(tabel, 6)                               -- .sc-legend gap
+	UI.list(tabel, 0)
 	UI.panelTitle(tabel, "\u{25BA} payouts")
+	local prijsLijst = UI.panelBody(tabel, 6)       -- .sc-legend gap
 	for i, p in Odds.SLOT_PRIZES do
 		local symbolen = if p.kind == "triple" then p.sym .. p.sym .. p.sym else p.sym .. p.sym .. " +"
-		prijsRegel(tabel, symbolen, p.mult, i)
+		prijsRegel(prijsLijst, symbolen, p.mult, i)
 	end
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.

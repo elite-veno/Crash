@@ -1359,6 +1359,12 @@ Theme.size = {
 	viewPad     = 16,    -- .game-view padding
 	viewGap     = 16,    -- .game-view gap
 	asideGap    = 14,    -- aside.game-aside gap
+	-- Een UIStroke ligt buiten het vak waar hij omheen zit, een CSS-rand binnen de hoogte
+	-- die je opgeeft. Een paneel is hier dus twee lager dan in de CSS, en die twee pixels
+	-- eten aan weerskanten van de tussenruimte. Staan er vijf panelen onder elkaar, dan
+	-- loopt het onderste er acht pixels mee uit de pas; met deze twee erbij blijft het
+	-- verschil één pixel, voor de hele kolom dezelfde.
+	strokeGap   = 0,
 	panelPad    = 18,    -- .panel padding
 	homePadY    = 40,    -- #homeView padding
 	homePadX    = 50,
@@ -1528,6 +1534,14 @@ end
 -- UIStroke: neon aan de bovenkant, de gewone randkleur naar beneden toe. Dat is niet
 -- letterlijk hetzelfde als een lijn die naar de zijkanten uitdooft, maar het is wat je ziet
 -- -- een opgelichte bovenrand -- en het kan geen enkele indeling meer in de war schoppen.
+-- Hoe dik de rand is die de CSS om een paneel, een veld of een knop zet. Roblox tekent een
+-- UIStroke buiten het vak; CSS rekent de rand mee in de hoogte die je opgeeft. De afspraak
+-- in dit project is daarom: een vak met een streep eromheen krijgt de maat die de CSS in
+-- border-box geeft, en waar het vak padding heeft komt deze pixel erbij. De streep valt dan
+-- een pixel buiten de lijn waar de browser hem trekt -- maar alles eronder stapelt precies,
+-- en dat is waar een scherm vol panelen mee staat of valt.
+UI.RAND = 1
+
 function UI.panel(parent: Instance, name: string?): Frame
 	local f = Instance.new("Frame")
 	f.Name = name or "Panel"
@@ -1548,7 +1562,11 @@ function UI.panel(parent: Instance, name: string?): Frame
 	})
 	g.Parent = rand
 
-	UI.padding(f, Theme.size.panelPad)
+	-- `.panel { padding: 18px }` binnen een rand van één pixel. Een UIStroke ligt buiten
+	-- het vak, dus de rand telt hier niet mee in de maat -- die ene pixel komt er als
+	-- padding bij. Zo staat de inhoud waar de CSS hem zet, en is het vak precies zo hoog
+	-- als de pagina het paneel maakt, zodat een kolom panelen niet gaandeweg omhoog kruipt.
+	UI.padding(f, Theme.size.panelPad + UI.RAND)
 	f.Parent = parent
 	return f
 end
@@ -1600,6 +1618,22 @@ function UI.panelTitle(parent: Instance, text: string): TextLabel
 	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
 	t.TextYAlignment = Enum.TextYAlignment.Top
 	return t
+end
+
+-- Wat er onder de paneelkop staat. Een paneel in de CSS heeft zelf geen tussenruimte: de
+-- kop draagt zijn acht pixels marge, en daaronder staat één blok met zijn eigen ritme --
+-- `.sc-legend` met zes tussen de regels, `.stats-grid` met zes, en zo verder. Zonder dit
+-- vak zou de tussenruimte van het paneel ook tussen de kop en de rest gaan zitten, en dan
+-- staat alles acht pixels te laag.
+function UI.panelBody(paneel: Instance, gat: number?): Frame
+	local vak = Instance.new("Frame")
+	vak.Name = "Body"
+	vak.Size = UDim2.new(1, 0, 0, 0)
+	vak.AutomaticSize = Enum.AutomaticSize.Y
+	vak.BackgroundTransparency = 1
+	vak.Parent = paneel
+	UI.list(vak, gat or 6)
+	return vak
 end
 
 -- .section-heading: een kop van 22, een telling, en een lijn die naar rechts uitdooft.
@@ -1707,7 +1741,7 @@ function UI.secondary(parent: Instance, text: string): Button
 	b.AutoButtonColor = false
 	-- `padding: 12px 0` om een regel van 11 (regelvak 14) plus twee randen is 40 in de CSS;
 	-- de rand ligt hier buiten het vak, dus het vak is er twee kleiner.
-	b.Size = UDim2.new(1, 0, 0, 40 - 2)
+	b.Size = UDim2.new(1, 0, 0, 40)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
 	hover(b, function()
@@ -1738,7 +1772,7 @@ function UI.chip(parent: Instance, text: string): Button
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(0, 0, 0, 28 - 2)
+	b.Size = UDim2.new(0, 0, 0, 28)
 	UI.corner(b, Theme.radius.chip)
 	local rand = UI.stroke(b)
 	-- `.chip:hover` vult het fiche helemaal neon en zet de tekst op de achtergrondkleur;
@@ -1806,7 +1840,7 @@ function UI.tag(parent: Instance, text: string, kleur: Color3?): TextLabel
 	UI.corner(f, Theme.radius.pill)
 	local s = UI.stroke(f, k)
 	s.Transparency = 0.6
-	UI.padding4(f, 0, 8, 0, 8)
+	UI.padding4(f, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 	f.Parent = parent
 	return f
 end
@@ -1827,10 +1861,10 @@ function UI.numberBox(parent: Instance, start: string): TextBox
 	t.BorderSizePixel = 0
 	t.ClearTextOnFocus = false
 	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.Size = UDim2.new(1, 0, 0, 40)
+	t.Size = UDim2.new(1, 0, 0, 43)
 	UI.corner(t, Theme.radius.input)
 	local s = UI.stroke(t)
-	UI.padding4(t, 10, 12, 10, 12)
+	UI.padding4(t, 10 + UI.RAND, 12 + UI.RAND, 10 + UI.RAND, 12 + UI.RAND)
 
 	local ring = Instance.new("UIStroke")
 	ring.Color = Theme.glow.color
@@ -1875,7 +1909,7 @@ function UI.toast(host: Instance, text: string, kind: ToastKind?): ()
 	local t = UI.label(f, text, { size = Theme.text.toast, color = color, font = Theme.font.uiBold })
 	t.Size = UDim2.new(0, 0, 1, 0)
 	t.AutomaticSize = Enum.AutomaticSize.X
-	UI.padding4(f, 0, 22, 0, 22)
+	UI.padding4(f, 0, 22 + UI.RAND, 0, 22 + UI.RAND)
 	f.Parent = host
 
 	-- `animation: slideIn 0.3s, slideOut 0.3s 2.7s forwards`, en de melding wordt drie
@@ -5324,7 +5358,7 @@ end
 local function paneelKop(paneel: Frame, kop: string, sub: string): ()
 	local rij = Instance.new("Frame")
 	rij.Name = "Title"
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = 1
 	rij.Parent = paneel
@@ -5426,7 +5460,7 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 	local sprintVak = UI.panel(tweeluik, "LastSprint")
 	sprintVak.Size = UDim2.new(0.5, -10, 0, 0)
 	sprintVak.LayoutOrder = 1
-	UI.list(sprintVak, 4)
+	UI.list(sprintVak, 0)
 	paneelKop(sprintVak, "\u{25BA} last sprint", "EVERY 3 DAYS")
 
 	local sprintLijst = Instance.new("Frame")
@@ -5451,7 +5485,7 @@ function Achievements.build(ouder: Instance): (any) -&gt; ()
 	local ladderVak = UI.panel(tweeluik, "RankLadder")
 	ladderVak.Size = UDim2.new(0.5, -10, 0, 0)
 	ladderVak.LayoutOrder = 2
-	UI.list(ladderVak, 4)
+	UI.list(ladderVak, 0)
 	paneelKop(ladderVak, "\u{25BA} what each place is worth", "TOP 10")
 
 	local ladder = Instance.new("Frame")
@@ -6363,7 +6397,7 @@ local function waardePil(ouder: Instance, volgorde: number): TextLabel
 	t.AutomaticSize = Enum.AutomaticSize.X
 	UI.corner(t, Theme.radius.pill)
 	UI.stroke(t)
-	UI.padding4(t, 0, 8, 0, 8)
+	UI.padding4(t, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 
 	local minstens = Instance.new("UISizeConstraint")
 	minstens.MinSize = Vector2.new(PIL_MIN, PIL_H)
@@ -7392,7 +7426,7 @@ function Common.safetyNet(): ()
 	UI.padding(vak, 24)
 	UI.list(vak, 0)
 
-	UI.panelTitle(vak, "\u{25BA} SAFETY NET").Size = UDim2.new(1, 0, 0, Theme.text.small + 12)
+	UI.panelTitle(vak, "\u{25BA} SAFETY NET").Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + 12)
 
 	-- De vetgedrukte stukken zijn in de CSS goud, net als in elk ander `.odds-note`.
 	local uitleg = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
@@ -7653,7 +7687,7 @@ function Common.columns(
 	aside.CanvasSize = UDim2.new()
 	aside.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	aside.Parent = vak
-	UI.list(aside, Theme.size.asideGap)
+	UI.list(aside, Theme.size.asideGap + Theme.size.strokeGap)
 
 	-- rechts: het speelveld, een paneel dat de rest vult
 	local bordVak = Instance.new("Frame")
@@ -7731,16 +7765,20 @@ function Common.columns(
 	local saldoVak = UI.panel(aside, "Balance")
 	local saldoPad = saldoVak:FindFirstChildOfClass("UIPadding")
 	if saldoPad then
-		saldoPad.PaddingTop = UDim.new(0, 16)
-		saldoPad.PaddingRight = UDim.new(0, 16)
-		saldoPad.PaddingBottom = UDim.new(0, 16)
-		saldoPad.PaddingLeft = UDim.new(0, 16)
+		-- `.balance { padding: 16px }`, smaller dan de 18 van `.panel`; de rand komt erbij,
+		-- zoals bij elk vak met een streep eromheen.
+		local p = UDim.new(0, 16 + UI.RAND)
+		saldoPad.PaddingTop, saldoPad.PaddingRight = p, p
+		saldoPad.PaddingBottom, saldoPad.PaddingLeft = p, p
 	end
-	UI.list(saldoVak, 2)
+	-- Geen tussenruimte: net als in de CSS draagt elk blok zijn eigen marge.
+	UI.list(saldoVak, 0)
 	local kopje = UI.label(saldoVak, "BALANCE", {
 		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
 	})
-	kopje.Size = UDim2.new(1, 0, 0, 16)
+	-- `.balance-label`: een regel van 14 met `margin-bottom: 6`.
+	kopje.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + 6)
+	kopje.TextYAlignment = Enum.TextYAlignment.Top
 	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance, true)
 	table.insert(saldoLabels, bedrag)
 
@@ -7754,7 +7792,8 @@ function Common.columns(
 		size = Theme.text.tiny, color = Theme.color.neon, align = Enum.TextXAlignment.Center,
 	})
 	naamVak.Name = "AccountBar"
-	naamVak.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 14)
+	-- `.account-bar { margin-top: 10px }` boven een regel van 14.
+	naamVak.Size = UDim2.new(1, 0, 0, 10 + Theme.lineBox(Theme.text.tiny))
 	naamVak.TextYAlignment = Enum.TextYAlignment.Bottom
 	verversNood()
 
@@ -7813,7 +7852,7 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	UI.list(paneel, 6)
 	-- .field-label: "STAKE" links, het dollarteken als hint rechts.
 	local kop = Instance.new("Frame")
-	kop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	kop.BackgroundTransparency = 1
 	kop.Parent = paneel
 	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
@@ -8120,7 +8159,7 @@ function Common.seasonStrip(ouder: Instance): SeasonStrip
 	UI.gradient(strip, Theme.color.panel, Theme.color.panelLight)
 	UI.corner(strip, Theme.radius.card)
 	UI.stroke(strip, Theme.color.border)
-	UI.padding4(strip, 18, 22, 18, 22)
+	UI.padding4(strip, 18 + UI.RAND, 22 + UI.RAND, 18 + UI.RAND, 22 + UI.RAND)
 	strip.Parent = ouder
 
 	-- `.season-now` is een gewoon blok: de vier regels staan er zonder ruimte ertussen op
@@ -8169,7 +8208,7 @@ function Common.seasonStrip(ouder: Instance): SeasonStrip
 		vak.BorderSizePixel = 0
 		UI.corner(vak, Theme.radius.panel)
 		UI.stroke(vak, Theme.color.border)
-		UI.padding4(vak, 0, 12, 0, 12)
+		UI.padding4(vak, 0, 12 + UI.RAND, 0, 12 + UI.RAND)
 		vak.Parent = prijzen
 		local rij = UI.list(vak, 8, Enum.FillDirection.Horizontal)
 		rij.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -8747,7 +8786,7 @@ function Crash.build(ouder: Instance): ()
 		pil.BorderSizePixel = 0
 		UI.corner(pil, Theme.radius.pill)
 		UI.stroke(pil)
-		UI.padding4(pil, 0, 8, 0, 8)
+		UI.padding4(pil, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 		pil.Parent = ouderVak
 		local pilRij = UI.list(pil, 5, Enum.FillDirection.Horizontal)
 		pilRij.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -8965,7 +9004,7 @@ function Crash.build(ouder: Instance): ()
 	UI.list(autoVak, 6)
 
 	local autoKop = Instance.new("Frame")
-	autoKop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	autoKop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	autoKop.BackgroundTransparency = 1
 	autoKop.Parent = autoVak
 	UI.label(autoKop, "CASH OUT AT", { size = Theme.text.small, color = Theme.color.muted })
@@ -9128,7 +9167,7 @@ function Crash.build(ouder: Instance): ()
 			UI.corner(fiche, 12)
 			local s = UI.stroke(fiche, randKleur)
 			s.Transparency = randDoorzicht
-			UI.padding4(fiche, 0, 10, 0, 10)
+			UI.padding4(fiche, 0, 10 + UI.RAND, 0, 10 + UI.RAND)
 			fiche.Parent = balkVak
 
 			local t = UI.label(fiche, tekst, {
@@ -9664,7 +9703,7 @@ local function frKnop(ouder: Instance, tekst: string, gevaar: boolean?): TextBut
 	b.Size = UDim2.fromOffset(0, KNOP_HOOG)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
-	UI.padding4(b, 0, KNOP_PAD, 0, KNOP_PAD)
+	UI.padding4(b, 0, KNOP_PAD + UI.RAND, 0, KNOP_PAD + UI.RAND)
 
 	local aan = if gevaar then Theme.color.red else Theme.color.neon
 	b.MouseEnter:Connect(function()
@@ -9778,7 +9817,7 @@ end
 local function kopMetMarge(ouder: Instance, tekst: string): TextLabel
 	local vak = Instance.new("Frame")
 	vak.Name = "TitleGap"
-	vak.Size = UDim2.new(1, 0, 0, Theme.text.small + 8 + 22)
+	vak.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE + 22)
 	vak.BackgroundTransparency = 1
 	vak.Parent = ouder
 	UI.padding4(vak, 22, 0, 0, 0)
@@ -9906,7 +9945,7 @@ function Friends.build(ouder: Instance): ()
 	veld.BorderSizePixel = 0
 	UI.corner(veld, Theme.radius.input)
 	UI.stroke(veld)
-	UI.padding4(veld, 10, 12, 10, 12)
+	UI.padding4(veld, 10 + UI.RAND, 12 + UI.RAND, 10 + UI.RAND, 12 + UI.RAND)
 	veld.Parent = toevoegRij
 
 	local veldTekst = UI.label(veld, "roblox keeps this list", {
@@ -9957,7 +9996,7 @@ function Friends.build(ouder: Instance): ()
 	-- rechts in muted.
 	local kopRij = Instance.new("Frame")
 	kopRij.Name = "ListTitle"
-	kopRij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	kopRij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
 	kopRij.BackgroundTransparency = 1
 	kopRij.Parent = rechtsVak
 	UI.label(kopRij, "\u{25BA} YOUR FRIENDS", {
@@ -10254,7 +10293,7 @@ local function topChip(ouder: Instance, tekst: string, ga: () -&gt; (), goud: bo
 	b.Size = UDim2.fromOffset(0, 32)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b, if goud then Theme.color.gold else Theme.color.border)
-	UI.padding4(b, 0, 14, 0, 14)
+	UI.padding4(b, 0, 14 + UI.RAND, 0, 14 + UI.RAND)
 	local rij = UI.list(b, 8, Enum.FillDirection.Horizontal)
 	rij.VerticalAlignment = Enum.VerticalAlignment.Center
 	rij.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -10285,7 +10324,7 @@ local function topChip(ouder: Instance, tekst: string, ga: () -&gt; (), goud: bo
 	slotje.RichText = false
 	slotje.Visible = false
 	UI.corner(slotje, Theme.radius.chip)
-	UI.padding4(slotje, 0, 6, 0, 6)
+	UI.padding4(slotje, 0, 6 + UI.RAND, 0, 6 + UI.RAND)
 	UI.stroke(slotje, Theme.color.gold).Transparency = 0.65   -- rgba(224,181,85,0.35)
 	slotje.Parent = b
 
@@ -10368,7 +10407,7 @@ function Home.build(ouder: Instance, ga: (string) -&gt; ()): (number) -&gt; ()
 	UI.gradient(saldoKaart, Theme.color.panel, Theme.color.panelLight, 135)
 	UI.corner(saldoKaart, Theme.radius.panel)
 	UI.stroke(saldoKaart, Theme.color.neon)
-	UI.padding4(saldoKaart, 24, 32, 24, 32)
+	UI.padding4(saldoKaart, 24 + UI.RAND, 32 + UI.RAND, 24 + UI.RAND, 32 + UI.RAND)
 	UI.list(saldoKaart, 6)
 	saldoKaart.Parent = blad
 
@@ -10743,7 +10782,7 @@ end
 local function veldKop(ouder: Instance, naam: string, hint: string, orde: number): ()
 	local rij = Instance.new("Frame")
 	rij.Name = "FieldLabel"
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)   -- margin-bottom 6 onder een regel van 11
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))   -- margin-bottom 6 onder een regel van 11
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -11099,7 +11138,7 @@ function Horse.build(ouder: Instance): ()
 			c.Size = UDim2.fromOffset(0, STRIP_H)
 			UI.corner(c, 10)
 			UI.stroke(c, w.kleur)
-			UI.padding4(c, 4, 9, 4, 9)
+			UI.padding4(c, 4 + UI.RAND, 9 + UI.RAND, 4 + UI.RAND, 9 + UI.RAND)
 			c.Parent = strip
 		end
 	end
@@ -11522,7 +11561,7 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 local function veldKop(ouder: Instance, naam: string, hint: string): ()
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)   -- margin-bottom 6 onder een regel van 11
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))   -- margin-bottom 6 onder een regel van 11
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })
@@ -12159,7 +12198,7 @@ end
 -- .field-label: alleen een naam, want ROWS en RISK hebben geen hint.
 local function veldKop(ouder: Instance, naam: string): TextLabel
 	local t = UI.label(ouder, naam, { size = Theme.text.small, color = Theme.color.muted })
-	t.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	return t
 end
 
@@ -12197,7 +12236,7 @@ local function segRij(ouder: Instance, aantal: number, orde: number): (Frame, (s
 	seg.Name = "Seg"
 	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
 	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
-	seg.Size = UDim2.new(1, 0, 0, 32 - 2)   -- 11px tekst met padding 8 boven en onder
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.LayoutOrder = orde
 	seg.Parent = ouder
@@ -12366,7 +12405,7 @@ function Plinko.build(ouder: Instance): ()
 			c.Size = UDim2.fromOffset(0, STRIP_H)
 			UI.corner(c, 10)
 			UI.stroke(c, r.kleur)
-			UI.padding4(c, 4, 9, 4, 9)
+			UI.padding4(c, 4 + UI.RAND, 9 + UI.RAND, 4 + UI.RAND, 9 + UI.RAND)
 			c.Parent = strip
 		end
 	end
@@ -12778,7 +12817,7 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 		-- rand, en zo blijft het verschil met een gevuld (doorgetrokken) vakje zichtbaar.
 		local rand = UI.stroke(vak, Theme.color.border)
 		rand.Transparency = 0.45
-		UI.padding4(vak, 18, 12, 18, 12)
+		UI.padding4(vak, 18 + UI.RAND, 12 + UI.RAND, 18 + UI.RAND, 12 + UI.RAND)
 		vak.Parent = etalage
 		local binnen = UI.list(vak, 6)
 		binnen.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -12819,7 +12858,7 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 	local erelijst = UI.panel(blad, "Titles")
 	erelijst.LayoutOrder = 3
 	erelijst.Visible = false
-	UI.list(erelijst, 6)
+	UI.list(erelijst, 0)
 	UI.panelTitle(erelijst, "\u{25BA} titles won")
 	local titelRij = Instance.new("Frame")
 	titelRij.Name = "Chips"
@@ -12837,8 +12876,8 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 	-- de paneelkop met zijn marge, en dan de regels van .stats-grid met 6 ertussen.
 	local function rijHoogte(aantal: number): number
 		local regelH = 14 -- zoals Common.statRow er een neerzet: .stat-row bij line-height 1
-		local kopH = Theme.text.small + 8   -- zoals UI.panelTitle
-		return Theme.size.panelPad * 2 + kopH + 6 + aantal * regelH + math.max(0, aantal - 1) * 6
+		local kopH = Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE   -- zoals UI.panelTitle
+		return Theme.size.panelPad * 2 + kopH + aantal * regelH + math.max(0, aantal - 1) * 6
 	end
 
 	local cijfers = Instance.new("Frame")
@@ -12859,7 +12898,7 @@ function Profile.build(ouder: Instance): (any) -&gt; ()
 		vak.AutomaticSize = Enum.AutomaticSize.None
 		vak.Size = UDim2.new(0.5, -(KAART_GAT / 2), 1, 0)
 		vak.LayoutOrder = volgorde
-		UI.list(vak, 6)
+		UI.list(vak, 0)
 		UI.panelTitle(vak, kop)
 		local regels = Instance.new("Frame")
 		regels.Name = "Rows"
@@ -13605,7 +13644,7 @@ function Roulette.build(ouder: Instance): ()
 		f.ZIndex = 4
 		UI.corner(f, 12)
 		UI.stroke(f, FICHE_RAND, 2)
-		UI.padding4(f, 0, 5, 0, 5)
+		UI.padding4(f, 0, 5 + UI.RAND, 0, 5 + UI.RAND)
 		local fMin = Instance.new("UISizeConstraint")
 		fMin.MinSize = Vector2.new(24, 24)
 		fMin.Parent = f
@@ -13661,7 +13700,7 @@ function Roulette.build(ouder: Instance): ()
 	UI.padding4(veld, 0, 0, 8, 0)   -- .field-group margin-bottom 14, met de 6 uit de lijst erbij
 
 	local kop = Instance.new("Frame")
-	kop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	kop.BackgroundTransparency = 1
 	kop.Parent = veld
 	UI.label(kop, "CHIP VALUE", { size = Theme.text.small, color = Theme.color.muted })
@@ -13675,7 +13714,7 @@ function Roulette.build(ouder: Instance): ()
 	seg.Name = "ChipSeg"
 	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
 	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
-	seg.Size = UDim2.new(1, 0, 0, 32 - 2)
+	seg.Size = UDim2.new(1, 0, 0, 32)
 	seg.BackgroundTransparency = 1
 	seg.Parent = veld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)
@@ -14208,10 +14247,11 @@ function Scratch.build(ouder: Instance): ()
 
 	-- ► PRIZES: de zes winnende rijen, drie keer het symbool en wat het uitkeert.
 	local prijzen = UI.panel(bediening, "Prizes")
-	UI.list(prijzen, 6)   -- .sc-legend gap
+	UI.list(prijzen, 0)
 	UI.panelTitle(prijzen, "\u{25BA} prizes")
+	local prijsLijst = UI.panelBody(prijzen, 6)   -- .sc-legend gap
 	for i, p in Odds.SCRATCH_PRIZES do
-		prijsRegel(prijzen, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}", i)
+		prijsRegel(prijsLijst, p.sym .. p.sym .. p.sym, Money.fmt(p.mult) .. "\u{00D7}", i)
 	end
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
@@ -14392,7 +14432,7 @@ local function histVakje(ouder: Instance, symbolen: string, mult: number, orde: 
 	-- .sl-hist.win: rgba(62,207,142,0.45) -- kleur plus doorzichtigheid.
 	local rand = UI.stroke(t, if won then Theme.color.neon else Theme.color.border)
 	if won then rand.Transparency = 0.55 end
-	UI.padding4(t, 0, 8, 0, 8)
+	UI.padding4(t, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 end
 
 -- .sc-prize: de symbolen links, de multiplier rechts in goud in het cijferlettertype.
@@ -14445,7 +14485,7 @@ function Slots.build(ouder: Instance): ()
 	UI.corner(kast, 10)                             -- .slot-reels border-radius
 	local kastRand = UI.stroke(kast, Theme.color.gold)
 	kastRand.Transparency = KAST_RAND
-	UI.padding(kast, KAST_PAD)
+	UI.padding(kast, KAST_PAD + UI.RAND)
 	local kastLijst = UI.list(kast, ROL_GAT, Enum.FillDirection.Horizontal)
 	kastLijst.VerticalAlignment = Enum.VerticalAlignment.Center
 
@@ -14529,11 +14569,12 @@ function Slots.build(ouder: Instance): ()
 	-- volgens de tabel, twee kersen met wat dan ook erbij betalen klein -- vandaar het
 	-- plusje achter het paar.
 	local tabel = UI.panel(bediening, "Payouts")
-	UI.list(tabel, 6)                               -- .sc-legend gap
+	UI.list(tabel, 0)
 	UI.panelTitle(tabel, "\u{25BA} payouts")
+	local prijsLijst = UI.panelBody(tabel, 6)       -- .sc-legend gap
 	for i, p in Odds.SLOT_PRIZES do
 		local symbolen = if p.kind == "triple" then p.sym .. p.sym .. p.sym else p.sym .. p.sym .. " +"
-		prijsRegel(tabel, symbolen, p.mult, i)
+		prijsRegel(prijsLijst, symbolen, p.mult, i)
 	end
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
@@ -14673,7 +14714,7 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 local function veldKop(ouder: Instance, naam: string, hint: string): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })
@@ -14771,7 +14812,7 @@ function Tower.build(ouder: Instance): ()
 	seg.Name = "Seg"
 	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
 	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
-	seg.Size = UDim2.new(1, 0, 0, 32 - 2)   -- 11px tekst met padding 8 boven en onder
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.Parent = diffVeld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)
@@ -15335,7 +15376,7 @@ function Vip.build(ouder: Instance, ga: (string) -&gt; ()): (any) -&gt; ()
 		vak.BorderSizePixel = 0
 		UI.corner(vak, Theme.radius.card)
 		UI.stroke(vak, Theme.color.border)
-		UI.padding4(vak, 10, 12, 10, 12)
+		UI.padding4(vak, 10 + UI.RAND, 12 + UI.RAND, 10 + UI.RAND, 12 + UI.RAND)
 		vak.Parent = perkRij
 		local vakLijst = UI.list(vak, 10, Enum.FillDirection.Horizontal)
 		vakLijst.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -15730,7 +15771,7 @@ local function histVakje(ouder: Instance, m: number, orde: number): ()
 	-- .sl-hist.win: rgba(62,207,142,0.45) -- in Roblox de kleur plus de doorzichtigheid.
 	local rand = UI.stroke(t, if won then Theme.color.neon else Theme.color.border)
 	if won then rand.Transparency = 0.55 end
-	UI.padding4(t, 0, 8, 0, 8)
+	UI.padding4(t, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 end
 
 function Wheel.build(ouder: Instance): ()

@@ -169,7 +169,7 @@ local function topChip(ouder: Instance, tekst: string, ga: () -> (), goud: boole
 	b.Size = UDim2.fromOffset(0, 32)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b, if goud then Theme.color.gold else Theme.color.border)
-	UI.padding4(b, 0, 14, 0, 14)
+	UI.padding4(b, 0, 14 + UI.RAND, 0, 14 + UI.RAND)
 	local rij = UI.list(b, 8, Enum.FillDirection.Horizontal)
 	rij.VerticalAlignment = Enum.VerticalAlignment.Center
 	rij.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -200,7 +200,7 @@ local function topChip(ouder: Instance, tekst: string, ga: () -> (), goud: boole
 	slotje.RichText = false
 	slotje.Visible = false
 	UI.corner(slotje, Theme.radius.chip)
-	UI.padding4(slotje, 0, 6, 0, 6)
+	UI.padding4(slotje, 0, 6 + UI.RAND, 0, 6 + UI.RAND)
 	UI.stroke(slotje, Theme.color.gold).Transparency = 0.65   -- rgba(224,181,85,0.35)
 	slotje.Parent = b
 
@@ -283,7 +283,7 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	UI.gradient(saldoKaart, Theme.color.panel, Theme.color.panelLight, 135)
 	UI.corner(saldoKaart, Theme.radius.panel)
 	UI.stroke(saldoKaart, Theme.color.neon)
-	UI.padding4(saldoKaart, 24, 32, 24, 32)
+	UI.padding4(saldoKaart, 24 + UI.RAND, 32 + UI.RAND, 24 + UI.RAND, 32 + UI.RAND)
 	UI.list(saldoKaart, 6)
 	saldoKaart.Parent = blad
 

@@ -168,7 +168,7 @@ local function waardePil(ouder: Instance, volgorde: number): TextLabel
 	t.AutomaticSize = Enum.AutomaticSize.X
 	UI.corner(t, Theme.radius.pill)
 	UI.stroke(t)
-	UI.padding4(t, 0, 8, 0, 8)
+	UI.padding4(t, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 
 	local minstens = Instance.new("UISizeConstraint")
 	minstens.MinSize = Vector2.new(PIL_MIN, PIL_H)

@@ -55,7 +55,7 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 local function veldKop(ouder: Instance, naam: string, hint: string): TextLabel
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })
@@ -153,7 +153,7 @@ function Tower.build(ouder: Instance): ()
 	seg.Name = "Seg"
 	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
 	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
-	seg.Size = UDim2.new(1, 0, 0, 32 - 2)   -- 11px tekst met padding 8 boven en onder
+	seg.Size = UDim2.new(1, 0, 0, 32)   -- 11px tekst met padding 8 boven en onder
 	seg.BackgroundTransparency = 1
 	seg.Parent = diffVeld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)

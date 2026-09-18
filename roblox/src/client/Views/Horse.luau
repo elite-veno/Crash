@@ -106,7 +106,7 @@ end
 local function veldKop(ouder: Instance, naam: string, hint: string, orde: number): ()
 	local rij = Instance.new("Frame")
 	rij.Name = "FieldLabel"
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)   -- margin-bottom 6 onder een regel van 11
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))   -- margin-bottom 6 onder een regel van 11
 	rij.BackgroundTransparency = 1
 	rij.LayoutOrder = orde
 	rij.Parent = ouder
@@ -462,7 +462,7 @@ function Horse.build(ouder: Instance): ()
 			c.Size = UDim2.fromOffset(0, STRIP_H)
 			UI.corner(c, 10)
 			UI.stroke(c, w.kleur)
-			UI.padding4(c, 4, 9, 4, 9)
+			UI.padding4(c, 4 + UI.RAND, 9 + UI.RAND, 4 + UI.RAND, 9 + UI.RAND)
 			c.Parent = strip
 		end
 	end

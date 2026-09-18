@@ -75,6 +75,14 @@ end
 -- UIStroke: neon aan de bovenkant, de gewone randkleur naar beneden toe. Dat is niet
 -- letterlijk hetzelfde als een lijn die naar de zijkanten uitdooft, maar het is wat je ziet
 -- -- een opgelichte bovenrand -- en het kan geen enkele indeling meer in de war schoppen.
+-- Hoe dik de rand is die de CSS om een paneel, een veld of een knop zet. Roblox tekent een
+-- UIStroke buiten het vak; CSS rekent de rand mee in de hoogte die je opgeeft. De afspraak
+-- in dit project is daarom: een vak met een streep eromheen krijgt de maat die de CSS in
+-- border-box geeft, en waar het vak padding heeft komt deze pixel erbij. De streep valt dan
+-- een pixel buiten de lijn waar de browser hem trekt -- maar alles eronder stapelt precies,
+-- en dat is waar een scherm vol panelen mee staat of valt.
+UI.RAND = 1
+
 function UI.panel(parent: Instance, name: string?): Frame
 	local f = Instance.new("Frame")
 	f.Name = name or "Panel"
@@ -95,7 +103,11 @@ function UI.panel(parent: Instance, name: string?): Frame
 	})
 	g.Parent = rand
 
-	UI.padding(f, Theme.size.panelPad)
+	-- `.panel { padding: 18px }` binnen een rand van één pixel. Een UIStroke ligt buiten
+	-- het vak, dus de rand telt hier niet mee in de maat -- die ene pixel komt er als
+	-- padding bij. Zo staat de inhoud waar de CSS hem zet, en is het vak precies zo hoog
+	-- als de pagina het paneel maakt, zodat een kolom panelen niet gaandeweg omhoog kruipt.
+	UI.padding(f, Theme.size.panelPad + UI.RAND)
 	f.Parent = parent
 	return f
 end
@@ -147,6 +159,22 @@ function UI.panelTitle(parent: Instance, text: string): TextLabel
 	t.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
 	t.TextYAlignment = Enum.TextYAlignment.Top
 	return t
+end
+
+-- Wat er onder de paneelkop staat. Een paneel in de CSS heeft zelf geen tussenruimte: de
+-- kop draagt zijn acht pixels marge, en daaronder staat één blok met zijn eigen ritme --
+-- `.sc-legend` met zes tussen de regels, `.stats-grid` met zes, en zo verder. Zonder dit
+-- vak zou de tussenruimte van het paneel ook tussen de kop en de rest gaan zitten, en dan
+-- staat alles acht pixels te laag.
+function UI.panelBody(paneel: Instance, gat: number?): Frame
+	local vak = Instance.new("Frame")
+	vak.Name = "Body"
+	vak.Size = UDim2.new(1, 0, 0, 0)
+	vak.AutomaticSize = Enum.AutomaticSize.Y
+	vak.BackgroundTransparency = 1
+	vak.Parent = paneel
+	UI.list(vak, gat or 6)
+	return vak
 end
 
 -- .section-heading: een kop van 22, een telling, en een lijn die naar rechts uitdooft.
@@ -254,7 +282,7 @@ function UI.secondary(parent: Instance, text: string): Button
 	b.AutoButtonColor = false
 	-- `padding: 12px 0` om een regel van 11 (regelvak 14) plus twee randen is 40 in de CSS;
 	-- de rand ligt hier buiten het vak, dus het vak is er twee kleiner.
-	b.Size = UDim2.new(1, 0, 0, 40 - 2)
+	b.Size = UDim2.new(1, 0, 0, 40)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
 	hover(b, function()
@@ -285,7 +313,7 @@ function UI.chip(parent: Instance, text: string): Button
 	b.BackgroundTransparency = Theme.alpha.buttonBg
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
-	b.Size = UDim2.new(0, 0, 0, 28 - 2)
+	b.Size = UDim2.new(0, 0, 0, 28)
 	UI.corner(b, Theme.radius.chip)
 	local rand = UI.stroke(b)
 	-- `.chip:hover` vult het fiche helemaal neon en zet de tekst op de achtergrondkleur;
@@ -353,7 +381,7 @@ function UI.tag(parent: Instance, text: string, kleur: Color3?): TextLabel
 	UI.corner(f, Theme.radius.pill)
 	local s = UI.stroke(f, k)
 	s.Transparency = 0.6
-	UI.padding4(f, 0, 8, 0, 8)
+	UI.padding4(f, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 	f.Parent = parent
 	return f
 end
@@ -374,10 +402,10 @@ function UI.numberBox(parent: Instance, start: string): TextBox
 	t.BorderSizePixel = 0
 	t.ClearTextOnFocus = false
 	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.Size = UDim2.new(1, 0, 0, 40)
+	t.Size = UDim2.new(1, 0, 0, 43)
 	UI.corner(t, Theme.radius.input)
 	local s = UI.stroke(t)
-	UI.padding4(t, 10, 12, 10, 12)
+	UI.padding4(t, 10 + UI.RAND, 12 + UI.RAND, 10 + UI.RAND, 12 + UI.RAND)
 
 	local ring = Instance.new("UIStroke")
 	ring.Color = Theme.glow.color
@@ -422,7 +450,7 @@ function UI.toast(host: Instance, text: string, kind: ToastKind?): ()
 	local t = UI.label(f, text, { size = Theme.text.toast, color = color, font = Theme.font.uiBold })
 	t.Size = UDim2.new(0, 0, 1, 0)
 	t.AutomaticSize = Enum.AutomaticSize.X
-	UI.padding4(f, 0, 22, 0, 22)
+	UI.padding4(f, 0, 22 + UI.RAND, 0, 22 + UI.RAND)
 	f.Parent = host
 
 	-- `animation: slideIn 0.3s, slideOut 0.3s 2.7s forwards`, en de melding wordt drie

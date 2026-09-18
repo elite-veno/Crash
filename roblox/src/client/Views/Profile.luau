@@ -161,7 +161,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 		-- rand, en zo blijft het verschil met een gevuld (doorgetrokken) vakje zichtbaar.
 		local rand = UI.stroke(vak, Theme.color.border)
 		rand.Transparency = 0.45
-		UI.padding4(vak, 18, 12, 18, 12)
+		UI.padding4(vak, 18 + UI.RAND, 12 + UI.RAND, 18 + UI.RAND, 12 + UI.RAND)
 		vak.Parent = etalage
 		local binnen = UI.list(vak, 6)
 		binnen.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -202,7 +202,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 	local erelijst = UI.panel(blad, "Titles")
 	erelijst.LayoutOrder = 3
 	erelijst.Visible = false
-	UI.list(erelijst, 6)
+	UI.list(erelijst, 0)
 	UI.panelTitle(erelijst, "\u{25BA} titles won")
 	local titelRij = Instance.new("Frame")
 	titelRij.Name = "Chips"
@@ -220,8 +220,8 @@ function Profile.build(ouder: Instance): (any) -> ()
 	-- de paneelkop met zijn marge, en dan de regels van .stats-grid met 6 ertussen.
 	local function rijHoogte(aantal: number): number
 		local regelH = 14 -- zoals Common.statRow er een neerzet: .stat-row bij line-height 1
-		local kopH = Theme.text.small + 8   -- zoals UI.panelTitle
-		return Theme.size.panelPad * 2 + kopH + 6 + aantal * regelH + math.max(0, aantal - 1) * 6
+		local kopH = Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE   -- zoals UI.panelTitle
+		return Theme.size.panelPad * 2 + kopH + aantal * regelH + math.max(0, aantal - 1) * 6
 	end
 
 	local cijfers = Instance.new("Frame")
@@ -242,7 +242,7 @@ function Profile.build(ouder: Instance): (any) -> ()
 		vak.AutomaticSize = Enum.AutomaticSize.None
 		vak.Size = UDim2.new(0.5, -(KAART_GAT / 2), 1, 0)
 		vak.LayoutOrder = volgorde
-		UI.list(vak, 6)
+		UI.list(vak, 0)
 		UI.panelTitle(vak, kop)
 		local regels = Instance.new("Frame")
 		regels.Name = "Rows"

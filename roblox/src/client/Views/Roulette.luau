@@ -445,7 +445,7 @@ function Roulette.build(ouder: Instance): ()
 		f.ZIndex = 4
 		UI.corner(f, 12)
 		UI.stroke(f, FICHE_RAND, 2)
-		UI.padding4(f, 0, 5, 0, 5)
+		UI.padding4(f, 0, 5 + UI.RAND, 0, 5 + UI.RAND)
 		local fMin = Instance.new("UISizeConstraint")
 		fMin.MinSize = Vector2.new(24, 24)
 		fMin.Parent = f
@@ -501,7 +501,7 @@ function Roulette.build(ouder: Instance): ()
 	UI.padding4(veld, 0, 0, 8, 0)   -- .field-group margin-bottom 14, met de 6 uit de lijst erbij
 
 	local kop = Instance.new("Frame")
-	kop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	kop.BackgroundTransparency = 1
 	kop.Parent = veld
 	UI.label(kop, "CHIP VALUE", { size = Theme.text.small, color = Theme.color.muted })
@@ -515,7 +515,7 @@ function Roulette.build(ouder: Instance): ()
 	seg.Name = "ChipSeg"
 	-- `.seg button { padding: 8px 0 }` om een regel van 11 (regelvak 14) plus twee randen is
 	-- 32; de rand ligt buiten het vak, dus het vak is er twee kleiner.
-	seg.Size = UDim2.new(1, 0, 0, 32 - 2)
+	seg.Size = UDim2.new(1, 0, 0, 32)
 	seg.BackgroundTransparency = 1
 	seg.Parent = veld
 	UI.list(seg, 4, Enum.FillDirection.Horizontal)

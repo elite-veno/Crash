@@ -74,7 +74,7 @@ local function frKnop(ouder: Instance, tekst: string, gevaar: boolean?): TextBut
 	b.Size = UDim2.fromOffset(0, KNOP_HOOG)
 	UI.corner(b, Theme.radius.button)
 	local rand = UI.stroke(b)
-	UI.padding4(b, 0, KNOP_PAD, 0, KNOP_PAD)
+	UI.padding4(b, 0, KNOP_PAD + UI.RAND, 0, KNOP_PAD + UI.RAND)
 
 	local aan = if gevaar then Theme.color.red else Theme.color.neon
 	b.MouseEnter:Connect(function()
@@ -188,7 +188,7 @@ end
 local function kopMetMarge(ouder: Instance, tekst: string): TextLabel
 	local vak = Instance.new("Frame")
 	vak.Name = "TitleGap"
-	vak.Size = UDim2.new(1, 0, 0, Theme.text.small + 8 + 22)
+	vak.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE + 22)
 	vak.BackgroundTransparency = 1
 	vak.Parent = ouder
 	UI.padding4(vak, 22, 0, 0, 0)
@@ -316,7 +316,7 @@ function Friends.build(ouder: Instance): ()
 	veld.BorderSizePixel = 0
 	UI.corner(veld, Theme.radius.input)
 	UI.stroke(veld)
-	UI.padding4(veld, 10, 12, 10, 12)
+	UI.padding4(veld, 10 + UI.RAND, 12 + UI.RAND, 10 + UI.RAND, 12 + UI.RAND)
 	veld.Parent = toevoegRij
 
 	local veldTekst = UI.label(veld, "roblox keeps this list", {
@@ -367,7 +367,7 @@ function Friends.build(ouder: Instance): ()
 	-- rechts in muted.
 	local kopRij = Instance.new("Frame")
 	kopRij.Name = "ListTitle"
-	kopRij.Size = UDim2.new(1, 0, 0, Theme.text.small + 8)
+	kopRij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + UI.PANEL_TITLE_MARGE)
 	kopRij.BackgroundTransparency = 1
 	kopRij.Parent = rechtsVak
 	UI.label(kopRij, "\u{25BA} YOUR FRIENDS", {

@@ -47,7 +47,7 @@ local GOUD_DONKER = Color3.fromHex("cc9900")  -- .btn-cashout, het eind van het 
 local function veldKop(ouder: Instance, naam: string, hint: string): ()
 	local rij = Instance.new("Frame")
 	rij.Name = naam
-	rij.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)   -- margin-bottom 6 onder een regel van 11
+	rij.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))   -- margin-bottom 6 onder een regel van 11
 	rij.BackgroundTransparency = 1
 	rij.Parent = ouder
 	UI.label(rij, naam, { size = Theme.text.small, color = Theme.color.muted })

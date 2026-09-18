@@ -135,7 +135,7 @@ local function histVakje(ouder: Instance, m: number, orde: number): ()
 	-- .sl-hist.win: rgba(62,207,142,0.45) -- in Roblox de kleur plus de doorzichtigheid.
 	local rand = UI.stroke(t, if won then Theme.color.neon else Theme.color.border)
 	if won then rand.Transparency = 0.55 end
-	UI.padding4(t, 0, 8, 0, 8)
+	UI.padding4(t, 0, 8 + UI.RAND, 0, 8 + UI.RAND)
 end
 
 function Wheel.build(ouder: Instance): ()

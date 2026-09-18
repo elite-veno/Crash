@@ -176,7 +176,7 @@ function Common.safetyNet(): ()
 	UI.padding(vak, 24)
 	UI.list(vak, 0)
 
-	UI.panelTitle(vak, "\u{25BA} SAFETY NET").Size = UDim2.new(1, 0, 0, Theme.text.small + 12)
+	UI.panelTitle(vak, "\u{25BA} SAFETY NET").Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + 12)
 
 	-- De vetgedrukte stukken zijn in de CSS goud, net als in elk ander `.odds-note`.
 	local uitleg = UI.label(vak, "", { size = Theme.text.tiny, color = Theme.color.muted })
@@ -437,7 +437,7 @@ function Common.columns(
 	aside.CanvasSize = UDim2.new()
 	aside.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	aside.Parent = vak
-	UI.list(aside, Theme.size.asideGap)
+	UI.list(aside, Theme.size.asideGap + Theme.size.strokeGap)
 
 	-- rechts: het speelveld, een paneel dat de rest vult
 	local bordVak = Instance.new("Frame")
@@ -515,16 +515,20 @@ function Common.columns(
 	local saldoVak = UI.panel(aside, "Balance")
 	local saldoPad = saldoVak:FindFirstChildOfClass("UIPadding")
 	if saldoPad then
-		saldoPad.PaddingTop = UDim.new(0, 16)
-		saldoPad.PaddingRight = UDim.new(0, 16)
-		saldoPad.PaddingBottom = UDim.new(0, 16)
-		saldoPad.PaddingLeft = UDim.new(0, 16)
+		-- `.balance { padding: 16px }`, smaller dan de 18 van `.panel`; de rand komt erbij,
+		-- zoals bij elk vak met een streep eromheen.
+		local p = UDim.new(0, 16 + UI.RAND)
+		saldoPad.PaddingTop, saldoPad.PaddingRight = p, p
+		saldoPad.PaddingBottom, saldoPad.PaddingLeft = p, p
 	end
-	UI.list(saldoVak, 2)
+	-- Geen tussenruimte: net als in de CSS draagt elk blok zijn eigen marge.
+	UI.list(saldoVak, 0)
 	local kopje = UI.label(saldoVak, "BALANCE", {
 		size = Theme.text.small, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
 	})
-	kopje.Size = UDim2.new(1, 0, 0, 16)
+	-- `.balance-label`: een regel van 14 met `margin-bottom: 6`.
+	kopje.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small) + 6)
+	kopje.TextYAlignment = Enum.TextYAlignment.Top
 	local bedrag = UI.moneyLabel(saldoVak, Money.fmt(saldo), Theme.text.balance, true)
 	table.insert(saldoLabels, bedrag)
 
@@ -538,7 +542,8 @@ function Common.columns(
 		size = Theme.text.tiny, color = Theme.color.neon, align = Enum.TextXAlignment.Center,
 	})
 	naamVak.Name = "AccountBar"
-	naamVak.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 14)
+	-- `.account-bar { margin-top: 10px }` boven een regel van 14.
+	naamVak.Size = UDim2.new(1, 0, 0, 10 + Theme.lineBox(Theme.text.tiny))
 	naamVak.TextYAlignment = Enum.TextYAlignment.Bottom
 	verversNood()
 
@@ -597,7 +602,7 @@ function Common.betBox(ouder: Instance, start: number?): BetBox
 	UI.list(paneel, 6)
 	-- .field-label: "STAKE" links, het dollarteken als hint rechts.
 	local kop = Instance.new("Frame")
-	kop.Size = UDim2.new(1, 0, 0, Theme.text.small + 6)
+	kop.Size = UDim2.new(1, 0, 0, Theme.lineBox(Theme.text.small))
 	kop.BackgroundTransparency = 1
 	kop.Parent = paneel
 	UI.label(kop, "STAKE", { size = Theme.text.small, color = Theme.color.muted })
@@ -904,7 +909,7 @@ function Common.seasonStrip(ouder: Instance): SeasonStrip
 	UI.gradient(strip, Theme.color.panel, Theme.color.panelLight)
 	UI.corner(strip, Theme.radius.card)
 	UI.stroke(strip, Theme.color.border)
-	UI.padding4(strip, 18, 22, 18, 22)
+	UI.padding4(strip, 18 + UI.RAND, 22 + UI.RAND, 18 + UI.RAND, 22 + UI.RAND)
 	strip.Parent = ouder
 
 	-- `.season-now` is een gewoon blok: de vier regels staan er zonder ruimte ertussen op
@@ -953,7 +958,7 @@ function Common.seasonStrip(ouder: Instance): SeasonStrip
 		vak.BorderSizePixel = 0
 		UI.corner(vak, Theme.radius.panel)
 		UI.stroke(vak, Theme.color.border)
-		UI.padding4(vak, 0, 12, 0, 12)
+		UI.padding4(vak, 0, 12 + UI.RAND, 0, 12 + UI.RAND)
 		vak.Parent = prijzen
 		local rij = UI.list(vak, 8, Enum.FillDirection.Horizontal)
 		rij.VerticalAlignment = Enum.VerticalAlignment.Center
