@@ -9,6 +9,17 @@
 -- vorige keer misging.
 local Stub = {}
 
+-- Elke luisteraar die een scherm aanmeldt, op naam van de gebeurtenis. `Stub.vuur` roept
+-- ze aan, zodat een scherm dat zijn beeld pas in RenderStepped tekent toch op de afbeelding
+-- komt.
+Stub.luisteraars = {} :: { [string]: { (...any) -> () } }
+
+function Stub.vuur(naam: string, ...)
+	for _, f in Stub.luisteraars[naam] or {} do
+		pcall(f, ...)
+	end
+end
+
 -- ---------- de waardetypes ----------
 local function maakType(naam, velden)
 	local mt = { __index = {} }
@@ -130,6 +141,7 @@ local function maatVan(o)
 	return math.max(0, b), math.max(0, h)
 end
 
+-- Elke luisteraar die het scherm aanmeldt, per gebeurtenis. `Stub.vuur` roept ze aan.
 local function nieuw(klasse)
 	local o = {
 		ClassName = klasse,
@@ -216,9 +228,20 @@ local function nieuw(klasse)
 					return nieuw("Folder")
 				end
 			end
-			-- gebeurtenissen
+			-- gebeurtenissen. De luisteraars worden bewaard, zodat de tekenaar ze één keer
+			-- kan afvuren: een scherm dat zijn beeld in RenderStepped tekent -- de vlucht
+			-- bij crash, het rad, de paarden -- staat anders leeg op de afbeelding, en dan
+			-- vergelijk je een spel in beweging met een leeg veld.
 			if string.match(k, "^%u") then
-				return { Connect = function() return { Disconnect = function() end } end, Wait = function() end }
+				local sleutel = k
+				return {
+					Connect = function(_, f)
+						Stub.luisteraars[sleutel] = Stub.luisteraars[sleutel] or {}
+						table.insert(Stub.luisteraars[sleutel], f)
+						return { Disconnect = function() end }
+					end,
+					Wait = function() end,
+				}
 			end
 			return nil
 		end,

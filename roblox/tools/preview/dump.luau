@@ -33,8 +33,19 @@ ReplicatedStorage.Shared.Net = stempel("Net")
 
 -- Net wordt nagemaakt: dit is alleen om te kijken hoe het eruitziet.
 local NetStub = {
-	fn = function()
-		return { InvokeServer = function()
+	fn = function(kanaal)
+		return { InvokeServer = function(_, spel)
+			-- De stand van een gedeelde ronde. Crash staat in de lucht, net als op de
+			-- schermafdruk van de webversie waar dit naast gelegd wordt: een wachtend
+			-- scherm met een lege lucht valt daar niet mee te vergelijken.
+			if kanaal == "RoundState" and spel == "crash" then
+				-- De stubklok van workspace staat op 1000; een vlucht die daar drie
+				-- seconden voor begon staat op ongeveer 1,36x -- dezelfde stand als de
+				-- schermafdruk van de webversie waar dit naast gelegd wordt.
+				return { ok = true, phase = "flying", startsAt = 1000 - 2.97,
+				         mult = 1.36, round = 1, commit = string.rep("a", 64),
+				         bets = {}, history = {} }
+			end
 			return { ok = true, top = {}, friends = {}, here = {}, options = {},
 			         mine = 0, label = "SEASON 1 \u{00B7} SPRINT 1", endsAt = 0, seasonEndsAt = 0,
 			         sprintsLeft = 4, now = 0, vipActive = false,
@@ -119,6 +130,24 @@ e.script = setmetatable({}, {
 })
 setfenv(f, e)
 f()
+
+-- De zijbalk weet nu nog niet welk scherm er open staat: hij licht standaard de lobby op.
+-- Op een schermafdruk van de webversie licht juist het item van dit scherm op, en dat is
+-- een verschil van een handvol pixels op elk scherm dat niet de lobby is. `Common.navigate`
+-- loopt door dezelfde schil als een echte klik, dus daarna klopt de markering. Een VIP-spel
+-- zonder pas komt zo bij de zone uit -- precies wat de webversie ook doet.
+do
+	local Common = eigenRequire(Views.Common)
+	pcall(function()
+		Common.navigate(scherm)
+	end)
+end
+
+-- Eén beeldje tekenen. Een scherm dat zijn spel in RenderStepped zet -- de vlucht bij
+-- crash, het rad, de paarden -- heeft anders niets getekend als de boom wordt uitgelezen,
+-- en dan vergelijk je een leeg veld met een spel in beweging.
+Stub.vuur("RenderStepped", 1 / 60)
+Stub.vuur("Heartbeat", 1 / 60)
 
 local Players = env.game:GetService("Players")
 local gui = Players.LocalPlayer.PlayerGui

@@ -335,7 +335,14 @@ def plaats(n, x, y, b, h, uit, diepte=0):
         if streep:
             sp = streep["props"]
             st = sp.get("Transparency", 0)
-            if st < 0.999:
+            # Een UIStroke op een tekstvak zonder achtergrond legt Roblox om de LETTERS,
+            # niet om het vak -- dat is wat `-webkit-text-stroke` doet, en waar de gloed om
+            # de multiplier op leunt. Die wordt verderop bij de tekst zelf getekend; hier
+            # zou hij een kader om het hele vak trekken, en bij een dikte van twintig is
+            # dat een witte balk dwars over het scherm.
+            omLetters = (klasse in ("TextLabel", "TextButton", "TextBox")
+                         and p.get("BackgroundTransparency", 0) > 0.999)
+            if st < 0.999 and not omLetters:
                 hoek = kind(n, "UICorner")
                 r = hoek["props"].get("CornerRadius", {}).get("o", 0) if hoek else 0
                 uit.append(
@@ -383,6 +390,17 @@ def plaats(n, x, y, b, h, uit, diepte=0):
         else:
             y0 = y + h / 2 - totaal / 2 + maat * 0.86
 
+        # De omtrek om de letters, als het vak een UIStroke heeft en geen achtergrond.
+        omtrek = ""
+        st_ = kind(n, "UIStroke")
+        if st_ and p.get("BackgroundTransparency", 0) > 0.999:
+            sp_ = st_["props"]
+            if sp_.get("Transparency", 0) < 0.999:
+                omtrek = (' stroke="%s" stroke-width="%.1f" stroke-opacity="%.2f" '
+                          'paint-order="stroke" stroke-linejoin="round"'
+                          % (kleur(sp_.get("Color"), "#888888"),
+                             sp_.get("Thickness", 1) * 2, 1 - sp_.get("Transparency", 0)))
+
         for r, regel in enumerate(regels):
             ry = y0 + r * regelhoogte
             regelB = sum(tekstBreedte(t, maat, fontnaam) for t, _ in regel)
@@ -396,9 +414,9 @@ def plaats(n, x, y, b, h, uit, diepte=0):
                 veilig = stuk.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 uit.append(
                     '<text x="%.1f" y="%.1f" font-family="%s" font-size="%.1f" font-weight="%s" '
-                    'fill="%s" fill-opacity="%.2f" text-anchor="start" '
+                    'fill="%s" fill-opacity="%.2f" text-anchor="start"%s '
                     'xml:space="preserve">%s</text>'
-                    % (rx, ry, font, maat, gewicht, c or basis, dek, veilig))
+                    % (rx, ry, font, maat, gewicht, c or basis, dek, omtrek, veilig))
                 rx += tekstBreedte(stuk, maat, fontnaam)
 
     # ---------- de kinderen ----------
