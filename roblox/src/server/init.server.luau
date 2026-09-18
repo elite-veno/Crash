@@ -114,9 +114,18 @@ Net.fn("SetFeatured").OnServerInvoke = function(speler, lijst)
 end
 
 -- De stand van de gedeelde crashronde, voor een speler die er net binnenkomt.
-Net.fn("RoundState").OnServerInvoke = function(_speler, spel)
+Net.fn("RoundState").OnServerInvoke = function(speler, spel)
 	if spel == "crash" then return Crash.state() end
+	-- Het paardenveld dat klaarstaat, zodat de quotes op het scherm staan voordat er wordt
+	-- ingezet. Zonder deze vraag zou je blind moeten inzetten.
+	if spel == "horse" then return Games.horseField(speler) end
 	return { ok = false, err = "geen gedeelde tafel" }
+end
+
+-- NEW ODDS: een nieuw veld voor wie het huidige niet bevalt.
+Net.fn("NewOdds").OnServerInvoke = function(speler, spel)
+	if spel == "horse" then return Games.horseNewOdds(speler) end
+	return { ok = false, err = "dat spel kent geen nieuwe quotes" }
 end
 
 -- De VIP-poort staat bij de spellen zelf (Games.slots en Multi.busStart), niet hier: zo kan

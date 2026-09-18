@@ -19,6 +19,7 @@ Net.FUNCTIONS = {
 	"Friends",      -- (actie, naam) -> de vriendenlijst
 	"Lobby",        -- (actie, gegevens) -> de lobby
 	"RoundState",   -- (spel) -> de stand van een gedeelde ronde, voor wie net binnenkomt
+	"NewOdds",      -- (spel) -> een nieuw paardenveld, voordat er wordt ingezet
 }
 
 Net.EVENTS = {

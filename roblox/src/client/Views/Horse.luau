@@ -17,13 +17,11 @@
 -- twee kleuren in één label (een podiumregel is in zijn geheel de kleur van het paard, in
 -- plaats van alleen de naam).
 --
--- Eén ding kan hier niet zoals in de browser. Daar loot de pagina het veld zelf, dus staan
--- de kansen vóór de start op het scherm en zijn ze ook de prijs die je krijgt. Hier loot de
--- server het veld pas bij het startschot, en er is geen kanaal om het eerder op te vragen.
--- De regels tonen daarom de kansen van de vórige race -- echte, door de server geloote
--- getallen -- en een streepje zolang er nog niets gelopen is. NEW ODDS gooit ze weg, want
--- ze zijn niet de prijs van de volgende race; dat is het enige eerlijke werk dat die knop
--- hier kan doen zonder een prijs te beloven die de server niet nakomt.
+-- Het veld wordt op de server geloot voordat er wordt ingezet, en het scherm vraagt het op
+-- zodra je binnenkomt. De kansen die je ziet zijn dus de kansen waarop gelopen wordt en de
+-- quotes die je uitbetaald krijgt -- net als in de browser, waar de pagina ze zelf loot.
+-- NEW ODDS vraagt de server om een nieuw veld; dat mag zo vaak als je wilt, want elke
+-- quote is 0,97 gedeeld door de kans en betaalt dus hoe dan ook 97% terug.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Theme = require(ReplicatedStorage.Shared.Theme)
@@ -253,7 +251,7 @@ function Horse.build(ouder: Instance): ()
 
 	-- ---------- de stand van het scherm ----------
 	local inzetten: { [number]: number } = {}
-	local kansen: { number }? = nil          -- het veld dat de server het laatst geloot heeft
+	local kansen: { number }? = nil          -- het veld waarop deze race gelopen wordt
 	local winnaar: number? = nil             -- kleurt die regel goud, zoals `.hr-row.won`
 	local voortgang: { number } = {}         -- per paard 0 tot 1 over de baan
 	local historie: { { naam: string, kleur: Color3, mult: number } } = {}
@@ -744,15 +742,14 @@ function Horse.build(ouder: Instance): ()
 	end)
 
 	nieuweOdds.Activated:Connect(function()
-		-- De server loot het veld pas bij het startschot, dus "nieuwe odds" kan hier alleen
-		-- betekenen: die van de vorige race van het scherm halen, zodat er geen prijs blijft
-		-- staan die straks niet meer geldt.
+		-- Zoals hrNewField() in de webversie: een nieuw veld, en de inzetten eraf -- ze
+		-- hoorden bij quotes die nu niet meer gelden.
 		if bezig then return end
-		local totaal = 0
-		for _, b in inzetten do totaal += b end
-		if totaal > 0 then return end
-		kansen = nil
+		local res = Common.call("NewOdds", "horse")
+		if not res then return end
+		kansen = res.probs
 		winnaar = nil
+		table.clear(inzetten)
 		ververs()
 	end)
 
@@ -809,6 +806,17 @@ function Horse.build(ouder: Instance): ()
 	baanVak:GetPropertyChangedSignal("AbsoluteSize"):Connect(tekenBaan)
 	task.defer(tekenBaan)
 	ververs()
+
+	-- Het veld ophalen dat op de server klaarstaat, zodat de quotes op het scherm staan
+	-- voordat er iets ingezet wordt. Lukt het niet, dan blijven de streepjes staan en
+	-- weigert de server de inzet ook -- liever geen quote dan een verzonnen quote.
+	task.spawn(function()
+		local res = Common.call("RoundState", "horse")
+		if res and res.probs and not kansen then
+			kansen = res.probs
+			ververs()
+		end
+	end)
 
 	-- De twee panelen waar elke aside in de webversie mee afsluit.
 	Common.statsPanel(bediening, "horse")

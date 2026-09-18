@@ -955,12 +955,43 @@ function Games.wheel(speler: Player, inzet: any): any
 	return { ok = true, slot = vak, mult = mult, payout = uit, balance = if p then p.balance else 0 }
 end
 
+-- ---------- de paardenrace ----------
+-- Het veld wordt geloot voordat er wordt ingezet, niet erna. In de webversie is dat
+-- hrNewField(): de kansen staan op het scherm en dat zijn ook de quotes die je krijgt.
+-- Trok de server ze pas bij het startschot, dan zou je blind inzetten en had de server
+-- ruimte om een veld te kiezen dat slecht uitkomt voor wat er ligt. Nu ligt het veld vast
+-- voordat hij weet waar het geld op staat.
+--
+-- Opnieuw laten loten mag zo vaak als je wilt, want het levert niets op: een quote is
+-- 0,97 gedeeld door de kans, dus elk paard in elk veld betaalt 97% terug. Er valt geen
+-- gunstiger veld uit te zoeken.
+local paardenVeld: { [number]: { number } } = {}
+
+local function veldVan(speler: Player): { number }
+	local v = paardenVeld[speler.UserId]
+	if not v then
+		v = Odds.horseField()
+		paardenVeld[speler.UserId] = v
+	end
+	return v
+end
+
+function Games.horseField(speler: Player): any
+	return { ok = true, probs = veldVan(speler) }
+end
+
+function Games.horseNewOdds(speler: Player): any
+	paardenVeld[speler.UserId] = Odds.horseField()
+	return { ok = true, probs = paardenVeld[speler.UserId] }
+end
+
 function Games.horse(speler: Player, inzetten: any): any
 	local p = Profiles.get(speler)
 	if not p then return { ok = false, err = "geen profiel" } end
 	if typeof(inzetten) ~= "table" then return { ok = false, err = "geen inzetten" } end
 
-	local kansen = Odds.horseField()
+	-- Het veld dat de speler op zijn scherm zag, niet een vers geloot veld.
+	local kansen = veldVan(speler)
 	local totaal = 0
 	local schoon: { { i: number, bet: number } } = {}
 	for i, bedrag in inzetten do
@@ -983,6 +1014,8 @@ function Games.horse(speler: Player, inzetten: any): any
 		end
 	end
 	uit = Money.floor2(uit)
+	-- De race is gelopen; de volgende krijgt een nieuw veld.
+	paardenVeld[speler.UserId] = nil
 	settle(speler, "horse", totaal, uit, if uit > 0 then uit / totaal else 0)
 	return {
 		ok = true, order = volgorde, probs = kansen, winner = winnaar,

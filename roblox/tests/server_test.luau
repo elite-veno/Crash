@@ -493,4 +493,65 @@ do
 	h.check("een tientje daarna verlaagt het hoogste bedrag niet", 40, p.extra.noodfonds)
 end
 
+-- ---------- de paardenrace: de quotes staan vast voordat er wordt ingezet ----------
+-- Dit is waar het bij een quote om gaat. Wordt het veld pas bij het startschot geloot, dan
+-- zet je blind in en kan de server nog kiezen wat er slecht uitkomt voor wat er ligt.
+do
+	local w = wereld()
+	local s, p = meldEen(w)
+
+	local eerst = w.Games.horseField(s)
+	h.check("het veld staat klaar voordat er iets ligt", true, eerst.ok)
+	h.check("met een kans per paard", #w.Odds.HORSES, #eerst.probs)
+
+	-- Twee keer vragen geeft hetzelfde veld: anders was de quote op het scherm niet de
+	-- quote waarop gelopen wordt.
+	local nogmaals = w.Games.horseField(s)
+	for i = 1, #eerst.probs do
+		h.check("dezelfde kans bij het tweede opvragen", eerst.probs[i], nogmaals.probs[i])
+	end
+
+	-- En de race loopt op precies dat veld.
+	p.balance = 1000
+	local uitslag = w.Games.horse(s, { [1] = 10 })
+	h.check("de race loopt", true, uitslag.ok)
+	for i = 1, #eerst.probs do
+		h.check("de race gebruikt het getoonde veld", eerst.probs[i], uitslag.probs[i])
+	end
+
+	-- Daarna staat er een nieuw veld klaar voor de volgende race.
+	local na = w.Games.horseField(s)
+	local zelfde = true
+	for i = 1, #eerst.probs do
+		if na.probs[i] ~= eerst.probs[i] then zelfde = false break end
+	end
+	h.check("na de race wordt er opnieuw geloot", false, zelfde)
+end
+
+do
+	-- NEW ODDS geeft een ander veld, en levert niets op: elke quote is 0,97 gedeeld door de
+	-- kans, dus elk paard in elk veld betaalt 97% terug. Er valt niets uit te zoeken.
+	local w = wereld()
+	local s = meldEen(w)
+	local eerst = w.Games.horseField(s).probs
+	local nieuw = w.Games.horseNewOdds(s)
+	h.check("nieuwe quotes lukken", true, nieuw.ok)
+	local zelfde = true
+	for i = 1, #eerst do
+		if nieuw.probs[i] ~= eerst[i] then zelfde = false break end
+	end
+	h.check("en het is een ander veld", false, zelfde)
+
+	for _, veld in { eerst, nieuw.probs } do
+		local som = 0
+		for _, kans in veld do
+			som += kans
+			-- De uitbetaling per ingezette dollar, maal de kans dat het gebeurt.
+			h.near("elke quote betaalt 97% terug", 0.97,
+				w.Odds.horseMultiplier(kans) * kans, 0.006)
+		end
+		h.check("de kansen tellen op tot een", 1, w.Money.round2(som))
+	end
+end
+
 h.report("SERVER")

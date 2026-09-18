@@ -257,9 +257,30 @@ function Stub.omgeving(opties)
 	env.NumberSequence = NumberSequence
 	env.NumberSequenceKeypoint = NumberSequenceKeypoint
 	env.warn = function() end
+	-- Een spawn wordt meteen uitgevoerd in plaats van weggelegd: een scherm dat bij het
+	-- openen iets bij de server opvraagt doet dat in een spawn, en die vraag hoort in de
+	-- tekening terug te komen.
+	--
+	-- Alleen zit er ook animatielus in een spawn, en die draait op task.wait. Die wacht
+	-- hier niet, dus zo'n lus zou nooit ophouden. Daarom telt hij: binnen een spawn mag er
+	-- een paar keer gewacht worden, en daarna stopt de lus met een fout die de pcall
+	-- eromheen opvangt. Wat er tot dat moment getekend is blijft staan.
+	local inSpawn = false
+	local gewacht = 0
 	env.task = {
-		wait = function() return 0 end,
-		spawn = function() end,
+		wait = function()
+			if inSpawn then
+				gewacht += 1
+				if gewacht > 3 then error("preview: lus afgekapt", 0) end
+			end
+			return 0
+		end,
+		spawn = function(f, ...)
+			local vorigeStand, vorigeTeller = inSpawn, gewacht
+			inSpawn, gewacht = true, 0
+			pcall(f, ...)
+			inSpawn, gewacht = vorigeStand, vorigeTeller
+		end,
 		delay = function() end,
 		defer = function(f) if opties.defer ~= false then pcall(f) end end,
 	}

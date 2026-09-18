@@ -37,7 +37,11 @@ local NetStub = {
 		return { InvokeServer = function()
 			return { ok = true, top = {}, friends = {}, here = {}, options = {},
 			         mine = 0, label = "SEASON 1 \u{00B7} SPRINT 1", endsAt = 0, seasonEndsAt = 0,
-			         sprintsLeft = 4, now = 0, vipActive = false }
+			         sprintsLeft = 4, now = 0, vipActive = false,
+			         -- Een vast paardenveld, zodat de quotes op het scherm staan zoals ze
+			         -- er in het spel ook staan. Vast, niet geloot: anders ziet elke
+			         -- tekening er anders uit en valt er niets mee te vergelijken.
+			         probs = { 0.07, 0.11, 0.24, 0.21, 0.20, 0.17 } }
 		end }
 	end,
 	ev = function()
