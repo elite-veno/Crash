@@ -102,13 +102,48 @@ function Sha256.unit(hex: string): number
 	return (tonumber(stuk, 16) :: number) / 2 ^ 52
 end
 
--- Geen geheim, maar wel onvoorspelbaar genoeg voor een zaad: tijd, een teller en de
--- toevalsgenerator door elkaar.
+-- Het zaad van een ronde. Hier hangt de hele belofte aan: de server publiceert eerst
+-- sha256("commit:" .. zaad) en geeft het zaad pas vrij als de ronde voorbij is. Wie het
+-- zaad vooruit kan raden, weet waar de vlucht crasht voordat hij inzet -- dan is de
+-- belofte een vertoning.
+--
+-- Vandaar Random.new() en niet math.random. Die laatste deelt zijn toestand met al het
+-- andere dat hem aanroept en wordt per virtuele machine op een voorspelbare manier gezet;
+-- twee getallen eruit zijn dus niet zoveel waard als ze lijken. Random.new() trekt zijn
+-- begintoestand uit het systeem.
+--
+-- Er gaan vier van die getallen in, plus de klok voor het geval twee servers tegelijk
+-- beginnen, plus een teller zodat twee rondes binnen dezelfde tik nooit hetzelfde zaad
+-- krijgen. Wat er ook van één bron te voorspellen valt, de rest zit er nog omheen.
+local MAX = 2 ^ 31 - 1
+
+-- Waar de getallen vandaan komen. Van buiten te vervangen, net als Odds.setRandom: een
+-- test wil iets voorspelbaars, en een server zou er een betere bron in kunnen zetten.
+-- Pas bij het eerste gebruik aangemaakt, want dit bestand wordt ook geladen waar alleen
+-- een hash nagerekend hoeft te worden.
+local bron: ((number) -> number)? = nil
+
+function Sha256.setRandom(f: (number) -> number): ()
+	bron = f
+end
+
+local function trek(): number
+	local f = bron
+	if not f then
+		local r = Random.new()
+		f = function(max: number): number
+			return r:NextInteger(0, max)
+		end
+		bron = f
+	end
+	return (f :: (number) -> number)(MAX)
+end
+
 local teller = 0
 function Sha256.seed(): string
 	teller += 1
-	return string.format("%d-%d-%d-%d", os.time(), teller,
-		math.random(0, 2 ^ 31 - 1), math.random(0, 2 ^ 31 - 1))
+	return string.format("%d-%.6f-%d-%d-%d-%d-%d",
+		os.time(), os.clock(), teller, trek(), trek(), trek(), trek())
 end
 
 local _ = lshift   -- bit32.lshift blijft hier staan voor toekomstige varianten

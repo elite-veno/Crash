@@ -4,6 +4,16 @@
 local Sha256 = require("../src/shared/Sha256")
 local h = require("./harness")
 
+-- In Roblox trekt het zaad zijn getallen uit Random.new(), die zijn begintoestand uit het
+-- systeem haalt. Die global bestaat niet in de losse Luau-uitvoerder, dus hier gaat er een
+-- voorspelbare bron in -- genoeg om te kunnen nagaan dat het zaad zijn getallen ook echt
+-- gebruikt en dat twee zaden verschillen.
+local tel = 0
+Sha256.setRandom(function(max: number): number
+	tel += 1
+	return (tel * 7919) % (max + 1)
+end)
+
 h.check("lege tekst",
 	"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 	Sha256.hash(""))
@@ -40,5 +50,23 @@ h.check("een ander zaad geeft een ander getal", true, u ~= Sha256.unit(Sha256.ha
 -- Twee zaden achter elkaar mogen nooit gelijk zijn.
 local a, b = Sha256.seed(), Sha256.seed()
 h.check("twee zaden verschillen", true, a ~= b)
+
+-- Ook niet als de klok stilstaat en de toevalsbron zichzelf herhaalt: de teller erin zorgt
+-- dat twee rondes binnen dezelfde tik toch een eigen zaad krijgen.
+Sha256.setRandom(function(): number return 4 end)
+local c, d = Sha256.seed(), Sha256.seed()
+h.check("een vastgezette bron geeft nog steeds twee zaden", true, c ~= d)
+
+-- En de getallen uit de bron staan er echt in: zonder dat zou het zaad alleen de klok en
+-- een teller zijn, en dat is precies wat vooruit te rekenen valt.
+Sha256.setRandom(function(): number return 123456789 end)
+local e = Sha256.seed()
+h.check("het zaad draagt wat de bron geeft", true, string.find(e, "123456789") ~= nil)
+
+-- De belofte hoort bij het zaad en verklapt het niet.
+local zaad = "abc-1-2"
+h.check("de belofte is de hash van het zaad met zijn voorvoegsel",
+	Sha256.hash("commit:" .. zaad), Sha256.commit(zaad))
+h.check("en de belofte is het zaad niet", true, Sha256.commit(zaad) ~= zaad)
 
 h.report("SHA-256")

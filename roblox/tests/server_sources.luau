@@ -1598,9 +1598,16 @@ end
 local function beeld(): any
 	local r = ronde
 	if not r then return { phase = "idle" } end
-	local lijst: { Inzet } = {}
-	for _, i in r.inzetten do
-		table.insert(lijst, i)
+	-- Het nummer van de speler gaat mee, niet alleen zijn naam. Twee spelers kunnen in
+	-- Roblox dezelfde weergavenaam hebben, en het scherm moet kunnen zien welke rij van
+	-- hemzelf is -- anders leest hij de stand van een naamgenoot en denkt hij dat hij is
+	-- uitgestapt terwijl zijn eigen inzet nog in de lucht hangt. Een UserId is openbaar,
+	-- dus dit verklapt niets.
+	local lijst = {}
+	for id, i in r.inzetten do
+		table.insert(lijst, {
+			id = id, naam = i.naam, bet = i.bet, cashed = i.cashed, payout = i.payout,
+		})
 	end
 	return {
 		game = "crash",

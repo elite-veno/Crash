@@ -794,7 +794,9 @@ function Crash.build(ouder: Instance): ()
 	-- Wie er in deze ronde zit leest het scherm uit wat de server stuurt, niet uit een
 	-- eigen vlaggetje: dan klopt het ook als je net binnenkwam of even weg was.
 	local stand: any = nil
-	local mijnNaam = Players.LocalPlayer.DisplayName
+	-- Op nummer, niet op naam: twee spelers kunnen dezelfde weergavenaam hebben, en dan
+	-- zou het scherm de stand van een naamgenoot voor die van jezelf aanzien.
+	local mijnId = Players.LocalPlayer.UserId
 	local historie: { number } = {}
 	type Winst = { naam: string, bet: number, mult: number, zelf: boolean }
 	local winsten: { Winst } = {}
@@ -811,7 +813,7 @@ function Crash.build(ouder: Instance): ()
 	local function mijnInzet(): any
 		if not stand or not stand.bets then return nil end
 		for _, b in stand.bets do
-			if b.naam == mijnNaam then return b end
+			if b.id == mijnId then return b end
 		end
 		return nil
 	end
@@ -847,7 +849,7 @@ function Crash.build(ouder: Instance): ()
 				elseif verloren then "\u{2715}"
 				else "\u{2014}"
 			spelerRij(tafelLijst, i, b.naam, "$" .. Money.fmt(b.bet), mult, {
-				zelf = b.naam == mijnNaam,
+				zelf = b.id == mijnId,
 				gecashed = b.cashed ~= nil,
 				verloren = verloren,
 			})
@@ -1174,7 +1176,7 @@ function Crash.build(ouder: Instance): ()
 				if b.cashed and not gezien[b.naam] then
 					gezien[b.naam] = true
 					table.insert(winsten, 1, {
-						naam = b.naam, bet = b.bet, mult = b.cashed, zelf = b.naam == mijnNaam,
+						naam = b.naam, bet = b.bet, mult = b.cashed, zelf = b.id == mijnId,
 					})
 					if #winsten > WINSTEN then table.remove(winsten) end
 				end

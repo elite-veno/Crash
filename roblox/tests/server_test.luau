@@ -605,4 +605,42 @@ do
 	h.check("de ronde wordt niet dubbel geboekt", 1, bewaard.stats.crash.rounds)
 end
 
+-- ---------- crash: twee spelers met dezelfde weergavenaam ----------
+do
+	-- In Roblox is een weergavenaam niet uniek. Herkende het scherm zijn eigen inzet aan
+	-- die naam, dan las een speler de stand van zijn naamgenoot: uitgestapt terwijl zijn
+	-- eigen geld nog in de lucht hing, of andersom. Daarom gaat het nummer mee.
+	local w = wereld()
+	local een = w.speler(1, "aap", "Lucky")
+	local twee = w.speler(2, "noot", "Lucky")
+	w.Players.PlayerAdded:Fire(een)
+	w.Players.PlayerAdded:Fire(twee)
+	w.Profiles.load(een)
+	w.Profiles.load(twee)
+
+	w.Crash.begin()
+	w.Crash.bet(een, 10)
+	w.Crash.bet(twee, 20)
+
+	local rijen = w.Crash.state().bets
+	h.check("beide inzetten staan in het beeld", 2, #rijen)
+
+	local perId = {}
+	for _, b in rijen do
+		h.check("elke rij draagt een spelersnummer", "number", typeof(b.id))
+		perId[b.id] = b
+	end
+	h.check("de eerste speler vindt zijn eigen inzet", 10, perId[1].bet)
+	h.check("en de tweede die van hem", 20, perId[2].bet)
+	h.check("ze delen wel dezelfde weergavenaam", perId[1].naam, perId[2].naam)
+
+	-- Stapt de een uit, dan verandert alleen zijn eigen rij.
+	w.Crash.takeOff()
+	w.Crash.cashOut(een)
+	local na = {}
+	for _, b in w.Crash.state().bets do na[b.id] = b end
+	h.check("de uitstapper staat als uitgestapt", true, na[1].cashed ~= nil)
+	h.check("zijn naamgenoot niet", nil, na[2].cashed)
+end
+
 h.report("SERVER")

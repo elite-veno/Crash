@@ -100,8 +100,14 @@ function Stub.wereld(opties)
 	end
 	w.Players = Players
 
-	function w.speler(id, naam)
-		local s = { UserId = id, Name = naam or ("speler" .. id), Parent = Players }
+	function w.speler(id, naam, weergave)
+		local s = {
+			UserId = id,
+			Name = naam or ("speler" .. id),
+			-- Twee spelers mogen dezelfde weergavenaam hebben; in Roblox is die niet uniek.
+			DisplayName = weergave or naam or ("speler" .. id),
+			Parent = Players,
+		}
 		spelers[id] = s
 		return s
 	end
@@ -148,6 +154,12 @@ function Stub.wereld(opties)
 	local Odds = require("../src/shared/Odds")
 	local Money = require("../src/shared/Money")
 	local Sha256 = require("../src/shared/Sha256")
+	-- Het zaad van een crashronde trekt zijn getallen uit Random.new(); die global bestaat
+	-- alleen in Roblox. Hier gaat de nagemaakte trekker erin, zodat een test een ronde kan
+	-- afdwingen zonder dat het zaad daarvoor voorspelbaar hoeft te zijn in het echt.
+	Sha256.setRandom(function(max: number): number
+		return math.floor(trek() * max)
+	end)
 	local SeasonMod = require("../src/shared/Season")
 	local AchMod = require("../src/shared/Achievements")
 	ReplicatedStorage.Shared.Odds = {}
