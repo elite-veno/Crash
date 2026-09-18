@@ -4,11 +4,10 @@
 -- ACHIEVEMENTS, de seizoenstrip, dan LAST SPRINT naast WHAT EACH PLACE IS WORTH, en
 -- onderaan de kop YOUR ACHIEVEMENTS met de voortgangsbalk en het hele rek.
 --
--- De drie uitgelichte vakjes staan er in de webversie niet -- daar kies je ze op het
--- profiel. Hier blijven ze staan, want dit is het enige scherm dat SetFeatured aanroept:
--- zonder de vakjes kon je een badge wel oppakken maar nooit meer neerleggen. Ze zijn wel
--- naar beneden verhuisd, tussen de voortgangsbalk en het rek, zodat alles wat de
--- webversie wél heeft op dezelfde hoogte staat als daar.
+-- Alleen om naar te kijken: kiezen welke drie badges je laat zien doe je op het profiel,
+-- net als in de webversie. Hier stonden die vakjes een tijd lang ook, omdat het profiel
+-- toen nog niets aan te klikken had -- anders kon je een badge wel oppakken maar nooit
+-- meer neerleggen. Nu het profiel ze allebei kan, horen ze daar en alleen daar.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
@@ -391,79 +390,12 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	UI.gradient(vulling, Theme.color.neonDim, Theme.color.neon, 0)
 	vulling.Parent = balk
 
-	-- ---------- de drie uitgelichte vakjes ----------
-	-- Dezelfde vakjes als op het profiel, maar hier aanklikbaar. Ze staan tussen de
-	-- voortgangsbalk en het rek, want daar hoort het kiezen bij: je pakt een badge uit het
-	-- rek en legt hem in een vakje. Alles daarboven staat zo in dezelfde volgorde als de
-	-- markup, tot en met de balk.
-	local etalage = Instance.new("Frame")
-	etalage.Name = "Featured"
-	etalage.Size = UDim2.new(1, 0, 0, 0)
-	etalage.AutomaticSize = Enum.AutomaticSize.Y
-	etalage.BackgroundTransparency = 1
-	etalage.LayoutOrder = 7
-	etalage.Parent = blad
-	UI.list(etalage, 10)
-	-- Evenveel lucht tot het rek als `.ach-head` er in de CSS onder heeft: 18px.
-	UI.padding4(etalage, 0, 0, 10, 0)
-
-	UI.panelTitle(etalage, "\u{25BA} featured \u{00B7} click a filled slot to take it off")
-
-	local vakjesRij = Instance.new("Frame")
-	vakjesRij.Name = "Slots"
-	vakjesRij.Size = UDim2.new(1, 0, 0, 92)
-	vakjesRij.BackgroundTransparency = 1
-	vakjesRij.Parent = etalage
-	UI.list(vakjesRij, KAART_GAT, Enum.FillDirection.Horizontal)
-
-	type Vakje = { knop: TextButton, rand: UIStroke, icoon: TextLabel, naam: TextLabel }
-	local vakjes: { Vakje } = {}
-
+	-- Wat je hebt, en welke drie er op je profiel in de vakjes staan. Het rek gebruikt ze
+	-- allebei: een behaalde kaart ziet er anders uit (`.ach-card.done`), en een die je laat
+	-- zien zegt "SHOWN" (`.ach-card.shown`).
 	local uitgelicht: { string } = {}
 	local open: { [string]: number } = {}
 	local zetUitgelicht: () -> ()
-
-	for i = 1, 3 do
-		local b = Instance.new("TextButton")
-		b.Name = "Slot" .. i
-		-- Drie gelijke kolommen: `auto-fit, minmax(150px, 1fr)` met 12 ertussen.
-		b.Size = UDim2.new(1 / 3, -(KAART_GAT * 2 / 3), 0, 92)
-		b.Text = ""
-		b.BackgroundColor3 = Theme.color.black
-		b.BackgroundTransparency = 0.8 -- rgba(0,0,0,0.2)
-		b.BorderSizePixel = 0
-		b.AutoButtonColor = false
-		b.LayoutOrder = i
-		UI.corner(b, Theme.radius.pill)
-		-- Een leeg vakje heeft in de CSS een gestreepte rand. UIStroke kan alleen doorlopend,
-		-- dus een leeg vakje herken je hier aan de flauwere rand in plaats van aan streepjes.
-		local rand = UI.stroke(b, Theme.color.border)
-		UI.padding4(b, 18, 12, 18, 12)
-		b.Parent = vakjesRij
-		local binnen = UI.list(b, 6)
-		binnen.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		binnen.VerticalAlignment = Enum.VerticalAlignment.Center
-
-		local icoon = UI.label(b, "\u{2014}", {
-			size = 30, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
-		})
-		icoon.Size = UDim2.new(1, 0, 0, 34)
-		local badgeNaam = UI.label(b, "empty", {
-			size = Theme.text.body, color = Theme.color.muted, align = Enum.TextXAlignment.Center,
-		})
-
-		vakjes[i] = { knop = b, rand = rand, icoon = icoon, naam = badgeNaam }
-
-		-- Een gevuld vakje legt de badge weer af.
-		b.Activated:Connect(function()
-			local id = uitgelicht[i]
-			if not id then return end
-			table.remove(uitgelicht, i)
-			Common.call("SetFeatured", uitgelicht)
-			zetUitgelicht()
-			Common.toast("BADGE TAKEN OFF", nil)
-		end)
-	end
 
 	-- ---------- .ach-grid ----------
 	local rek = Instance.new("Frame")
@@ -544,25 +476,6 @@ function Achievements.build(ouder: Instance): (any) -> ()
 		niveau.Size = UDim2.new(0, NIVEAU_BREED, 1, 0)
 
 		kaartjes[a.id] = { knop = knop, rand = rand, icoon = icoon, niveau = niveau }
-
-		-- Een prestatie die je hebt kun je in een vrij vakje leggen.
-		knop.Activated:Connect(function()
-			if not open[a.id] then
-				Common.toast("NOT UNLOCKED YET", "red")
-				return
-			end
-			if table.find(uitgelicht, a.id) then
-				Common.toast("ALREADY FEATURED", nil)
-				return
-			end
-			if #uitgelicht >= 3 then
-				Common.toast("ALL THREE SLOTS ARE FULL", "red")
-				return
-			end
-			table.insert(uitgelicht, a.id)
-			Common.call("SetFeatured", uitgelicht)
-			zetUitgelicht()
-		end)
 	end
 
 	-- Hoe een kaartje eruitziet hangt van twee dingen af: heb je hem (`.ach-card.done`) en
@@ -623,23 +536,9 @@ function Achievements.build(ouder: Instance): (any) -> ()
 	-- eerste tekenen doet. De kaartjes zelf tekent zetUitgelicht() hieronder.
 	zetVolgorde()
 
+	-- Welke badges er in de vakjes op het profiel staan bepaalt hier alleen of een kaart
+	-- "SHOWN" zegt; kiezen gebeurt daar.
 	function zetUitgelicht()
-		for i, v in vakjes do
-			local id = uitgelicht[i]
-			local a = if id then Ach.BY_ID[id] else nil
-			local n = if a then NIVEAU[a.tier] else nil
-			v.icoon.Text = if a then a.icon else "\u{2014}"
-			v.icoon.TextColor3 = if a then Theme.color.text else Theme.color.muted
-			v.naam.Text = if a then a.title else "empty"
-			v.naam.TextColor3 = if a then Theme.color.text else Theme.color.muted
-			v.knop.BackgroundTransparency = if a then 0.55 else 0.8
-			-- Een gekozen badge krijgt in de CSS een gouden binnenrand (`.ach-card.shown`);
-			-- Roblox kent geen box-shadow, dus kleurt hier de rand zelf.
-			v.rand.Color = if a then Theme.color.gold else Theme.color.border
-			v.rand.Transparency = if a and n then n.doorzicht else 0
-		end
-		-- De kaart in het rek moet meteen "SHOWN" gaan zeggen; anders verdwijnt een badge in
-		-- een vakje zonder dat je in het rek ziet welke het was.
 		zetKaarten()
 	end
 
