@@ -93,6 +93,37 @@ local STANDAARD = {
 local Instance = {}
 local alles = {}
 
+-- De maat van een vak, uitgerekend door de ouderketen af te lopen tot aan het scherm.
+-- Genoeg voor vakken die hun maat uit hun ouder halen -- en dat zijn ze hier bijna
+-- allemaal. De tekenaar rekent daarna alles nog eens na; dit is er voor code die tijdens
+-- het bouwen zelf AbsoluteSize leest, zoals het spelraster op het beginscherm.
+local SCHERM_B, SCHERM_H = 1536, 1000
+
+local function maatVan(o)
+	if not o then return SCHERM_B, SCHERM_H end
+	local ouderB, ouderH = maatVan(o.Parent and o.Parent.__obj)
+	-- De opvulling van de ouder gaat van de ruimte af voordat een kind zijn deel krijgt.
+	if o.Parent then
+		for _, k in o.Parent.__obj.Children do
+			if k.__obj.ClassName == "UIPadding" then
+				local pp = k.__obj.Props
+				local function px(v, basis)
+					if typeof(v) ~= "table" then return 0 end
+					return (v.Scale or 0) * basis + (v.Offset or 0)
+				end
+				ouderB -= px(pp.PaddingLeft, ouderB) + px(pp.PaddingRight, ouderB)
+				ouderH -= px(pp.PaddingTop, ouderH) + px(pp.PaddingBottom, ouderH)
+				break
+			end
+		end
+	end
+	local maat = o.Props.Size
+	if typeof(maat) ~= "table" then return ouderB, ouderH end
+	local b = (maat.X and maat.X.Scale or 0) * ouderB + (maat.X and maat.X.Offset or 0)
+	local h = (maat.Y and maat.Y.Scale or 0) * ouderH + (maat.Y and maat.Y.Offset or 0)
+	return math.max(0, b), math.max(0, h)
+end
+
 local function nieuw(klasse)
 	local o = {
 		ClassName = klasse,
@@ -112,9 +143,8 @@ local function nieuw(klasse)
 			local v = o.Props[k]
 			if v ~= nil then return v end
 			if k == "AbsoluteSize" then
-				-- De tekenaar rekent de maten pas later uit; hier is alleen van belang dat
-				-- code die AbsoluteSize leest een breed scherm ziet en niet de smalle stand.
-				return Vector2.new(1536, 1000)
+				local b, h = maatVan(o)
+				return Vector2.new(b, h)
 			end
 			if k == "AbsolutePosition" then return Vector2.new(0, 0) end
 			-- een kind opzoeken op naam, zoals Roblox doet

@@ -7,6 +7,7 @@ rotatie. Het is geen exacte kopie van de engine -- tekstbreedte wordt geschat --
 wel meteen of een paneel op de verkeerde plek staat of een bord te klein is.
 """
 import re
+import os
 import json
 import sys
 
@@ -38,10 +39,24 @@ def kinderen(n, klasse):
     return [k for k in n["children"] if k["class"] == klasse]
 
 
-# Ruwe breedte van een letter, als fractie van de tekstgrootte. Code is monospace en breder.
+# Letterbreedtes, als fractie van de tekstgrootte. Nagemeten in de browser op de fonts die
+# de webversie gebruikt (Inter en JetBrains Mono), want een vaste factor per teken zit er
+# flink naast: een hoofdletter A is 0,69 em en een i 0,24.
+#
+# Roblox tekent met Gotham, niet met Inter, dus dit blijft een schatting -- maar wel een
+# van dezelfde soort letter, en dat scheelt met AutomaticSize tientallen pixels per label.
+_GLYPHS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "glyphs.json")))
+
+
 def tekstBreedte(tekst, maat, font):
-    f = 0.60 if str(font).startswith("Code") else 0.52
-    return len(tekst) * maat * f
+    f = str(font)
+    tabel = _GLYPHS["num"] if f.startswith("Code") else (
+        _GLYPHS["uiMed"] if ("Bold" in f or "Med" in f) else _GLYPHS["ui"])
+    standaard = tabel.get("110", 0.55)
+    som = 0.0
+    for ch in tekst:
+        som += tabel.get(str(ord(ch)), standaard)
+    return som * maat
 
 
 def ontleedRijk(tekst):

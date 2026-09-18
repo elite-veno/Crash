@@ -6,6 +6,7 @@
 -- De previews zijn geen plaatjes maar verlopen, precies de `.preview-*` klassen uit de CSS.
 -- Daardoor hoeft er niets geüpload te worden voordat het er goed uitziet.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
@@ -25,35 +26,36 @@ export type Kaart = {
 	rotatie: number?,
 }
 
--- De kleuren komen uit de `preview-*` klassen van de CSS.
+-- De kleuren komen uit de `preview-*` klassen van de CSS; de teksten en de volgorde staan
+-- hier zoals ze in de markup staan, woord voor woord.
 local KAARTEN: { Kaart } = {
-	{ id = "crash", label = "CRASH", rtp = "97% RTP",
+	{ id = "crash", label = "CRASH", rtp = "RTP 97%",
 	  desc = "Ride along and cash out before it crashes. Multipliers up to 1000x.",
 	  van = Color3.fromHex("5fb8ff"), tot = Color3.fromHex("4a8a2a") },
-	{ id = "roulette", label = "ROULETTE", rtp = "97.3% RTP",
-	  desc = "European roulette with a single green zero.",
+	{ id = "roulette", label = "ROULETTE", rtp = "RTP 97.3%",
+	  desc = "European roulette with a single green zero. Red, black, dozens or a straight number.",
 	  van = Color3.fromHex("2a1010"), tot = Color3.fromHex("0a0505") },
-	{ id = "tower", label = "DRAGON TOWER", rtp = "97% RTP",
-	  desc = "Climb nine floors, dodge the dragon eggs.",
+	{ id = "tower", label = "DRAGON TOWER", rtp = "RTP 97%",
+	  desc = "Climb nine floors, dodge the dragon eggs. Cash out whenever you want.",
 	  van = Color3.fromHex("2a0a3a"), tot = Color3.fromHex("0a0510") },
-	{ id = "mines", label = "MINES", rtp = "97% RTP",
-	  desc = "Collect diamonds, dodge the mines.",
+	{ id = "mines", label = "MINES", rtp = "RTP 97%",
+	  desc = "Collect diamonds, dodge the mines. You choose how many mines are buried.",
 	  van = Color3.fromHex("1a1a2a"), tot = Color3.fromHex("0a0a14"), rotatie = 135 },
-	{ id = "plinko", label = "PLINKO", rtp = "97% RTP",
-	  desc = "Drop a ball and watch where it lands.",
+	{ id = "plinko", label = "PLINKO", rtp = "RTP 97%",
+	  desc = "Drop the ball. Pick 8, 12 or 16 rows and your risk level.",
 	  van = Color3.fromHex("1a0a2a"), tot = Color3.fromHex("0a0518") },
-	{ id = "blackjack", label = "BLACKJACK", rtp = "99% RTP",
-	  desc = "Six decks, dealer stands on all 17s.",
+	{ id = "blackjack", label = "BLACKJACK", rtp = "RTP ~99%",
+	  desc = "Against the dealer, 6 decks, dealer stands on 17. Blackjack pays 3:2.",
 	  van = Color3.fromHex("0a3a1a"), tot = Color3.fromHex("051a0a") },
-	{ id = "scratch", label = "SCRATCH CARDS", rtp = "97% RTP",
-	  desc = "Nine squares, three of a kind pays.",
-	  van = Color3.fromHex("1f4a4a"), tot = Color3.fromHex("0c1f1f") },
-	{ id = "wheel", label = "WHEEL", rtp = "97% RTP",
-	  desc = "Twenty segments, one pays ten times.",
-	  van = Color3.fromHex("4a3a12"), tot = Color3.fromHex("1e1707") },
-	{ id = "horse", label = "HORSE RACE", rtp = "97% RTP",
-	  desc = "Six horses, back the one you fancy.",
+	{ id = "horse", label = "HORSE RACE", rtp = "RTP 97%",
+	  desc = "Six horses, new odds every race. Back the winner, favourite or longshot.",
 	  van = Color3.fromHex("2f5a1a"), tot = Color3.fromHex("13260b") },
+	{ id = "scratch", label = "SCRATCH CARDS", rtp = "RTP 97%",
+	  desc = "Buy a card and scratch nine cells. Three matching symbols pay up to 50x.",
+	  van = Color3.fromHex("1f4a4a"), tot = Color3.fromHex("0c1f1f") },
+	{ id = "wheel", label = "WHEEL OF FORTUNE", rtp = "RTP 97%",
+	  desc = "Twenty segments, seven of them pay. One 10x segment for the patient.",
+	  van = Color3.fromHex("4a3a12"), tot = Color3.fromHex("1e1707") },
 }
 
 -- .game-card: radius 6, preview van 160 met een rand eronder, body met padding 18, en
@@ -260,6 +262,16 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	UI.label(saldoKaart, "YOUR BALANCE", { size = Theme.text.small, color = Theme.color.muted })
 	local bedrag = UI.moneyLabel(saldoKaart, Money.fmt(Money.START), Theme.text.balanceL)
 
+	-- `.account-bar`: hier staat er "SIGNED IN AS" voor de naam, anders dan in een
+	-- speelscherm. Uitloggen bestaat niet in Roblox, dus die twee spans blijven weg.
+	local rekening = UI.label(saldoKaart, "", { size = Theme.text.tiny, color = Theme.color.muted })
+	rekening.Name = "AccountBar"
+	rekening.RichText = true
+	rekening.Text = Common.accent("SIGNED IN AS *" .. Players.LocalPlayer.DisplayName .. "*",
+		Theme.color.neon)
+	rekening.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 14)
+	rekening.TextYAlignment = Enum.TextYAlignment.Bottom
+
 	-- ---------- .section-heading + .games-grid ----------
 	local kopRij = Instance.new("Frame")
 	kopRij.Size = UDim2.new(1, 0, 0, 34)
@@ -279,6 +291,21 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	rasterLayout.CellPadding = UDim2.fromOffset(Theme.size.cardGap, Theme.size.cardGap)
 	rasterLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rasterLayout.Parent = raster
+
+	-- `repeat(auto-fill, minmax(280px, 1fr))`: zoveel kolommen van minstens 280 als er
+	-- passen, en die rekken daarna samen de hele breedte vol. De 280 is dus een bodem, geen
+	-- maat -- met vier kaarten naast elkaar is een kolom hier ruim 320. Roblox rekent dat
+	-- niet zelf uit, dus dat gebeurt hier, opnieuw bij elke maatverandering.
+	local gat = Theme.size.cardGap
+	local function meetRaster()
+		local breed = raster.AbsoluteSize.X
+		if breed <= 0 then return end
+		local kolommen = math.max(1, math.floor((breed + gat) / (Theme.size.cardMin + gat)))
+		local kolomBreedte = (breed - gat * (kolommen - 1)) / kolommen
+		rasterLayout.CellSize = UDim2.fromOffset(math.floor(kolomBreedte), 300)
+	end
+	raster:GetPropertyChangedSignal("AbsoluteSize"):Connect(meetRaster)
+	task.defer(meetRaster)
 
 	for i, k in KAARTEN do
 		tegel(raster, k, ga).LayoutOrder = i

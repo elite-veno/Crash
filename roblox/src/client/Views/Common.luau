@@ -656,14 +656,15 @@ local GOUD = "#" .. Theme.color.gold:ToHex()
 
 -- Sterretjes eromheen betekent goud, net als <b> in de webversie. Wat tussen de sterretjes
 -- staat wordt net zo goed ontsmet als de rest.
-local function opmaak(tekst: string): string
+local function opmaak(tekst: string, kleur: string?): string
+	local kl = kleur or GOUD
 	local uit = {}
 	local i = 1
 	while true do
 		local van, tot = string.find(tekst, "%*[^%*]+%*", i)
 		if not van then break end
 		table.insert(uit, veilig(string.sub(tekst, i, van - 1)))
-		table.insert(uit, '<font color="' .. GOUD .. '">'
+		table.insert(uit, '<font color="' .. kl .. '">'
 			.. veilig(string.sub(tekst, van + 1, (tot :: number) - 1)) .. "</font>")
 		i = (tot :: number) + 1
 	end
@@ -672,10 +673,10 @@ local function opmaak(tekst: string): string
 end
 
 -- Ook los te gebruiken, voor een regel die niet in een kansenpaneel staat. Zet RichText
--- op het label aan en laat de tekst hier langs; dan is een gouden stuk geen reden om de
--- ontsmetting over te slaan.
-function Common.accent(tekst: string): string
-	return opmaak(tekst)
+-- op het label aan en laat de tekst hier langs; dan is een gekleurd stuk geen reden om de
+-- ontsmetting over te slaan. Zonder kleur erbij wordt het goud, zoals <b> in de CSS.
+function Common.accent(tekst: string, kleur: Color3?): string
+	return opmaak(tekst, if kleur then "#" .. kleur:ToHex() else nil)
 end
 
 function Common.oddsPanel(ouder: Instance, kop: string, tekst: string): Frame
