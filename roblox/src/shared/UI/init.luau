@@ -448,6 +448,57 @@ function UI.moneyLabel(parent: Instance, bedrag: string, groot: number?, midden:
 	return getal, rij
 end
 
+-- `filter: grayscale(n)`: elke kleur een stuk naar zijn eigen grijs toe. Roblox kent geen
+-- filters, dus het gebeurt op de kleuren zelf -- de hele boom langs, en de oorspronkelijke
+-- kleur onthouden zodat het terug kan.
+--
+-- De grijswaarde is dezelfde formule als de browser gebruikt (Rec. 601), zodat goud even
+-- donker grijs wordt als daar.
+local function vergrijs(c: Color3, mate: number): Color3
+	local g = 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B
+	return Color3.new(
+		c.R + (g - c.R) * mate,
+		c.G + (g - c.G) * mate,
+		c.B + (g - c.B) * mate
+	)
+end
+
+local echteKleur: { [Instance]: { [string]: Color3 } } = {}
+
+-- Op de vorm, niet op `typeof`. In het spel zou `typeof(x) == "Color3"` het ook doen, maar
+-- de tekenaar draait op de losse Luau-uitvoerder, waar een Color3 een gewone tabel is en
+-- typeof dus "table" zegt. Dan zou dit alleen in de preview stilletjes niets doen -- precies
+-- het soort verschil dat een tekening laat liegen over wat het spel doet.
+local function isKleur(v: any): boolean
+	return typeof(v) == "Color3"
+		or (type(v) == "table" and type((v :: any).R) == "number" and type((v :: any).G) == "number")
+end
+
+function UI.grayscale(wortel: Instance, mate: number): ()
+	local VELDEN = { "TextColor3", "BackgroundColor3", "Color", "ImageColor3" }
+	local alles = wortel:GetDescendants()
+	table.insert(alles, wortel)
+	for _, d in alles do
+		local onthouden: { [string]: Color3 } = echteKleur[d] or {}
+		if not echteKleur[d] then
+			for _, veld in VELDEN do
+				local ok, waarde = pcall(function()
+					return (d :: any)[veld]
+				end)
+				if ok and isKleur(waarde) then
+					onthouden[veld] = waarde
+				end
+			end
+			echteKleur[d] = onthouden
+		end
+		for veld, oorspronkelijk in onthouden do
+			pcall(function()
+				(d :: any)[veld] = if mate <= 0 then oorspronkelijk else vergrijs(oorspronkelijk, mate)
+			end)
+		end
+	end
+end
+
 -- Een knop uitzetten zoals :disabled in de CSS: nog zichtbaar, maar niet aan te klikken.
 function UI.setEnabled(b: TextButton, aan: boolean): ()
 	local vol = b.Name == "Primary" or b.Name == "Danger"

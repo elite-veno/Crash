@@ -40,7 +40,7 @@ local PRIJZEN = {
 
 -- `.game-card.vip-card` heeft een gouden rand van rgba(224,181,85,0.35). Staat de kaart op
 -- slot, dan gaat er in de CSS opacity 0.45 overheen; die twee samen zijn hier één getal,
--- want een UIStroke ligt buiten het vlak en wordt dus niet door de sluier gedekt.
+-- want een UIStroke ligt buiten de CanvasGroup en dimt dus niet met de inhoud mee.
 local KAART_RAND_OPEN = 0.65
 local KAART_RAND_DICHT = 0.8
 
@@ -82,7 +82,7 @@ type KaartDelen = {
 	pil: TextLabel,
 	pijl: TextLabel,
 	rand: UIStroke,
-	sluier: Frame,
+	kaart: CanvasGroup,
 }
 
 function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
@@ -364,7 +364,10 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 	local delen: { KaartDelen } = {}
 
 	for i, k in KAARTEN do
-		local f = Instance.new("Frame")
+		-- Een CanvasGroup, want `.vip-card.locked` zet `opacity: 0.45` over de hele kaart.
+		-- Zo'n kaart tekent zichzelf eerst en gaat daarna als geheel doorschijnen; een
+		-- donkere laag eroverheen legt alleen iets bovenop en laat felle kleuren fel.
+		local f = Instance.new("CanvasGroup")
 		f.Name = k.id
 		f.LayoutOrder = i
 		f.BackgroundColor3 = Theme.color.panel
@@ -427,20 +430,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		pijl.Position = UDim2.new(1, 0, 0.5, 0)
 		pijl.Size = UDim2.fromOffset(24, 22)
 
-		-- `opacity: 0.45` over de hele kaart: een laag in de achtergrondkleur er overheen.
-		-- Het `grayscale(0.7)` dat er in de CSS bij staat kan Roblox niet.
-		local sluier = Instance.new("Frame")
-		sluier.Name = "Locked"
-		sluier.Size = UDim2.fromScale(1, 1)
-		sluier.BackgroundColor3 = Theme.color.bg
-		sluier.BackgroundTransparency = 0.45
-		sluier.BorderSizePixel = 0
-		-- Zonder eigen hoeken zou de sluier vierkant over de ronde kaarthoeken heen liggen.
-		UI.corner(sluier, Theme.radius.card)
-		sluier.ZIndex = 4
-		sluier.Parent = f
-
-		delen[i] = { titel = titel, label = k.label, pil = pil, pijl = pijl, rand = rand, sluier = sluier }
+		delen[i] = { titel = titel, label = k.label, pil = pil, pijl = pijl, rand = rand, kaart = f }
 
 		local knop = Instance.new("TextButton")
 		knop.Name = "Open"
@@ -450,7 +440,7 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		knop.ZIndex = 5
 		knop.Parent = f
 		knop.Activated:Connect(function()
-			if sluier.Visible then
+			if f.GroupTransparency > 0 then
 				Common.toast("VIP PASS REQUIRED", "red")
 				return
 			end
@@ -458,14 +448,14 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 		end)
 		-- `.game-card.available:hover`, maar niet als de kaart dicht is (`cursor: not-allowed`).
 		knop.MouseEnter:Connect(function()
-			if sluier.Visible then return end
+			if f.GroupTransparency > 0 then return end
 			rand.Transparency = 0
 			rand.Color = Theme.color.neon
 			pijl.TextColor3 = Theme.color.neon
 			pijl.Position = UDim2.new(1, 4, 0.5, 0)
 		end)
 		knop.MouseLeave:Connect(function()
-			rand.Transparency = if sluier.Visible then KAART_RAND_DICHT else KAART_RAND_OPEN
+			rand.Transparency = if f.GroupTransparency > 0 then KAART_RAND_DICHT else KAART_RAND_OPEN
 			rand.Color = Theme.color.gold
 			pijl.TextColor3 = Theme.color.muted
 			pijl.Position = UDim2.new(1, 0, 0.5, 0)
@@ -499,7 +489,9 @@ function Vip.build(ouder: Instance, ga: (string) -> ()): (any) -> ()
 			poortVlak.Color = if open then POORT_OPEN else POORT_DICHT
 		end
 		for _, deel in delen do
-			deel.sluier.Visible = not open
+			-- `.vip-card.locked { opacity: 0.45; filter: grayscale(0.7) }`.
+			deel.kaart.GroupTransparency = if open then 0 else 0.55
+			UI.grayscale(deel.kaart, if open then 0 else 0.7)
 			-- `.locked .game-card-title::after { content: ' 🔒' }`
 			deel.titel.Text = if open then deel.label else deel.label .. " \u{1F512}"
 			deel.pil.TextColor3 = if open then Theme.color.neon else Theme.color.gold

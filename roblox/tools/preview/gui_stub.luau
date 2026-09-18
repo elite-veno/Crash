@@ -259,6 +259,7 @@ function Stub.omgeving(opties)
 	env.NumberSequence = NumberSequence
 	env.NumberSequenceKeypoint = NumberSequenceKeypoint
 	env.warn = function() end
+
 	-- Een spawn wordt meteen uitgevoerd in plaats van weggelegd: een scherm dat bij het
 	-- openen iets bij de server opvraagt doet dat in een spawn, en die vraag hoort in de
 	-- tekening terug te komen.
