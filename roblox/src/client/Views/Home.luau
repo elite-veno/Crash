@@ -252,6 +252,10 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	saldoKaart.BackgroundColor3 = Theme.color.panel
 	saldoKaart.BorderSizePixel = 0
 	saldoKaart.LayoutOrder = 3
+	-- `.home-balance-card` heeft `margin-top: 30`; het blad zet er zelf al 18 tussen, dus
+	-- de kaart draagt de twaalf die ontbreken zelf. Zo ook hieronder voor de 50 van
+	-- `.home-hero` en de 24 van `.section-heading`.
+	saldoKaart.Position = UDim2.fromOffset(0, 12)
 	UI.gradient(saldoKaart, Theme.color.panel, Theme.color.panelLight, 135)
 	UI.corner(saldoKaart, Theme.radius.panel)
 	UI.stroke(saldoKaart, Theme.color.neon)
@@ -269,15 +273,18 @@ function Home.build(ouder: Instance, ga: (string) -> ()): (number) -> ()
 	rekening.RichText = true
 	rekening.Text = Common.accent("SIGNED IN AS *" .. Players.LocalPlayer.DisplayName .. "*",
 		Theme.color.neon)
-	rekening.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 14)
+	rekening.Size = UDim2.new(1, 0, 0, Theme.text.tiny + 10)   -- 11px tekst, margin-top 10
 	rekening.TextYAlignment = Enum.TextYAlignment.Bottom
 
 	-- ---------- .section-heading + .games-grid ----------
 	local kopRij = Instance.new("Frame")
-	kopRij.Size = UDim2.new(1, 0, 0, 34)
+	-- 34 voor de kop zelf, plus wat `.home-hero` erboven en `.section-heading` eronder aan
+	-- marge vragen bovenop de 18 van het blad: (50 - 18) en (24 - 18).
+	kopRij.Size = UDim2.new(1, 0, 0, 34 + (50 - 18) + (24 - 18))
 	kopRij.BackgroundTransparency = 1
 	kopRij.LayoutOrder = 4
 	kopRij.Parent = blad
+	UI.padding4(kopRij, 50 - 18, 0, 24 - 18, 0)
 	UI.sectionHeading(kopRij, "AVAILABLE GAMES", #KAARTEN .. " LIVE")
 
 	local raster = Instance.new("Frame")
