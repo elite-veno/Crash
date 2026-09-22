@@ -144,6 +144,19 @@ declare
   v_now bigint := public.sprint_now();
   v_had bigint := coalesce(old.reset_sprint, public.sprint_now());
 begin
+  -- Niet vanuit onszelf. poker.void_all schrijft óók naar profiles -- het betaalt de inzet
+  -- terug van wie tijdens de hand was opgestaan -- en die schrijfactie komt hier weer
+  -- langs. Omdat dit een BEFORE-trigger is, is reset_sprint van de buitenste rij nog niet
+  -- bijgewerkt als de binnenste langskomt, dus die ziet nog steeds "achterstallig", roept
+  -- void_all opnieuw aan, en zo door tot Postgres afkapt met "stack depth limit exceeded".
+  --
+  -- Een geneste schrijfactie hoort hier dus niets te doen. De kolom wordt wel gepind, want
+  -- die mag ook via een omweg niet vooruit te zetten zijn.
+  if pg_trigger_depth() > 1 then
+    new.reset_sprint := v_had;
+    return new;
+  end if;
+
   if v_had >= v_now then
     -- Bij. De kolom toch terugzetten op wat er stond: niemand schuift hem vooruit.
     new.reset_sprint := v_had;

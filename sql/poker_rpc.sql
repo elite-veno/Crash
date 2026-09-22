@@ -289,50 +289,59 @@ declare
 begin
   if v_uid is null then raise exception 'not signed in'; end if;
 
+  -- Eerst kijken AAN WELKE TAFEL je zit, zonder iets vast te houden.
+  select p.lobby_id into v_lobby from public.pk_players p where p.user_id = v_uid;
+  if v_lobby is null then return json_build_object('ok', true, 'stack', 0); end if;
+
+  -- Dan het tafelslot, en pas daarna het rijslot. Die volgorde is niet vrijblijvend:
+  -- pk_tick en pk_sit nemen ze ook zo, en wie ze andersom pakt loopt vast zodra allebei
+  -- tegelijk beginnen -- de een houdt de rij en wacht op de tafel, de ander houdt de tafel
+  -- en wacht op de rij. Postgres schiet er dan een dood met een deadlock.
+  --
+  -- Het slot zelf is hier nodig omdat opstaan anders tegelijk kon lopen met het opruimen
+  -- in pk_tick: allebei lazen ze dezelfde stapel en allebei schreven ze hem op het saldo.
+  -- Je inkoop kwam dan dubbel terug, en dat was te herhalen zo vaak je wilde.
+  perform pg_advisory_xact_lock(v_lobby);
+
+  -- En nu pas vastpakken. Tussen de twee regels kan iemand je van tafel hebben gehaald,
+  -- dus de lobby wordt hier opnieuw gelezen in plaats van aangenomen.
   select p.lobby_id, p.stack into v_lobby, v_stack
     from public.pk_players p where p.user_id = v_uid for update;
   if v_lobby is null then return json_build_object('ok', true, 'stack', 0); end if;
-
-  -- Hetzelfde slot als pk_tick, op dezelfde tafel. Zonder dit kon opstaan tegelijk lopen
-  -- met het opruimen daar: allebei lazen ze dezelfde stapel, allebei schreven ze hem op
-  -- het saldo, en de delete van de tweede raakte niets meer. Je inkoop kwam dan dubbel
-  -- terug, en dat was te herhalen zo vaak je wilde.
-  perform pg_advisory_xact_lock(v_lobby);
 
   -- Zit je midden in een hand, dan pas je eerst. Je inzet blijft in de pot staan -- dat is
   -- geld dat je al hebt ingelegd, en weglopen mag dat niet ongedaan maken.
   select r.id into v_ronde from public.pk_rounds r
     where r.lobby_id = v_lobby and r.settled_at is null order by r.id desc limit 1;
   if v_ronde is not null then
-    -- En dit is de stapel die telt. `pk_players.stack` wordt alleen bij het delen en bij
-    -- het afrekenen bijgewerkt; tijdens een hand staat daar nog de stand van VOOR je
-    -- inzetten. Wie daarmee uitbetaalt, geeft alles terug wat er al in de pot ligt --
-    -- geld uit het niets, en te herhalen zo vaak je wilt.
-    -- Passen, maar NIET als je all-in staat. Wie al zijn fiches in de pot heeft, heeft
-    -- niets meer te beslissen: die hand speelt zichzelf uit en hij hoort gewoon mee te
-    -- doen aan de showdown. Hem laten passen omdat hij opstaat gaf zijn pot aan de
-    -- anderen -- je verloor een hand die je misschien al gewonnen had.
+    -- LEZEN VOOR SCHRIJVEN. Hieronder wordt left_table gezet, en daar filtert deze regel
+    -- op -- andersom vindt hij zijn eigen stoel niet meer terug, valt de uitbetaling terug
+    -- op pk_players.stack (de stand van vóór je inzetten) en maakt dat fiches.
     --
-    -- En `left_table` erbij, zodat de afrekening weet dat er geen stoel aan tafel meer is
-    -- om de uitbetaling op te zetten.
+    -- Het filter zelf is nodig omdat je al eerder deze hand opgestaan kunt zijn en daarna
+    -- opnieuw aangeschoven. Die oude stoel staat er dan nog, met nul fiches op. Die als
+    -- waarheid nemen liet je verse inkoop verdwijnen: opstaan gaf $0 terug.
+    --
+    -- Geeft dit null, dan heb je geen stoel in deze hand -- je schoof aan terwijl er al
+    -- gedeeld was en wacht op de volgende. Dan is pk_players.stack juist wél de goede
+    -- stand, want je hebt nog niets ingezet.
+    select s.stack into v_stoelstack from public.pk_seats s
+      where s.round_id = v_ronde and s.user_id = v_uid and not s.left_table;
+
+    -- Passen, maar NIET als je all-in staat. Wie al zijn fiches in de pot heeft, heeft
+    -- niets meer te beslissen: die hand speelt zichzelf uit en hij hoort mee te doen aan
+    -- de showdown. Hem laten passen omdat hij opstaat gaf zijn pot aan de anderen.
+    --
+    -- `left_table` erbij zodat de afrekening weet dat er geen stoel aan tafel meer is om
+    -- de uitbetaling op te zetten, en de stapel op nul: die fiches gaan naar het saldo.
     update public.pk_seats s
        set folded = (case when s.allin then s.folded else true end),
            acted = true,
-           left_table = true
-     where s.round_id = v_ronde and s.user_id = v_uid;
-    select s.stack into v_stoelstack from public.pk_seats s
-      where s.round_id = v_ronde and s.user_id = v_uid;
-    -- Maar alleen als je ook echt een stoel IN die hand hebt. Wie aanschoof terwijl er al
-    -- gedeeld was, staat wel in pk_players en niet in pk_seats: hij wacht op de volgende
-    -- hand. Dan geeft dit null, en dat null verderop bij het saldo optellen deed niets --
-    -- zijn hele inkoop was weg, zonder foutmelding. Voor hem is pk_players.stack juist wel
-    -- de goede stand: hij heeft nog niets ingezet.
-    if v_stoelstack is not null then
-      v_stack := v_stoelstack;
-      -- De stoel in de hand houdt geen fiches meer vast: die zijn nu van het saldo.
-      update public.pk_seats s set stack = 0
-        where s.round_id = v_ronde and s.user_id = v_uid;
-    end if;
+           left_table = true,
+           stack = 0
+     where s.round_id = v_ronde and s.user_id = v_uid and not s.left_table;
+
+    if v_stoelstack is not null then v_stack := v_stoelstack; end if;
   end if;
 
   -- En wat er ook misgaat, hier staat nooit null. Het grootboek weigert dat terecht, en
@@ -686,8 +695,13 @@ begin
        and p.id = s.user_id;
   end if;
 
+  -- En de zouten afkappen op wat er echt ligt. pk_live geeft ze toch al niet verder vrij,
+  -- maar wat er niet staat kan ook niet alsnog uitlekken -- en de hash van de kaarten die
+  -- NIET gevallen zijn, staat wel voor altijd openbaar in board_commit.
   update public.pk_rounds
-     set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null, board = v_board
+     set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null,
+         board = v_board,
+         board_salt = board_salt[1:coalesce(array_length(v_board, 1), 0)]
    where id = p_round;
 
   -- En het zaadje weg. De hand is uitgespeeld: wat open moest gaan staat in pk_seats.hole,
@@ -794,7 +808,10 @@ begin
         end if;
       end loop;
     end if;
-  exception when others then null;
+  -- Alleen opvangen waar dit blok voor bedoeld is: een ledentabel die er niet is of er
+  -- anders uitziet. `when others` ving ook een deadlock op, en dan meldde pk_tick gewoon
+  -- succes terwijl er niets was opgeruimd en er nergens iets over stond.
+  exception when undefined_table or undefined_column then null;
   end;
 
   -- Kan er een hand beginnen? Wie geen fiches meer heeft doet niet mee.

@@ -289,10 +289,33 @@ begin
 
     -- Op de lobby van DEZE ronde, niet op elke tafel waar deze speler toevallig zit.
     -- Zonder die grens overschreef een reset aan de ene tafel zijn stapel aan de andere.
+    --
+    -- En niet op een stoel die al verlaten is. Wie tijdens de hand is opgestaan heeft geen
+    -- stapel aan tafel meer -- of een verse, als hij opnieuw is aangeschoven. Die
+    -- overschrijven met wat er op de oude stoel lag, maakte zijn inkoop stuk.
     update public.pk_players pl set stack = s.stack
       from public.pk_seats s, public.pk_rounds rd
      where rd.id = v_ronde and s.round_id = v_ronde
-       and s.user_id = pl.user_id and pl.lobby_id = rd.lobby_id;
+       and s.user_id = pl.user_id and pl.lobby_id = rd.lobby_id
+       and not s.left_table;
+
+    -- Wie is opgestaan krijgt zijn inzet op zijn saldo. Hij zit niet meer aan tafel, dus
+    -- de regel hierboven ziet hem niet -- en zonder dit was zijn inzet weg. Dezelfde tak
+    -- als in pk_settle, en om dezelfde reden.
+    --
+    -- Behalve voor DEGENE om wie deze reset draait. Zijn saldo gaat zo meteen toch op
+    -- 1000: bijschrijven heeft geen zin, en het kan niet eens -- deze functie draait dan
+    -- binnen de trigger op precies die rij, en Postgres weigert een rij twee keer in
+    -- dezelfde opdracht bij te werken. Zijn fiches zijn met de sprintgrens weg, en dat is
+    -- ook de bedoeling: niemand neemt iets mee naar de nieuwe sprint.
+    update public.profiles p
+       set balance = p.balance + s.stack
+      from public.pk_seats s
+     where s.round_id = v_ronde and s.left_table and s.stack > 0
+       and p.id = s.user_id and s.user_id <> p_uid;
+
+    update public.pk_seats s set stack = 0
+     where s.round_id = v_ronde and s.left_table;
 
     update public.pk_rounds
        set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null

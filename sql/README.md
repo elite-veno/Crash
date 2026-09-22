@@ -109,12 +109,26 @@ er nu bij het delen per bordkaart een gezouten hash in `pk_rounds.board_commit`,
 bij het afrekenen de zouten vrij van precies de kaarten die ook echt gevallen zijn. Per
 kaart en niet over het hele bord, want een hand hoeft niet uit te komen.
 
-Wat dit wel en niet bewijst: de server kan na het delen niets meer omgooien zonder dat de
-browser het ziet, want die heeft de hashes van voor de flop al binnen. Het bewijst niet dat
-de server de kaarten niet heeft gekozen -- alles wordt in één transactie weggeschreven. Dat
-laatste vraagt een zaadje dat de speler zelf meebrengt; dat zit er nog niet in. De tekst op
-het scherm zegt daarom "not checked" als er niets gecontroleerd is, en claimt verder niet
-meer dan er gecontroleerd is.
+**En de browser moet die hashes vasthouden, anders is het geen bewijs.** Dat ging eerst mis:
+`pokEerlijk()` haalde bord, hash en zout alle drie uit hetzelfde antwoord en vergeleek dus
+één momentopname met zichzelf. Een server die bij het afrekenen het bord omgooit en de
+hashes er meteen bij herrekent, kwam er met een groen vinkje doorheen -- precies de aanval
+die de vastlegging moest tegenhouden. Nu zet de pagina de hashes in `localStorage` zodra ze
+een hand voor het eerst ziet, en rekent bij het afrekenen tegen díé kopie.
+
+Wat dit wel en niet bewijst:
+
+- **Wel:** de server kan na het delen niets meer omgooien zonder dat de browser het ziet --
+  maar alleen bij een browser die er vanaf het begin bij was. Kwam je pas na de flop
+  binnen, dan is er niets van voor de flop bewaard, en zegt het scherm dat ook in plaats
+  van een vinkje te zetten.
+- **Niet:** dat de server de kaarten niet heeft gekozen. Alles wordt in één transactie
+  weggeschreven, dus wie de server draait kan de hash meteen kloppend maken. Daar is een
+  zaadje voor nodig dat de speler zelf meebrengt; dat zit er nog niet in.
+
+`tools/pok_eerlijk_test.js` pint dit vast met tien gevallen, waaronder een server die bord
+én hashes samen herrekent en een die alleen de river ruilt. Haal de vergelijking met de
+bewaarde kopie weg en die twee krijgen meteen weer een groen vinkje.
 
 **Het zaadje van de schudbeurt komt niet naar buiten.** Bij crash en roulette is het zaadje
 achteraf tonen juist het bewijs. Bij poker niet: het zaadje stuurt de hele schudbeurt, dus

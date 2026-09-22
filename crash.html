@@ -6119,7 +6119,10 @@ const POK = {
   hole: [],         // je eigen twee kaarten
   zout: null,       // het zout bij je eigen hand, om de hash mee na te rekenen
   bewijs: '',       // 'ok' als die hash klopt, 'mis' als hij dat niet doet, '' = niet gekeken
-  bord: '',         // hetzelfde voor de bordkaarten, na het afrekenen
+  bewijsVan: 0,     // voor welke ronde die uitslag geldt, zodat hij niet blijft plakken
+  bewijsRonde: 0,   // de ronde waarvoor pokEerlijk het laatst gerekend heeft
+  bord: '',         // hetzelfde voor de bordkaarten: ok, mis, laat, leeg of kan niet
+  vast: null,       // de hashes zoals we ze voor het eerst zagen -- daar wordt tegen gerekend
   offset: 0,        // klok van de server min die van deze browser, in ms
   timer: null,
   ticking: false,
@@ -6163,6 +6166,12 @@ async function pokPull() {
     ]);
     POK.players = Array.isArray(spelers) ? spelers : [];
     const r = Array.isArray(rondes) ? rondes[0] : null;
+    // Nieuwe hand: de uitslag van de vorige hoort hier niet meer te staan. Dit moet vóór
+    // de volgende await, want klapt het ophalen van de stoelen, dan komt pokEerlijk nooit
+    // aan de beurt en bleef de oude uitslag onder de hashes van de nieuwe hand hangen.
+    if (!r || !POK.round || POK.round.id !== r.id) {
+      POK.bewijs = ''; POK.bord = ''; POK.bewijsVan = 0; POK.bewijsRonde = r ? r.id : 0;
+    }
     const srv = r ? Date.parse(r.server_now) : NaN;
     if (Number.isFinite(srv)) POK.offset = srv - Date.now();
 
@@ -6190,6 +6199,9 @@ async function pokPull() {
     }
   } catch (e) {
     POK.error = e.message || 'geen verbinding';
+    // Half opgehaald is niet gecontroleerd. Een uitslag die hier blijft staan hoort bij
+    // gegevens die we niet compleet hebben.
+    POK.bewijsRonde = 0;
     if (/404|does not exist|relation|schema cache/i.test(POK.error)) { POK.round = null; POK.seats = []; }
   }
   pokRender();
@@ -6222,6 +6234,58 @@ async function pokHole(roundId) {
 // de openbare stoelenview; jij krijgt na het delen je eigen zout, en dan reken je hier na
 // dat die hash bij jouw twee kaarten hoort. Klopt hij, dan stond jouw hand vast voordat er
 // een kaart viel -- net zo hard als vroeger, en zonder iets over die van een ander.
+// ---------- de hashes vastpinnen ----------
+//
+// Hier zat de fout waar deze hele constructie voor bedoeld was. Het bord wordt bij het
+// delen vastgelegd met een hash per kaart, en bij het afrekenen komen de zouten vrij. De
+// controle vergeleek die drie dingen -- bord, hash en zout -- alle drie uit HETZELFDE
+// antwoord. Dat is één momentopname tegen zichzelf: een server die bij het afrekenen het
+// bord vervangt en de hashes meteen opnieuw uitrekent, komt er met een groen vinkje
+// doorheen. Precies de aanval die het zou tegenhouden.
+//
+// Een belofte over "voor de flop" is alleen iets waard als er iets van vóór de flop
+// bewaard is. Dus: zodra deze browser een ronde voor het eerst ziet, legt hij de hashes
+// vast -- in localStorage, zodat een verversing ze niet wist -- samen met de straat waarop
+// hij binnenkwam. Bij het afrekenen wordt daar tegenaan gerekend, niet tegen wat er in
+// hetzelfde antwoord meekwam.
+//
+// Kwam je pas binnen ná de flop, dan is er niets om op te pinnen en zegt het scherm dat
+// ook. Een vinkje dat niets betekent is erger dan geen vinkje.
+const POK_VAST = 'crash_pk_vast';
+
+function pokVastLees() {
+  try { return JSON.parse(localStorage.getItem(POK_VAST) || 'null'); } catch { return null; }
+}
+
+function pokVastZet(r) {
+  if (!r || !r.id) return null;
+  let v = POK.vast && POK.vast.round === r.id ? POK.vast : null;
+  if (!v) {
+    const opgeslagen = pokVastLees();
+    v = opgeslagen && opgeslagen.round === r.id ? opgeslagen : null;
+  }
+  if (v) { POK.vast = v; return v; }
+  // Eerste keer dat we deze ronde zien. `straat` en `bord` leggen vast hoe ver de hand al
+  // was: alleen wie er vanaf straat 0 met een leeg bord bij was, kan "voor de flop" claimen.
+  v = {
+    round: r.id,
+    board_commit: Array.isArray(r.board_commit) ? r.board_commit.slice() : null,
+    deck_commit: r.deck_commit || null,
+    straat: Number(r.street) || 0,
+    kaarten: Array.isArray(r.board) ? r.board.length : 0,
+  };
+  POK.vast = v;
+  try { localStorage.setItem(POK_VAST, JSON.stringify(v)); } catch {}
+  return v;
+}
+
+// Byte voor byte, want een hash die "bijna" klopt is een hash die niet klopt.
+function zelfdeLijst(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 async function sha256hex(tekst) {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(tekst));
   return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
@@ -6240,36 +6304,59 @@ async function sha256hex(tekst) {
 // jouw browser heeft de hashes van voor de flop al binnen. Daarom staat er hieronder ook
 // "not checked" als er niets gecontroleerd is, en niet iets geruststellends.
 async function pokEerlijk() {
-  if (!window.crypto || !crypto.subtle) { POK.bewijs = ''; POK.bord = ''; return; }
+  const r = POK.round;
+  // De uitslag hangt aan een rondenummer. Zonder dat bleef een uitslag van de vorige hand
+  // staan zodra een ophaalactie mislukte, onder de hashes van de nieuwe.
+  POK.bewijsRonde = r ? r.id : 0;
+  const vast = pokVastZet(r);
+  if (!window.crypto || !crypto.subtle) { POK.bewijs = 'kan niet'; POK.bord = 'kan niet'; return; }
+
+  // ---- je eigen hand ----
   const z = POK.zout;
+  const stoel = z ? POK.seats.find(x => Number(x.seat_no) === z.seat) : null;
   if (!z || !Array.isArray(z.kaarten) || z.kaarten.length < 2) {
+    // Geen zout betekent dat we je kaarten nu niet hebben. Is er eerder deze hand wel
+    // gecontroleerd, dan blijft die uitslag staan -- vooral een 'mis' mag niet stilletjes
+    // verdwijnen op het moment dat de hand wordt afgerekend.
+    if (POK.bewijsVan !== (r ? r.id : 0)) POK.bewijs = '';
+  } else if (!stoel) {
     POK.bewijs = '';
+  } else if (!stoel.card_commit) {
+    POK.bewijs = 'mis';                      // kaarten zonder hash is geen belofte
+    POK.bewijsVan = r ? r.id : 0;
   } else {
-    const stoel = POK.seats.find(s => Number(s.seat_no) === z.seat);
-    if (!stoel) POK.bewijs = '';
-    else if (!stoel.card_commit) POK.bewijs = 'mis';   // kaarten zonder hash: niet goed
-    else {
-      try {
-        POK.bewijs = await sha256hex(z.salt + ':' + z.kaarten[0] + z.kaarten[1]) === stoel.card_commit
-          ? 'ok' : 'mis';
-      } catch { POK.bewijs = ''; }
-    }
+    try {
+      POK.bewijs = await sha256hex(z.salt + ':' + z.kaarten[0] + z.kaarten[1]) === stoel.card_commit
+        ? 'ok' : 'mis';
+      POK.bewijsVan = r ? r.id : 0;
+    } catch { POK.bewijs = ''; }
   }
 
-  const r = POK.round;
-  const zouten = r && Array.isArray(r.board_salt) ? r.board_salt : null;
-  const hashes = r && Array.isArray(r.board_commit) ? r.board_commit : null;
+  // ---- het bord ----
   const bord = r && Array.isArray(r.board) ? r.board : [];
-  if (!zouten || !hashes || !bord.length) { POK.bord = ''; return; }
+  const hashes = r && Array.isArray(r.board_commit) ? r.board_commit : null;
+  const zouten = r && Array.isArray(r.board_salt) ? r.board_salt : null;
+
+  if (!r || !r.settled_at) { POK.bord = ''; return; }   // nog niet te controleren
+  if (!bord.length) { POK.bord = 'leeg'; return; }      // niemand heeft een kaart gezien
+
+  // Zijn de hashes dezelfde als die we voor de flop binnenkregen? Dit is de controle die
+  // er niet was. Wijkt er iets af, dan is dat 'mis' en niet "niet gekeken".
+  if (!vast || !vast.board_commit) { POK.bord = 'mis'; return; }
+  if (!hashes || !zelfdeLijst(hashes, vast.board_commit)) { POK.bord = 'mis'; return; }
+  if (!zouten || zouten.length < bord.length) { POK.bord = 'mis'; return; }
+
   try {
-    let goed = 0;
     for (let i = 0; i < bord.length; i++) {
-      if (zouten[i] == null || hashes[i] == null) { POK.bord = ''; return; }
-      if (await sha256hex(zouten[i] + ':' + bord[i]) === hashes[i]) goed++;
+      if (zouten[i] == null || vast.board_commit[i] == null) { POK.bord = 'mis'; return; }
+      if (await sha256hex(zouten[i] + ':' + bord[i]) !== vast.board_commit[i]) { POK.bord = 'mis'; return; }
     }
-    POK.bord = goed === bord.length ? 'ok' : 'mis';
-  } catch { POK.bord = ''; }
+  } catch { POK.bord = ''; return; }
+
+  // Klopt allemaal -- maar "voor de flop" mogen we alleen zeggen als we er toen bij waren.
+  POK.bord = (vast.straat === 0 && vast.kaarten === 0) ? 'ok' : 'laat';
 }
+
 
 // Een afgerekende hand telt één keer mee in de statistieken.
 function pokRecord(r) {
@@ -6506,17 +6593,30 @@ function pokRender() {
     eerlijk.hidden = false;
     eerlijk.title = 'Poker never releases the shuffle seed: it would also reveal the cards ' +
       'of everyone who folded. Instead each hand and each board card is hashed when the ' +
-      'hand is dealt. Your browser sees those hashes before the flop, so the cards cannot ' +
-      'be changed afterwards without this check failing.';
-    // Het bord eerst, want dat is wat er na het delen nog valt.
+      'hand is dealt. This browser stores those hashes the moment it first sees the hand, ' +
+      'and checks the cards against the stored copy — not against whatever the server ' +
+      'sends later. If you joined after the flop there is nothing stored, and it says so.';
+
+    // Elk geval zijn eigen zin. Eén zin voor alles betekende dat er iets geruststellends
+    // stond op het moment dat er juist niets was gecontroleerd -- en dat is waar het
+    // eerder misging.
+    const uitslag = POK.bewijsRonde === r.id ? POK : { bewijs: '', bord: '' };
     const regel =
-      POK.bord === 'mis' || POK.bewijs === 'mis'
-        ? '⚠ this hand does NOT match the hashes from the deal'
-      : POK.bord === 'ok' && POK.bewijs === 'ok'
-        ? '✓ your hand and the board match the hashes from the deal'
-      : POK.bord === 'ok' ? '✓ the board matches the hashes from the deal'
-      : POK.bewijs === 'ok' ? '✓ your hand matches the hash from the deal'
-      : 'not checked yet — the board is verifiable once the hand is over';
+      uitslag.bord === 'mis' || uitslag.bewijs === 'mis'
+        ? '⚠ does NOT match the hashes stored when this hand was dealt'
+      : uitslag.bewijs === 'kan niet' || uitslag.bord === 'kan niet'
+        ? 'this browser cannot check (no SubtleCrypto — needs https)'
+      : uitslag.bord === 'ok' && uitslag.bewijs === 'ok'
+        ? '✓ your hand and the board match the hashes stored before the flop'
+      : uitslag.bord === 'ok' ? '✓ the board matches the hashes stored before the flop'
+      : uitslag.bord === 'laat'
+        ? '✓ board matches — but this browser joined after the flop, so it only proves the server kept its word from then on'
+      : uitslag.bord === 'leeg'
+        ? (uitslag.bewijs === 'ok'
+            ? '✓ your hand matched — no board card was ever dealt, so there is nothing else to check'
+            : 'nothing to check — no board card was ever dealt')
+      : uitslag.bewijs === 'ok' ? '✓ your hand matches its hash — the board is checked once the hand is over'
+      : 'not checked';
     eerlijk.innerHTML = '<b>Shuffle ' + String(r.deck_commit).slice(0, 16) + '…</b> · ' + regel;
   } else eerlijk.hidden = true;
 }

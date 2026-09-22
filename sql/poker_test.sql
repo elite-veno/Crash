@@ -647,3 +647,58 @@ select pg_temp.zegt('het opruimen betaalt een keer uit', '1000',
 select public.pk_tick(1);
 select pg_temp.zegt('en een tweede keer porren doet er niets bij', '1000',
   (select balance::text from public.profiles where username = 'ann'));
+
+-- ---------- opstaan, weer aanschuiven, en nog eens opstaan ----------
+-- Binnen dezelfde hand. De oude stoel blijft staan met nul fiches erop; werd die als
+-- waarheid genomen, dan gaf het tweede opstaan $0 terug en was de verse inkoop weg.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+  insert into public.lobby_members (lobby_id, user_id)
+       select 1, id from public.profiles on conflict do nothing;
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+select public.pk_tick(1);
+select pg_temp.zegt('ann en bob zitten in de hand', '2',
+  (select count(*)::text from public.pk_seats));
+-- ann staat op midden in de hand, schuift meteen weer aan, en staat dan nog eens op.
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_leave()');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(300)');
+select pg_temp.zegt('ze zit weer met een verse inkoop', '300',
+  (select stack::text from public.pk_players where username = 'ann'));
+-- De blind die ze bij het delen postte blijft in de pot -- dat geld was al ingelegd. Wat
+-- terug moet komen is de verse inkoop van 300, en niet nul.
+select pg_temp.zegt('het tweede opstaan geeft de verse inkoop terug', '300',
+  (select (public.pk_leave()->>'stack')));
+select pg_temp.zegt('er staat geen stoel meer voor haar aan tafel', '0',
+  (select count(*)::text from public.pk_players where username = 'ann'));
+
+-- ---------- de sprintgrens vernietigt de inzet van wie is opgestaan niet ----------
+-- void_all geeft elke stoel zijn inzet terug in pk_seats.stack en zet dat door naar
+-- pk_players. Wie is opgestaan heeft daar geen rij meer, dus zijn inzet verdween.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  update public.profiles set balance = 900, reset_sprint = public.sprint_now()
+   where username in ('ann', 'bob');
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
+       values (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 50);
+  insert into public.pk_rounds (id, lobby_id, deck_commit, street, high_bet)
+       values (9991, 1, 'x', 1, 50);
+  -- ann is opgestaan met 50 nog in de pot; bob zit er nog.
+  insert into public.pk_seats (round_id, seat_no, user_id, username, stack, total_bet, folded, acted, left_table) values
+    (9991, 0, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 50, true, true, true),
+    (9991, 1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 50, 50, false, true, false);
+  alter table public.profiles disable trigger sprint_guard;
+  update public.profiles set reset_sprint = public.sprint_now() - 1 where username = 'ann';
+  alter table public.profiles enable trigger sprint_guard;
+end $$;
+set test.uid = 'aaaaaaaa-0000-0000-0000-000000000001';
+select public.sprint_reset();
+select pg_temp.zegt('wie opstond en dan de sprintgrens raakt, staat op 1000', '1000',
+  (select balance::text from public.profiles where username = 'ann'));
+select pg_temp.zegt('en bob houdt zijn inzet plus zijn stapel', '100',
+  coalesce((select stack::text from public.pk_players where username = 'bob'), 'weg'));
+select pg_temp.zegt('er blijft niets op de verlaten stoel staan', '0',
+  (select stack::text from public.pk_seats where round_id = 9991 and seat_no = 0));
