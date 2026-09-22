@@ -13,6 +13,17 @@
 -- showdown van hem alleen zijn, en de pagina is openbaar. Daar is row-level security voor,
 -- en die staat hieronder aan.
 
+-- ---------- het schema dat de REST-laag niet bedient ----------
+-- Dit is het fundament onder alles wat geheim moet blijven. PostgREST bedient alleen de
+-- schema's die in de API-instellingen staan (public, graphql_public). Staat `poker` daar
+-- niet bij -- en dat hoort zo -- dan is er simpelweg geen URL die hier binnenkomt, wat
+-- iemand ook probeert.
+--
+-- LET OP bij het installeren: zet `poker` NOOIT in "Exposed schemas" in de API-instellingen
+-- van Supabase. Alles wat de browser van poker mag weten staat in public.
+create schema if not exists poker;
+revoke all on schema poker from public;
+
 -- ---------- de ronde ----------
 create table if not exists public.pk_rounds (
   id           bigserial primary key,
@@ -24,14 +35,16 @@ create table if not exists public.pk_rounds (
   -- Het pak ligt vast voordat er gedeeld wordt: de hash gaat vooraf naar de spelers, het
   -- zaadje pas na de showdown. Zo is achteraf na te rekenen dat er niet geschud is
   -- onderweg -- dezelfde afspraak als bij crash en blackjack.
+  -- De hash van het zaadje gaat vooraf naar de spelers; het zaadje zelf staat in het
+  -- schema hiernaast en komt pas vrij als de hand is afgerekend.
   deck_commit  text not null,
-  deck_seed    text,
-  deck         text[] not null,
   button_seat  smallint not null default 0,
-  sb           integer not null default 50,     -- in centen
-  bb           integer not null default 100,
-  high_bet     integer not null default 0,      -- hoogste inzet van deze straat, in centen
-  min_raise    integer not null default 100,
+  -- Fiches zijn hele dollars. Centen blijven in profiles.balance en komen de tafel niet
+  -- op: dan valt er bij het verdelen van een pot niets weg in de afronding.
+  sb           integer not null default 5,
+  bb           integer not null default 10,
+  high_bet     integer not null default 0,      -- hoogste inzet van deze straat
+  min_raise    integer not null default 10,
   to_act_seat  smallint,
   act_deadline timestamptz,
   settled_at   timestamptz
@@ -44,16 +57,40 @@ create table if not exists public.pk_seats (
   seat_no    smallint not null,
   user_id    uuid not null,
   username   text not null,
-  stack      integer not null default 0,        -- in centen, wat er voor je ligt
+  stack      integer not null default 0,        -- hele dollars, wat er voor je ligt
   bet        integer not null default 0,        -- deze straat
   total_bet  integer not null default 0,        -- deze hele hand
   folded     boolean not null default false,
   allin      boolean not null default false,
   acted      boolean not null default false,
-  hole       text[] not null default '{}',
+  -- Na een korte all-in -- een all-in die kleiner is dan een volle verhoging -- mag wie al
+  -- gezet had het verschil nog bijleggen, maar niet opnieuw verhogen. Dat is een aparte
+  -- vlag, want `acted` gaat bij een volle verhoging juist weer uit.
+  may_raise  boolean not null default true,
+  -- De kaarten liggen NIET hier maar in poker.hole. Wat hier staat is de gezouten hash
+  -- ervan, zodat elke speler zijn eigen kaarten meteen kan narekenen zonder dat iemand
+  -- anders iets te zien krijgt.
+  card_commit text,
   shown      boolean not null default false,    -- open gegooid bij de showdown
+  hole       text[] not null default '{}',      -- pas gevuld bij de showdown
   payout     integer not null default 0,
   primary key (round_id, seat_no)
+);
+
+-- De kaarten zelf, en de stok. Hier komt geen enkele browser bij.
+create table if not exists poker.hole (
+  round_id bigint   not null references public.pk_rounds(id) on delete cascade,
+  seat_no  smallint not null,
+  player   uuid     not null,
+  cards    text[]   not null,
+  salt     text     not null,   -- waarmee de speler zijn eigen commit narekent
+  primary key (round_id, seat_no)
+);
+
+create table if not exists poker.deck (
+  round_id bigint primary key references public.pk_rounds(id) on delete cascade,
+  seed     text   not null,
+  cards    text[] not null
 );
 create index if not exists pk_seats_user on public.pk_seats (user_id);
 
@@ -64,7 +101,7 @@ create table if not exists public.pk_players (
   user_id   uuid not null,
   username  text not null,
   seat_no   smallint not null,
-  stack     integer not null default 0,         -- in centen
+  stack     integer not null default 0,         -- hele dollars
   sat_at    timestamptz not null default now(),
   beat_at   timestamptz not null default now(),
   primary key (lobby_id, user_id)
@@ -101,8 +138,10 @@ create or replace view public.pk_seats_public
 with (security_invoker = false) as
   select s.round_id, s.seat_no, s.username, s.user_id, s.stack, s.bet, s.total_bet,
          s.folded, s.allin, s.acted, s.payout, s.shown,
-         case when s.shown or s.user_id = auth.uid() then s.hole else '{}'::text[] end as hole,
-         array_length(s.hole, 1) as cards
+         s.card_commit,
+         -- Alleen wat open ligt. Je eigen kaarten haal je bij pk_my_hole; die komen uit
+         -- het andere schema en gaan nooit door deze view heen.
+         case when s.shown then s.hole else '{}'::text[] end as hole
     from public.pk_seats s;
 
 grant select on public.pk_seats_public to anon, authenticated;
@@ -111,12 +150,26 @@ grant select on public.pk_seats_public to anon, authenticated;
 create or replace view public.pk_live
 with (security_invoker = false) as
   select r.id, r.lobby_id, r.started_at, r.street, r.board, r.deck_commit,
-         case when r.settled_at is null then null else r.deck_seed end as deck_seed,
+         -- Het zaadje komt pas vrij als de hand is afgerekend; daarvoor zou het de
+         -- kaarten van iedereen verraden.
+         case when r.settled_at is null then null
+              else (select d.seed from poker.deck d where d.round_id = r.id) end as deck_seed,
          r.button_seat, r.sb, r.bb, r.high_bet, r.min_raise, r.to_act_seat,
          r.act_deadline, r.settled_at, now() as server_now
     from public.pk_rounds r;
 
 grant select on public.pk_live to anon, authenticated;
+
+-- Je eigen kaarten, en niets anders. Het filter staat IN de view, niet in de vraag die de
+-- browser stelt: `where player = auth.uid()` is hier niet weg te laten of te omzeilen met
+-- een andere query. Dit is de enige deur naar het schema hiernaast.
+create or replace view public.pk_my_hole
+with (security_invoker = false, security_barrier = true) as
+  select h.round_id, h.seat_no, h.cards, h.salt
+    from poker.hole h
+   where h.player = auth.uid();
+
+grant select on public.pk_my_hole to authenticated;
 
 -- Wie er aan tafel zit, met zijn stapel. Geen geheimen.
 create or replace view public.pk_table
@@ -125,3 +178,34 @@ with (security_invoker = false) as
     from public.pk_players p;
 
 grant select on public.pk_table to anon, authenticated;
+
+-- ---------- de sprintreset raakt ook de tafels ----------
+-- Fiches die op een pokertafel liggen zitten niet in profiles.balance, dus een reset die
+-- alleen dat saldo op 1000 zet, slaat ze over. Wie $50.000 op een tafel parkeert over de
+-- sprintgrens heen, begint de nieuwe sprint met $50.000 in plaats van met $1000 -- precies
+-- wat de reset moet voorkomen.
+--
+-- Daarom: bij het omslaan vervalt de lopende hand en gaat elke stapel van tafel. Het geld
+-- dat terugkomt doet er niet toe, want het saldo gaat er meteen daarna toch op 1000; wat
+-- ertoe doet is dat er geen fiches ACHTERBLIJVEN die de reset overleven.
+create or replace function poker.void_all(p_uid uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- De lopende handen waar deze speler in zit, vervallen. Niemand krijgt de pot: die is
+  -- van de vorige sprint, en iedereen begint zo meteen toch op 1000.
+  update public.pk_rounds r
+     set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null
+   where r.settled_at is null
+     and exists (select 1 from public.pk_seats s
+                  where s.round_id = r.id and s.user_id = p_uid);
+
+  -- En van tafel.
+  delete from public.pk_players p where p.user_id = p_uid;
+end;
+$$;
+
+revoke all on function poker.void_all(uuid) from public, anon, authenticated;

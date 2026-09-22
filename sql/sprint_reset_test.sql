@@ -72,3 +72,37 @@ end;
 $$;
 select pg_temp.zegt('zonder account wordt de reset geweigerd', 'not signed in',
   pg_temp.zonder_account());
+
+-- ---------- fiches op een pokertafel overleven de reset niet ----------
+-- Dit is het gat dat een reset per sprint anders openlaat: geld op een tafel zit niet in
+-- profiles.balance, dus zou het de omslag overleven. Alleen te toetsen als sql/poker.sql
+-- er ook in zit.
+do $$
+begin
+  if to_regclass('public.pk_players') is null then
+    raise notice 'poker staat er niet in, deze test wordt overgeslagen';
+    return;
+  end if;
+
+  delete from public.pk_players;
+  delete from public.pk_rounds;
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
+       values (1, '11111111-1111-1111-1111-111111111111', 'winnaar', 0, 50000);
+  insert into public.pk_rounds (id, lobby_id, deck_commit)
+       values (999, 1, 'x') on conflict do nothing;
+  insert into public.pk_seats (round_id, seat_no, user_id, username, stack, total_bet)
+       values (999, 0, '11111111-1111-1111-1111-111111111111', 'winnaar', 0, 300);
+
+  update public.profiles set balance = 12, reset_sprint = public.sprint_now() - 1
+   where id = '11111111-1111-1111-1111-111111111111';
+end $$;
+
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select public.sprint_reset();
+select pg_temp.zegt('de stapel op de tafel is weg', '0',
+  coalesce((select count(*)::text from public.pk_players
+             where user_id = '11111111-1111-1111-1111-111111111111'), 'geen poker'));
+select pg_temp.zegt('de lopende hand is afgesloten', 'true',
+  coalesce((select (settled_at is not null)::text from public.pk_rounds where id = 999), 'geen poker'));
+select pg_temp.zegt('en het saldo staat gewoon op 1000', '1000',
+  (select balance::text from public.profiles where id = '11111111-1111-1111-1111-111111111111'));

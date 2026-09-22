@@ -56,6 +56,20 @@ begin
     raise exception 'not signed in';
   end if;
 
+  -- Eerst van de pokertafels af, dan pas het saldo. Fiches op een tafel zitten niet in
+  -- profiles.balance, dus een reset die alleen dat saldo aanraakt laat ze staan -- en dan
+  -- begint iemand de nieuwe sprint met een stapel van de vorige. De functie staat in het
+  -- schema `poker` en bestaat alleen als sql/poker.sql gedraaid is; zonder poker slaat dit
+  -- stil over.
+  if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'poker' and p.proname = 'void_all') > 0
+     and exists (select 1 from public.profiles pr
+                  where pr.id = v_uid
+                    and (pr.reset_sprint is null or pr.reset_sprint < v_now))
+  then
+    execute 'select poker.void_all($1)' using v_uid;
+  end if;
+
   -- Het saldo van VOOR de reset wordt in dezelfde stap meegenomen: de `from` ziet de rij
   -- nog zoals hij was. Zonder dat trucje leest een `select` erna het nieuwe saldo, en dan
   -- meldt de pagina "$1000 -> $1000" in plaats van wat er stond.
