@@ -7003,7 +7003,9 @@ function mpPlayers() {
 // Blok 4 voegt de kolom `featured` toe. Zolang die er niet is, mag het spel er niet op
 // stukgaan: elke opslag en de ranglijst zouden dan falen. De eerste keer dat de server hem
 // niet kent, gaat deze vlag uit en werkt alles verder als voorheen.
-const NET = { token: null, refresh: null, busy: false, hasFeatured: true };
+// hasSprintReset staat aan tot blijkt dat sql/sprint_reset.sql nog niet gedraaid is; dan
+// valt de pagina terug op de oude afrekening per seizoen in plaats van stil te vallen.
+const NET = { token: null, refresh: null, busy: false, hasFeatured: true, hasSprintReset: true };
 const missingFeatured = e => /featured/i.test(String(e && e.message || '')) &&
   /does not exist|column|schema cache|42703|PGRST204|PGRST100/i.test(String(e && e.message || ''));
 
@@ -7183,22 +7185,26 @@ async function profileWrite() {
 // dan komt er een ander saldo terug dan wat we stuurden; dat nemen we over. Zonder dit zou
 // de volgende opslag het oude saldo er weer overheen zetten.
 let knownResetSeason = null;
+let knownResetSprint = null;
 function adoptServerRow(row, sent) {
   if (!row) return;
   const bal = Number(row.balance);
   if (!Number.isFinite(bal)) return;
   const rs = Number(row.reset_season);
-  const rolled = Number.isFinite(rs) && knownResetSeason !== null && rs > knownResetSeason;
+  const rp = Number(row.reset_sprint);
+  const rolled = (Number.isFinite(rs) && knownResetSeason !== null && rs > knownResetSeason)
+              || (Number.isFinite(rp) && knownResetSprint !== null && rp > knownResetSprint);
   // De server corrigeerde ons: overnemen, wat de aanleiding ook was.
   if (Number.isFinite(Number(sent)) && Math.abs(bal - Number(sent)) > 0.005) {
     const before = state.balance;
     state.balance = round2(bal);
     renderBalance();
     saveLocalOnly();
-    if (bal < before) flash(`NEW SEASON · $${fmt(before)} → $${fmt(state.balance)} (you keep 10% above $1000)`, 'gold', toastHost());
-    else if (rolled) flash('SEASON SETTLED BY THE SERVER', 'gold', toastHost());
+    if (bal < before) flash(`NEW SPRINT · $${fmt(before)} → $${fmt(state.balance)} · everyone starts level`, 'gold', toastHost());
+    else if (rolled) flash('SPRINT SETTLED BY THE SERVER', 'gold', toastHost());
   }
   if (Number.isFinite(rs)) knownResetSeason = rs;
+  if (Number.isFinite(rp)) knownResetSprint = rp;
 }
 
 // Een tab die door een seizoensgrens heen open blijft staan, draagt nog het oude saldo.
@@ -7207,13 +7213,38 @@ function adoptServerRow(row, sent) {
 // wegschrijven. Vandaar: eerst laten afrekenen, dan pas opslaan. De server antwoordt ook
 // als er niets te resetten viel, en dat antwoord is leidend.
 async function seasonCatchUp() {
-  if (!online() || !AUTH.session || knownResetSeason === null) return;
-  if (seasonId() <= knownResetSeason) return;
+  if (!online() || !AUTH.session) return;
+  // Per SPRINT terug naar 1000, en plat. Een sprint is waar de ranglijst en de titels al
+  // op lopen, dus loopt het saldo nu met dezelfde klok mee.
+  if (NET.hasSprintReset) {
+    if (knownResetSprint === null || sprintId() <= knownResetSprint) return;
+    let d = null;
+    try { d = await api('/rest/v1/rpc/sprint_reset', { method: 'POST', body: {} }); }
+    catch (e) {
+      // Staat sql/sprint_reset.sql nog niet in de database, dan valt de pagina terug op de
+      // oude afrekening per seizoen in plaats van helemaal niets te doen.
+      if (!missingRpc(e)) return;
+      NET.hasSprintReset = false;
+      return seasonCatchUp();
+    }
+    if (!d) return;
+    adoptServerRow({ balance: d.balance, reset_sprint: d.sprint }, state.balance);
+    return;
+  }
+  if (knownResetSeason === null || seasonId() <= knownResetSeason) return;
   let d = null;
   try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
   catch { return; }
   if (!d) return;
   adoptServerRow({ balance: d.balance, reset_season: d.season }, state.balance);
+}
+
+// Een RPC die de database nog niet kent geeft een 404 met "Could not find the function" of
+// een klacht over de schemacache. Dat is iets anders dan "de verbinding is weg", en alleen
+// in dat eerste geval mag de pagina terugvallen op de oude weg.
+function missingRpc(e) {
+  const m = String((e && e.message) || '');
+  return /404|could not find the function|schema cache|does not exist/i.test(m);
 }
 
 // Het saldo lokaal bijwerken zonder meteen weer naar de server te schrijven: dat zou de
@@ -7265,6 +7296,8 @@ async function profilePull() {
   // Onthouden voor welk seizoen de server al heeft afgerekend, zodat een latere afrekening
   // herkend wordt in plaats van teruggeschreven.
   if (row.reset_season != null && Number.isFinite(Number(row.reset_season))) knownResetSeason = Number(row.reset_season);
+  if (row.reset_sprint != null && Number.isFinite(Number(row.reset_sprint))) knownResetSprint = Number(row.reset_sprint);
+  else if (row.reset_sprint === undefined) NET.hasSprintReset = false;
   return true;
 }
 
@@ -7982,17 +8015,31 @@ const SEASON = { awards: [], closed: false, error: '', scores: [] };
 // Een plek op de ranglijst levert geen geld meer op: de uitslag bepaalt alleen de titel
 // en wie de VIP-zone in mag.
 
-// De rekensom van de server, hier nagerekend: $1000 plus een tiende van alles daarboven.
+// De rekensom van de server, hier nagerekend. Sinds de omslag naar sprints is dat geen
+// rekensom meer: iedereen begint plat op $1000. Zonder pas draaide dit per seizoen en hield
+// je $1000 plus een tiende van alles daarboven; die vorm staat er nog voor een database
+// waar sql/sprint_reset.sql nog niet in zit.
 function seasonBalanceAfter(b) {
+  if (NET.hasSprintReset) return 1000;
   return round2(1000 + Math.floor(Math.max(0, round2(b) - 1000) * 0.10 * 100) / 100);
 }
 
-// A season is over: everyone starts again on $1000 plus a tenth of whatever they held
-// above it. The server decides whether it has already happened, so asking twice is safe.
-// Awaited before the profile is pulled, so the pull already carries the new balance.
+// Een sprint is om: iedereen begint weer op $1000, plat. De server beslist of het al
+// gebeurd is, dus twee keer vragen kan geen kwaad. Wordt afgewacht voordat het profiel
+// opgehaald wordt, zodat die ophaal het nieuwe saldo al meeneemt.
 async function seasonReset() {
   if (!online()) return null;
   let d = null;
+  if (NET.hasSprintReset) {
+    try { d = await api('/rest/v1/rpc/sprint_reset', { method: 'POST', body: {} }); }
+    catch (e) { if (!missingRpc(e)) return null; NET.hasSprintReset = false; }
+    if (d) {
+      if (Number.isFinite(Number(d.sprint))) knownResetSprint = Number(d.sprint);
+      if (!d.reset) return d;
+      MP.resetNotice = { before: round2(Number(d.before) || 0), after: round2(Number(d.balance) || 0) };
+      return d;
+    }
+  }
   try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
   catch { return null; }
   if (d && Number.isFinite(Number(d.season))) knownResetSeason = Number(d.season);
@@ -8106,7 +8153,7 @@ function renderSeasonStrip(strip) {
   t2.textContent = sprintCountdown();
   const t3 = document.createElement('div');
   t3.className = 'season-sub';
-  t3.textContent = 'until the standings reset to zero · whoever gains the most takes the title and a VIP pass';
+  t3.textContent = 'until everyone goes back to $1000 · whoever gains the most takes the title and a VIP pass';
   const t4 = document.createElement('div');
   t4.className = 'season-sub';
   const n = sprintsLeft();
@@ -8520,7 +8567,10 @@ function bootGame() {
         if (MP.resetNotice) {
           const n = MP.resetNotice;
           MP.resetNotice = null;
-          flash(`NEW SEASON · $${fmt(n.before)} → $${fmt(n.after)} (you keep 10% above $1000)`, 'gold', 'homeToasts');
+          flash(NET.hasSprintReset
+            ? `NEW SPRINT · $${fmt(n.before)} → $${fmt(n.after)} · everyone starts level`
+            : `NEW SEASON · $${fmt(n.before)} → $${fmt(n.after)} (you keep 10% above $1000)`,
+            'gold', 'homeToasts');
         }
         if (AUTH.profileAt) profilePush();
         liveStart();
