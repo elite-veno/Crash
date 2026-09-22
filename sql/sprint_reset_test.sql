@@ -106,3 +106,34 @@ select pg_temp.zegt('de lopende hand is afgesloten', 'true',
   coalesce((select (settled_at is not null)::text from public.pk_rounds where id = 999), 'geen poker'));
 select pg_temp.zegt('en het saldo staat gewoon op 1000', '1000',
   (select balance::text from public.profiles where id = '11111111-1111-1111-1111-111111111111'));
+
+-- ---------- de reset van een speler mag de pot van de anderen niet slopen ----------
+-- Er zat een gat: de lopende hand werd doodverklaard zonder uit te betalen, dus de inzet
+-- van de tafelgenoten -- die niets met die sprintgrens te maken hebben -- verdween.
+do $$
+begin
+  if to_regclass('public.pk_players') is null then return; end if;
+  delete from public.pk_players; delete from public.pk_rounds;
+  truncate public.profiles;
+  insert into public.profiles (id, username, balance, reset_sprint) values
+    ('11111111-1111-1111-1111-111111111111', 'weg',   1000, public.sprint_now() - 1),
+    ('22222222-2222-2222-2222-222222222222', 'blijft',1000, public.sprint_now());
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
+    (1, '11111111-1111-1111-1111-111111111111', 'weg',    0, 100),
+    (1, '22222222-2222-2222-2222-222222222222', 'blijft', 1, 100);
+  insert into public.pk_rounds (id, lobby_id, deck_commit) values (5551, 1, 'x');
+  insert into public.pk_seats (round_id, seat_no, user_id, username, stack, total_bet) values
+    (5551, 0, '11111111-1111-1111-1111-111111111111', 'weg',    50, 50),
+    (5551, 1, '22222222-2222-2222-2222-222222222222', 'blijft', 50, 50);
+end $$;
+
+set test.uid = '11111111-1111-1111-1111-111111111111';
+select public.sprint_reset();
+select pg_temp.zegt('wie blijft zitten houdt zijn hele stapel', '100',
+  coalesce((select stack::text from public.pk_players where username = 'blijft'), 'geen poker'));
+select pg_temp.zegt('en de hand is afgebroken, niet uitbetaald', '0',
+  coalesce((select sum(payout)::text from public.pk_seats where round_id = 5551), 'geen poker'));
+select pg_temp.zegt('er staat niets meer in de pot', '0',
+  coalesce((select sum(total_bet)::text from public.pk_seats where round_id = 5551), 'geen poker'));
+select pg_temp.zegt('en wie wegging staat gewoon op 1000', '1000',
+  (select balance::text from public.profiles where username = 'weg'));

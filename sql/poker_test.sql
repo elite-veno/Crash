@@ -149,6 +149,80 @@ select pg_temp.zegt('alles staat weer op het saldo', '3000',
 select pg_temp.zegt('en de tafel is leeg', '0',
   (select count(*)::text from public.pk_players));
 
+-- ---------- opstaan midden in een hand ----------
+-- Hier zat een gat waar geld uit kwam. `pk_players.stack` wordt alleen bij het delen en
+-- bij het afrekenen bijgewerkt; tijdens een hand staat daar nog de stand van VOOR je
+-- inzetten. Wie daarmee uitbetaalde, kreeg alles terug wat al in de pot lag -- en kon dat
+-- herhalen zo vaak hij wilde.
+truncate public.pk_players, public.pk_rounds, public.pk_seats cascade;
+delete from poker.hole; delete from poker.deck; delete from public.pk_ledger;
+truncate public.profiles;
+insert into public.profiles (id, username, balance, reset_sprint) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'ann', 1000, public.sprint_now()),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1000, public.sprint_now()),
+  ('aaaaaaaa-0000-0000-0000-000000000003', 'cas', 1000, public.sprint_now());
+
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000003', 'select public.pk_sit(200)');
+select public.pk_tick(1);
+
+-- Wie aan de beurt is verhoogt flink, en staat dan op.
+do $$
+declare v_uid uuid;
+begin
+  select pg_temp.beurt_uid() into v_uid;
+  perform set_config('test.uid', v_uid::text, true);
+  perform public.pk_act(pg_temp.ronde(), pg_temp.seq(), 'raise', 150);
+  perform public.pk_leave();
+end $$;
+
+select pg_temp.zegt('opstaan midden in een hand maakt geen fiches', '3000', pg_temp.totaal()::text);
+
+-- En nog een keer opstaan verandert niets meer.
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_leave()');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_leave()');
+select pg_temp.zegt('twee keer opstaan ook niet', '3000', pg_temp.totaal()::text);
+
+-- De hand uitspelen en dan nog eens tellen.
+do $$
+declare i int; v_uid uuid; v_hoog int; v_bet int;
+begin
+  for i in 1..40 loop
+    exit when (select settled_at is not null from public.pk_rounds order by id desc limit 1);
+    select pg_temp.beurt_uid() into v_uid;
+    exit when v_uid is null;
+    perform set_config('test.uid', v_uid::text, true);
+    select r.high_bet, s.bet into v_hoog, v_bet
+      from public.pk_rounds r join public.pk_seats s
+        on s.round_id = r.id and s.seat_no = r.to_act_seat
+     where r.id = pg_temp.ronde();
+    if v_bet < v_hoog then perform public.pk_act(pg_temp.ronde(), pg_temp.seq(), 'call');
+    else perform public.pk_act(pg_temp.ronde(), pg_temp.seq(), 'check'); end if;
+  end loop;
+end $$;
+select pg_temp.zegt('en na het afrekenen nog steeds niet', '3000', pg_temp.totaal()::text);
+
+-- ---------- de knop schuift echt door ----------
+-- Met een max() over alle handen bleef hij hangen zodra hij één keer op de laatste stoel
+-- had gestaan, en postte dezelfde speler elke hand de blind.
+truncate public.pk_players, public.pk_rounds, public.pk_seats cascade;
+delete from poker.hole; delete from poker.deck;
+update public.profiles set balance = 1000;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+do $$
+declare i int;
+begin
+  for i in 1..4 loop
+    perform public.pk_tick(1);
+    update public.pk_rounds set settled_at = now(), street = 5
+     where lobby_id = 1 and settled_at is null;
+  end loop;
+end $$;
+select pg_temp.zegt('de knop staat op vier handen op twee verschillende stoelen', '2',
+  (select count(distinct button_seat)::text from public.pk_rounds where lobby_id = 1));
+
 -- ---------- de kaarten van een ander ----------
 -- Dit is waar het bij poker op staat. De pagina is openbaar en iedereen kan met de
 -- publieke sleutel rechtstreeks de REST-laag bevragen, dus hier wordt nagegaan dat de rol

@@ -302,6 +302,20 @@ function sluitend(wat, spelers, knop = 0) {
   h.check('wie overblijft krijgt de pot plus zijn eigen overschot', 60, u.c);
 }
 {
+  // Een laag waar niemand meer om speelt omdat iedereen die eraan meedeed gepast is. Die
+  // hoort NAAR RATO terug naar wie hem volstortte. Hier legden a en b allebei 40 in en
+  // zijn allebei gepast; c deed 10 en wint. De laag van 10 tot 40 is van a en b samen, dus
+  // 30 elk -- niet 60 voor een van de twee, wat de code eerst deed.
+  const u = sluitend('een dode laag gaat naar rato terug', [
+    { id: 'a', ingezet: 40, gefold: true,  waarde: 0 },
+    { id: 'b', ingezet: 40, gefold: true,  waarde: 0 },
+    { id: 'c', ingezet: 10, gefold: false, waarde: 100 },
+  ]);
+  h.check('c wint de hoofdpot van drie keer tien', 30, u.c);
+  h.check('a krijgt zijn eigen overschot terug', 30, u.a);
+  h.check('en b het zijne', 30, u.b);
+}
+{
   // Iedereen fold behalve één: die krijgt de hele pot zonder te hoeven laten zien.
   const u = sluitend('iedereen fold behalve één', [
     { id: 'a', ingezet: 5,  gefold: true,  waarde: 0 },

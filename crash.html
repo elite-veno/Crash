@@ -3620,7 +3620,7 @@ const ODDS = {
       }
       // Wie erom speelt: niet gefold, en zelf tot dit niveau meegegaan.
       const kandidaten = spelers.filter(s => !s.gefold && Math.round(s.ingezet * 100) >= niveau);
-      potten.push({ centen: bedrag, kandidaten });
+      potten.push({ centen: bedrag, kandidaten, niveau, vorigNiveau: vorig });
       vorig = niveau;
     }
 
@@ -3631,12 +3631,16 @@ const ODDS = {
 
     for (const pot of potten) {
       if (pot.centen <= 0) continue;
+      const niveau = pot.niveau, vorigNiveau = pot.vorigNiveau;
       if (!pot.kandidaten.length) {
-        // Iedereen die om deze pot speelde is gefold: hij gaat terug naar wie hem stortte.
-        // Dat kan alleen bij de laatste laag, van een speler die niemand hoefde te matchen.
-        const stortten = spelers.filter(s => Math.round(s.ingezet * 100) > 0);
-        const terug = stortten[stortten.length - 1];
-        if (terug) uit.set(terug.id, uit.get(terug.id) + pot.centen);
+        // Iedereen die om deze pot speelde is gefold. Dan gaat hij terug naar wie hem
+        // volstortte, NAAR RATO -- en niet in zijn geheel naar één van hen, want dan komt
+        // er geld bij iemand terecht dat van een ander was.
+        for (const s of spelers) {
+          const c = Math.round(s.ingezet * 100);
+          const deel = Math.min(c, niveau) - Math.min(c, vorigNiveau);
+          if (deel > 0) uit.set(s.id, uit.get(s.id) + deel);
+        }
         continue;
       }
       let beste = -1;

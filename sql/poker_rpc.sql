@@ -214,7 +214,9 @@ begin
   if v_saldo < v_koop then raise exception 'not enough money'; end if;
 
   -- De laagste vrije stoel.
-  select coalesce(min(x), 0) into v_stoel
+  -- Geen coalesce: min() over niets is null, en dat is precies hoe je weet dat de tafel
+  -- vol zit. Met een coalesce naar nul werd de zevende speler op stoel nul gezet.
+  select min(x) into v_stoel
     from generate_series(0, 5) x
    where not exists (select 1 from public.pk_players q
                       where q.lobby_id = v_lobby and q.seat_no = x);
@@ -258,12 +260,23 @@ begin
   select r.id into v_ronde from public.pk_rounds r
     where r.lobby_id = v_lobby and r.settled_at is null order by r.id desc limit 1;
   if v_ronde is not null then
+    -- En dit is de stapel die telt. `pk_players.stack` wordt alleen bij het delen en bij
+    -- het afrekenen bijgewerkt; tijdens een hand staat daar nog de stand van VOOR je
+    -- inzetten. Wie daarmee uitbetaalt, geeft alles terug wat er al in de pot ligt --
+    -- geld uit het niets, en te herhalen zo vaak je wilt.
     update public.pk_seats s set folded = true, acted = true
      where s.round_id = v_ronde and s.user_id = v_uid and not s.folded;
+    select s.stack into v_stack from public.pk_seats s
+      where s.round_id = v_ronde and s.user_id = v_uid;
+    -- De stoel in de hand houdt geen fiches meer vast: die zijn nu van het saldo.
+    update public.pk_seats s set stack = 0
+      where s.round_id = v_ronde and s.user_id = v_uid;
   end if;
 
-  delete from public.pk_players where user_id = v_uid;
-  update public.profiles set balance = balance + v_stack where id = v_uid;
+  -- Alleen de stoel aan DEZE tafel. Zonder dat filter haalt opstaan je overal weg terwijl
+  -- er maar één stapel wordt uitbetaald.
+  delete from public.pk_players where user_id = v_uid and lobby_id = v_lobby;
+  update public.profiles set balance = balance + coalesce(v_stack, 0) where id = v_uid;
 
   if to_regprocedure('poker.note(uuid, text, bigint, text, integer)') is not null then
     execute 'select poker.note($1, $2, $3, $4, $5)' using
@@ -354,9 +367,16 @@ begin
     else
       -- Een korte all-in verhoogt de inzet wel, maar wie al gezet had mag alleen nog het
       -- verschil bijleggen -- niet opnieuw verhogen op een minimum dat hierop gebouwd is.
+      --
+      -- In ÉÉN opdracht, en dat is geen stijlkeuze. Er stonden hier twee updates: eerst
+      -- `acted = false` voor iedereen, daarna `may_raise = false where ... and acted`.
+      -- Maar `acted` was op dat moment net op false gezet, dus die tweede raakte niemand
+      -- en heropende de korte all-in het bieden alsnog -- precies wat hij moest voorkomen.
       update public.pk_rounds set high_bet = v_doel where id = p_round;
-      update public.pk_seats set acted = false, may_raise = false
-       where round_id = p_round and seat_no <> s.seat_no and not folded and not allin and acted;
+      update public.pk_seats
+         set may_raise = not acted,   -- wie nog niet gezet had mag straks gewoon verhogen
+             acted = false
+       where round_id = p_round and seat_no <> s.seat_no and not folded and not allin;
     end if;
 
   else
@@ -447,12 +467,16 @@ begin
                  end
    where id = p_round;
 
-  -- Na de flop begint de eerste levende stoel links van de knop.
+  -- Is er hooguit één speler die nog fiches heeft om mee te zetten, dan valt er niets meer
+  -- te bieden: het bord loopt uit en de hand gaat naar de showdown. pk_settle legt de rest
+  -- van de kaarten zelf neer.
+  --
+  -- Deze controle stond eerst ONDER het bepalen van de volgende speler, en dan wacht de
+  -- tafel op iemand die niets meer kan doen.
   select count(*) into v_kunnen from public.pk_seats
    where round_id = p_round and not folded and not allin and stack > 0;
   if v_kunnen <= 1 then
-    -- Niemand meer die kan inzetten: de rest van het bord valt vanzelf en dan showdown.
-    perform public.pk_advance(p_round);
+    perform public.pk_settle(p_round);
     return;
   end if;
 
@@ -525,12 +549,13 @@ begin
        where s.round_id = p_round and not s.folded and s.total_bet >= v_niveau;
 
       if v_beste is null then
-        -- Iedereen die om deze laag speelde is gepast: terug naar wie hem stortte.
-        update public.pk_seats set payout = payout + v_pot
-         where round_id = p_round
-           and seat_no = (select seat_no from public.pk_seats
-                           where round_id = p_round and total_bet >= v_niveau
-                           order by total_bet desc limit 1);
+        -- Iedereen die om deze laag speelde is gepast. Dan gaat hij terug naar wie hem
+        -- volstortte, NAAR RATO -- niet in zijn geheel naar de grootste inlegger. Dat
+        -- laatste stond er, en dan kreeg één speler geld terug dat van een ander was.
+        update public.pk_seats s
+           set payout = s.payout
+                      + (least(s.total_bet, v_niveau) - least(s.total_bet, v_vorig))
+         where s.round_id = p_round;
       else
         select array_agg(s.seat_no order by ((s.seat_no - v_eerste + v_n) % v_n))
           into v_winnaars
@@ -596,8 +621,14 @@ declare
   v_sb smallint; v_bb smallint;
   v_zout text;
 begin
+  -- Eén tafel tegelijk. Twee browsers die op hetzelfde moment porren zagen allebei geen
+  -- lopende hand en deelden er allebei een; op de tijdklok sloegen ze samen een beurt over.
+  -- Dit slot geldt tot het einde van de transactie, dus alle porren voor één tafel staan
+  -- netjes in de rij.
+  perform pg_advisory_xact_lock(p_lobby);
+
   select * into r from public.pk_rounds
-   where lobby_id = p_lobby and settled_at is null order by id desc limit 1;
+   where lobby_id = p_lobby and settled_at is null order by id desc limit 1 for update;
 
   -- Loopt er een hand? Dan alleen kijken of iemand te lang nadenkt.
   if r.id is not null then
@@ -624,8 +655,12 @@ begin
    where lobby_id = p_lobby and stack > 0;
   if v_spelers < 2 then return json_build_object('ok', true, 'round', null); end if;
 
-  -- De knop schuift een stoel op ten opzichte van de vorige hand.
-  select coalesce(max(button_seat), -1) into v_knop from public.pk_rounds where lobby_id = p_lobby;
+  -- De knop schuift een stoel op ten opzichte van de VORIGE hand -- niet ten opzichte van
+  -- de hoogste die er ooit was. Met een max blijft hij hangen zodra hij één keer op de
+  -- laatste stoel heeft gestaan, en dan post dezelfde speler elke hand de blind.
+  select coalesce((select button_seat from public.pk_rounds
+                    where lobby_id = p_lobby order by id desc limit 1), -1)
+    into v_knop;
 
   v_zaad := encode(poker.sha256(gen_random_uuid()::text || clock_timestamp()::text), 'hex');
   v_commit := encode(poker.sha256('commit:' || v_zaad), 'hex');

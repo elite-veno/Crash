@@ -206,16 +206,39 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_ronde bigint;
 begin
-  -- De lopende handen waar deze speler in zit, vervallen. Niemand krijgt de pot: die is
-  -- van de vorige sprint, en iedereen begint zo meteen toch op 1000.
-  update public.pk_rounds r
-     set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null
-   where r.settled_at is null
-     and exists (select 1 from public.pk_seats s
-                  where s.round_id = r.id and s.user_id = p_uid);
+  -- De lopende hand waar deze speler in zit, wordt AFGEBROKEN -- niet doodverklaard.
+  --
+  -- Er stond hier eerst alleen `settled_at = now()`. Dat leek genoeg, want het saldo van
+  -- deze speler gaat zo meteen toch op 1000. Maar aan die tafel zitten anderen, en die
+  -- hebben hun inzet al in de pot staan. Die pot werd dan nooit uitbetaald: de sprintgrens
+  -- van één speler maakte het geld van zijn tafelgenoten zoek, en zij hebben niets met die
+  -- omslag te maken.
+  --
+  -- Dus: iedereen krijgt eerst terug wat hij deze hand heeft ingelegd, en dan pas gaat de
+  -- ronde dicht. Het is geen hand die is uitgespeeld, dus niemand wint hem.
+  for v_ronde in
+    select r.id from public.pk_rounds r
+     where r.settled_at is null
+       and exists (select 1 from public.pk_seats s
+                    where s.round_id = r.id and s.user_id = p_uid)
+  loop
+    update public.pk_seats s
+       set stack = s.stack + s.total_bet, total_bet = 0, bet = 0
+     where s.round_id = v_ronde;
 
-  -- En van tafel.
+    update public.pk_players pl set stack = s.stack
+      from public.pk_seats s
+     where s.round_id = v_ronde and s.user_id = pl.user_id;
+
+    update public.pk_rounds
+       set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null
+     where id = v_ronde;
+  end loop;
+
+  -- En dan alleen deze speler van tafel. De rest blijft zitten met zijn fiches.
   delete from public.pk_players p where p.user_id = p_uid;
 end;
 $$;
