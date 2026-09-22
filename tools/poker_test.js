@@ -153,6 +153,38 @@ h.check('een gedeelde pot op het bord: beide spelers spelen het bord',
   }
 }
 
+// ================== DE GEVALLEN UIT DE ONTWERPRONDE ==================
+// Een ontwerpronde met review-agenten leverde deze lijst op: de handen waar een
+// beoordelaar zich op verkijkt. Ze staan hier apart, want ze zijn stuk voor stuk een
+// verhaal.
+{
+  // Vier kaarten op weg naar een straight flush, plus een vijfde van dezelfde kleur die er
+  // niet bij hoort. Er is een flush EN een straat, en de flush wint. Wie de straat op het
+  // masker van de hele hand toetst in plaats van op dat van de flushkleur, betaalt dit uit
+  // als straight flush.
+  h.check('flush en straat door elkaar: de flush wint', 'flush', naam('2h 3h 4h 5h 6s 9d Kh'));
+  h.check('en andersom net zo', 'flush', naam('2h 3h 4h 5s 6h 9h Kh'));
+}
+{
+  // Zeven kaarten van één kleur: de vijf hoogste tellen.
+  const s = O.pokerScore(hand('2h 3h 4h 8h Th Kh 9s'));
+  h.check('van zes in één kleur tellen de vijf hoogste', [13, 10, 8, 4, 3], s.sleutels);
+}
+{
+  // Twee drietallen worden een full house, en de tweede telt als het paar.
+  h.check('twee drietallen', 'full house', naam('9h 9s 9d 7h 7s 7d 2c'));
+  h.check('negens vol zevens', [9, 7], O.pokerScore(hand('9h 9s 9d 7h 7s 7d 2c')).sleutels.slice(0, 2));
+}
+{
+  // Een aas alleen maakt nog geen wiel: er moeten vijf op een rij liggen.
+  h.check('een aas zonder de rest is hoge kaart', 'high card', naam('Ah 2s 3d 4c 9h Kd Qc'));
+}
+{
+  // Twee spelers die allebei het bord spelen, met verschillende eigen kaarten: exact gelijk.
+  h.check('een bord dat zichzelf speelt is voor allebei hetzelfde',
+    waarde('2c 3d Th Jh Qh Kh Ah'), waarde('4c 5d Th Jh Qh Kh Ah'));
+}
+
 // ================== DE POT VERDELEN ==================
 // Hier gaat het geld heen, dus hier telt vooral één ding: wat erin gaat komt er ook weer
 // uit. Geen cent erbij, geen cent kwijt -- bij elke verdeling hieronder wordt dat geteld.
