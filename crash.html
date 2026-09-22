@@ -5586,7 +5586,9 @@ function friendsRender() {
     name.appendChild(frText('span', 'sub', 'table ' + i.code + ' · ' + i.players +
       (Number(i.players) === 1 ? ' player' : ' players')));
     row.appendChild(name);
-    row.appendChild(frButton('JOIN', '', () => lobbyJoin(i.code, true)));
+    // Aan dezelfde tafel kun je allebei spelen, dus je kiest waar je binnenkomt.
+    row.appendChild(frButton('BLACKJACK', '', () => lobbyJoin(i.code, 'blackjack')));
+    row.appendChild(frButton('POKER', '', () => lobbyJoin(i.code, 'poker')));
     invEl.appendChild(row);
   }
 }
@@ -5642,9 +5644,12 @@ async function lobbyCall(path, body, msg) {
 const lobbyQuick   = () => lobbyCall('lobby_quick', {}, 'JOINED A PUBLIC TABLE');
 const lobbyPrivate = () => lobbyCall('lobby_create', { p_private: true }, 'PRIVATE TABLE OPENED');
 const lobbyLeave   = () => lobbyCall('lobby_leave', {}, 'LEFT THE TABLE');
+// `goThere` is het scherm waar je heen wilt nadat je aan tafel zit. Aan één tafel kun je
+// blackjack of poker spelen, dus een uitnodiging brengt je naar het spel dat erbij staat --
+// niet altijd naar blackjack, wat het eerst was.
 async function lobbyJoin(code, goThere) {
   const d = await lobbyCall('lobby_join', { p_code: String(code || '').trim().toUpperCase() }, 'JOINED THE TABLE');
-  if (d && goThere) navigate('blackjack');
+  if (d && goThere) navigate(typeof goThere === 'string' ? goThere : 'blackjack');
   return d;
 }
 async function lobbyInvite(username) {
@@ -5706,6 +5711,9 @@ function lobbyRenderIn(barId) {
     catch { flash('CODE: ' + LOBBY.code, 'gold', lobbyToasts()); }
   });
   bar.appendChild(copy);
+  // Naar het andere spel aan dezelfde tafel: je hoeft er niet voor op te staan.
+  bar.appendChild(frButton(currentRoute === 'poker' ? 'BLACKJACK' : 'POKER', '',
+    () => navigate(currentRoute === 'poker' ? 'blackjack' : 'poker')));
   bar.appendChild(frButton('FRIENDS', '', () => navigate('friends')));
   const leave = frButton('LEAVE', 'danger', lobbyLeave);
   leave.disabled = LOBBY.busy;
