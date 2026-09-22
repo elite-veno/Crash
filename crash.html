@@ -3444,6 +3444,72 @@ const ODDS = {
   },
   pokerName(kaarten) { return this.POKER_CATS[this.pokerScore(kaarten).cat]; },
 
+  // De pot verdelen als er all-ins zijn geweest. Iedereen speelt alleen mee om het geld
+  // dat hij zelf heeft kunnen matchen: wie voor 20 all-in gaat, kan niet meer dan 20 van
+  // elke andere speler winnen. Wat daarboven is ingezet, vormt een zijpot waar hij buiten
+  // staat.
+  //
+  // `spelers` is een lijst in stoelvolgorde: { id, ingezet, gefold, waarde }. `ingezet` is
+  // wat die speler deze hand in totaal in de pot heeft gedaan -- ook als hij gefold is,
+  // want dat geld blijft in de pot. `waarde` is de uitkomst van pokerValue, en telt alleen
+  // voor wie niet gefold is.
+  //
+  // `eersteNaKnop` is de stoel links van de knop: als een pot niet rond deelt, gaat de
+  // laatste cent daarheen, zoals aan een echte tafel de oneven fiche naar links gaat.
+  // Zonder die regel zou er geld blijven liggen of uit het niets bij komen.
+  pokerPots(spelers, eersteNaKnop = 0) {
+    const uit = new Map();
+    for (const s of spelers) uit.set(s.id, 0);
+
+    // De hoogtes waarop een pot afgesplitst wordt: elk verschillend inzetbedrag.
+    const niveaus = [...new Set(spelers.map(s => Math.round(s.ingezet * 100))
+                                        .filter(c => c > 0))].sort((a, b) => a - b);
+    let vorig = 0;
+    const potten = [];
+    for (const niveau of niveaus) {
+      let bedrag = 0;
+      for (const s of spelers) {
+        const c = Math.round(s.ingezet * 100);
+        bedrag += Math.min(c, niveau) - Math.min(c, vorig);
+      }
+      // Wie erom speelt: niet gefold, en zelf tot dit niveau meegegaan.
+      const kandidaten = spelers.filter(s => !s.gefold && Math.round(s.ingezet * 100) >= niveau);
+      potten.push({ centen: bedrag, kandidaten });
+      vorig = niveau;
+    }
+
+    // De stoelen op volgorde vanaf links van de knop, zodat een oneven cent altijd bij
+    // dezelfde speler uitkomt en niet bij wie toevallig vooraan in de lijst stond.
+    const volgorde = [];
+    for (let i = 0; i < spelers.length; i++) volgorde.push(spelers[(eersteNaKnop + i) % spelers.length]);
+
+    for (const pot of potten) {
+      if (pot.centen <= 0) continue;
+      if (!pot.kandidaten.length) {
+        // Iedereen die om deze pot speelde is gefold: hij gaat terug naar wie hem stortte.
+        // Dat kan alleen bij de laatste laag, van een speler die niemand hoefde te matchen.
+        const stortten = spelers.filter(s => Math.round(s.ingezet * 100) > 0);
+        const terug = stortten[stortten.length - 1];
+        if (terug) uit.set(terug.id, uit.get(terug.id) + pot.centen);
+        continue;
+      }
+      let beste = -1;
+      for (const s of pot.kandidaten) if (s.waarde > beste) beste = s.waarde;
+      const winnaars = volgorde.filter(s => pot.kandidaten.includes(s) && s.waarde === beste);
+      const ieder = Math.floor(pot.centen / winnaars.length);
+      let rest = pot.centen - ieder * winnaars.length;
+      for (const w of winnaars) {
+        let deel = ieder;
+        if (rest > 0) { deel++; rest--; }   // de oneven centen naar links van de knop
+        uit.set(w.id, uit.get(w.id) + deel);
+      }
+    }
+
+    const terug = {};
+    for (const [id, centen] of uit) terug[id] = centen / 100;
+    return terug;
+  },
+
   bjNewShoe(decks = 6) {
     const shoe = [];
     for (let d = 0; d < decks; d++)

@@ -153,4 +153,154 @@ h.check('een gedeelde pot op het bord: beide spelers spelen het bord',
   }
 }
 
+// ================== DE POT VERDELEN ==================
+// Hier gaat het geld heen, dus hier telt vooral één ding: wat erin gaat komt er ook weer
+// uit. Geen cent erbij, geen cent kwijt -- bij elke verdeling hieronder wordt dat geteld.
+const pot = (spelers, knop = 0) => O.pokerPots(spelers, knop);
+function sluitend(wat, spelers, knop = 0) {
+  const uit = pot(spelers, knop);
+  const in_ = spelers.reduce((a, s) => a + Math.round(s.ingezet * 100), 0);
+  const eruit = Object.values(uit).reduce((a, b) => a + Math.round(b * 100), 0);
+  h.check(wat + ': erin is eruit', in_, eruit);
+  return uit;
+}
+
+{
+  // Twee spelers, gelijke inzet, de beste wint alles.
+  const u = sluitend('kop-aan-kop', [
+    { id: 'a', ingezet: 10, gefold: false, waarde: 200 },
+    { id: 'b', ingezet: 10, gefold: false, waarde: 100 },
+  ]);
+  h.check('de beste hand pakt de pot', { a: 20, b: 0 }, u);
+}
+{
+  // Gelijke handen delen.
+  const u = sluitend('gedeelde pot', [
+    { id: 'a', ingezet: 10, gefold: false, waarde: 150 },
+    { id: 'b', ingezet: 10, gefold: false, waarde: 150 },
+  ]);
+  h.check('gelijk spel deelt de pot', { a: 10, b: 10 }, u);
+}
+{
+  // Een pot die niet rond deelt: de oneven cent gaat naar links van de knop.
+  const spelers = [
+    { id: 'a', ingezet: 0.05, gefold: false, waarde: 150 },
+    { id: 'b', ingezet: 0.05, gefold: false, waarde: 150 },
+    { id: 'c', ingezet: 0.05, gefold: false, waarde: 150 },
+  ];
+  const u = sluitend('oneven centen', spelers, 0);
+  h.check('de eerste na de knop krijgt de rest', 0.05, u.a);
+  h.check('de anderen krijgen gelijk op', 0.05, u.b);
+  const u2 = sluitend('oneven centen, knop verschoven', spelers, 1);
+  h.check('met de knop een stoel verder gaat de cent daarheen', 0.05, u2.b);
+}
+{
+  // Wie gefold is, laat zijn geld in de pot.
+  const u = sluitend('wie fold laat zijn geld staan', [
+    { id: 'a', ingezet: 10, gefold: true, waarde: 999 },
+    { id: 'b', ingezet: 10, gefold: false, waarde: 100 },
+    { id: 'c', ingezet: 10, gefold: false, waarde: 50 },
+  ]);
+  h.check('de beste van wie er nog is wint alles', 30, u.b);
+  h.check('en de folder krijgt niets, hoe goed zijn hand ook was', 0, u.a);
+}
+{
+  // De klassieke zijpot: A all-in voor 20 met de beste hand, B en C gaan door tot 50.
+  const u = sluitend('één zijpot', [
+    { id: 'a', ingezet: 20, gefold: false, waarde: 300 },
+    { id: 'b', ingezet: 50, gefold: false, waarde: 200 },
+    { id: 'c', ingezet: 50, gefold: false, waarde: 100 },
+  ]);
+  h.check('all-in pakt de hoofdpot, niet meer', 60, u.a);
+  h.check('de zijpot gaat naar de beste van de rest', 60, u.b);
+  h.check('en de derde krijgt niets', 0, u.c);
+}
+{
+  // Drie all-ins op drie hoogtes, met de beste hand onderaan.
+  const u = sluitend('drie hoogtes', [
+    { id: 'a', ingezet: 10, gefold: false, waarde: 300 },
+    { id: 'b', ingezet: 30, gefold: false, waarde: 200 },
+    { id: 'c', ingezet: 60, gefold: false, waarde: 100 },
+  ]);
+  h.check('de kleinste stapel wint drie keer zijn eigen inzet', 30, u.a);
+  h.check('de middelste wint de tweede laag', 40, u.b);
+  h.check('en de grootste houdt wat niemand kon matchen', 30, u.c);
+}
+{
+  // Dezelfde drie hoogtes, maar nu wint de grootste stapel alles.
+  const u = sluitend('grootste stapel wint alles', [
+    { id: 'a', ingezet: 10, gefold: false, waarde: 100 },
+    { id: 'b', ingezet: 30, gefold: false, waarde: 200 },
+    { id: 'c', ingezet: 60, gefold: false, waarde: 300 },
+  ]);
+  h.check('die pakt alles', 100, u.c);
+  h.check('de anderen niets', 0, u.a + u.b);
+}
+{
+  // Een gedeelde hoofdpot naast een zijpot die één speler alleen wint.
+  const u = sluitend('gedeelde hoofdpot, eigen zijpot', [
+    { id: 'a', ingezet: 20, gefold: false, waarde: 300 },
+    { id: 'b', ingezet: 50, gefold: false, waarde: 300 },
+    { id: 'c', ingezet: 50, gefold: false, waarde: 100 },
+  ]);
+  h.check('de hoofdpot wordt gedeeld', 30, u.a);
+  h.check('en de zijpot is voor wie er alleen om speelde', 90, u.b);
+}
+{
+  // Geld van een gefolde speler telt mee in de laag waarin hij zat, ook al speelt hij niet
+  // meer mee. Dat is waar een verdeling vaak scheef gaat.
+  const u = sluitend('gefold geld telt mee in zijn eigen laag', [
+    { id: 'a', ingezet: 10, gefold: false, waarde: 300 },
+    { id: 'b', ingezet: 25, gefold: true,  waarde: 999 },
+    { id: 'c', ingezet: 50, gefold: false, waarde: 200 },
+    { id: 'd', ingezet: 50, gefold: false, waarde: 100 },
+  ]);
+  h.check('de all-in wint vier keer tien', 40, u.a);
+  h.check('de rest gaat naar de beste van wie er nog is', 95, u.c);
+  h.check('de folder krijgt niets terug', 0, u.b);
+}
+{
+  // Niemand hoefde de laatste verhoging te matchen: dat geld hoort terug naar wie het
+  // stortte, niet naar de winnaar van de hand.
+  const u = sluitend('een verhoging die niemand matcht komt terug', [
+    { id: 'a', ingezet: 10, gefold: true,  waarde: 0 },
+    { id: 'b', ingezet: 10, gefold: true,  waarde: 0 },
+    { id: 'c', ingezet: 40, gefold: false, waarde: 100 },
+  ]);
+  h.check('wie overblijft krijgt de pot plus zijn eigen overschot', 60, u.c);
+}
+{
+  // Iedereen fold behalve één: die krijgt de hele pot zonder te hoeven laten zien.
+  const u = sluitend('iedereen fold behalve één', [
+    { id: 'a', ingezet: 5,  gefold: true,  waarde: 0 },
+    { id: 'b', ingezet: 15, gefold: true,  waarde: 0 },
+    { id: 'c', ingezet: 15, gefold: false, waarde: 1 },
+  ]);
+  h.check('de laatste die er nog zit pakt alles', 35, u.c);
+}
+{
+  // Zes spelers, allemaal een ander bedrag, twee gelijke beste handen: het zwaarste geval
+  // dat aan een tafel van zes kan voorkomen.
+  const u = sluitend('zes spelers, alles door elkaar', [
+    { id: 'a', ingezet: 5,   gefold: false, waarde: 500 },
+    { id: 'b', ingezet: 12,  gefold: true,  waarde: 0 },
+    { id: 'c', ingezet: 40,  gefold: false, waarde: 500 },
+    { id: 'd', ingezet: 40,  gefold: false, waarde: 300 },
+    { id: 'e', ingezet: 100, gefold: false, waarde: 200 },
+    { id: 'f', ingezet: 100, gefold: true,  waarde: 0 },
+  ], 0);
+  // De hoofdpot (tot 5) is 30 en wordt door a en c gedeeld.
+  h.check('a deelt de hoofdpot', 15, u.a);
+}
+{
+  // Een pot met centen die niet rond deelt over drie winnaars.
+  const u = sluitend('drie winnaars, twee centen over', [
+    { id: 'a', ingezet: 3.34, gefold: false, waarde: 7 },
+    { id: 'b', ingezet: 3.33, gefold: false, waarde: 7 },
+    { id: 'c', ingezet: 3.33, gefold: false, waarde: 7 },
+  ], 0);
+  const som = Math.round((u.a + u.b + u.c) * 100);
+  h.check('tot op de cent verdeeld', 1000, som);
+}
+
 process.exit(h.rapport('POKER'));
