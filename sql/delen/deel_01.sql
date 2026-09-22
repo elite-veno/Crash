@@ -2,8 +2,12 @@
 --  DEEL 1 VAN 14
 -- ============================================================================
 --
---  Begin hier. Plak dit deel in de SQL-editor van Supabase en druk op RUN.
---  Pas als dat gelukt is (groen, "Success"), ga je door met deel 2.
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
+--  Begin hier. Plak dit deel in de lege editor en druk op RUN.
+--  Onderaan hoort dan "DEEL 1 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -161,3 +165,7 @@ create unique index if not exists pk_players_seat on public.pk_players (lobby_id
 -- doet dit niets.
 alter table public.pk_rounds add column if not exists act_seq     integer not null default 0;
 alter table public.pk_rounds add column if not exists button_lobby_seat smallint;
+
+-- Zie je hieronder "DEEL 1 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 2.
+select 'DEEL 1 VAN 14 IS HELEMAAL GEDRAAID' as klaar;

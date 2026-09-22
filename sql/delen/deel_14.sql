@@ -2,8 +2,13 @@
 --  DEEL 14 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 13. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 14 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -59,3 +64,7 @@ begin
   $v$;
   execute 'grant select on public.sprint_scores to anon, authenticated';
 end $$;
+
+-- Zie je hieronder "DEEL 14 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Dat was de laatste.
+select 'DEEL 14 VAN 14 IS HELEMAAL GEDRAAID' as klaar;

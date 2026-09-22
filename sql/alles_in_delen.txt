@@ -4,10 +4,19 @@
 --
 --  Te groot om in één keer te plakken? Doe het dan per deel:
 --
---    1. Zoek hieronder "DEEL 1 VAN 14".
---    2. Kopieer alles vanaf die regel tot aan "EINDE DEEL 1".
---    3. Plak het in de SQL-editor van Supabase en druk op RUN.
---    4. Pas als je groen "Success" ziet: door naar DEEL 2. Enzovoort.
+--    1. Maak de SQL-editor van Supabase LEEG: klik op "+ New query",
+--       of Ctrl+A en Delete. Er mag niets meer in staan.
+--    2. Zoek hieronder "DEEL 1 VAN 14".
+--    3. Kopieer alles vanaf "kopieer vanaf hier" tot en met "EINDE DEEL 1".
+--    4. Plak het in de lege editor en druk op RUN.
+--    5. Onderaan moet nu staan: "DEEL 1 VAN 14 IS HELEMAAL GEDRAAID".
+--       Zie je dat niet, dan is er iets afgekapt -- plak dat deel opnieuw.
+--    6. Editor weer leeg, en door met DEEL 2. Enzovoort, tot en met deel 14.
+--
+--  Krijg je een "syntax error"? Dan stond er bijna altijd nog iets anders in de
+--  editor, of is het deel niet helemaal meegekopieerd. Bij een syntax error draait
+--  er NIETS -- je database is dan niet veranderd. Maak de editor leeg en plak dat
+--  deel opnieuw.
 --
 --  De volgorde doet ertoe: elk deel gebruikt wat de delen ervoor hebben aangemaakt.
 --  Gaat er iets mis, ga dan niet verder. Alles is veilig om opnieuw te draaien.
@@ -31,8 +40,12 @@
 --  DEEL 1 VAN 14
 -- ============================================================================
 --
---  Begin hier. Plak dit deel in de SQL-editor van Supabase en druk op RUN.
---  Pas als dat gelukt is (groen, "Success"), ga je door met deel 2.
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
+--  Begin hier. Plak dit deel in de lege editor en druk op RUN.
+--  Onderaan hoort dan "DEEL 1 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -191,6 +204,10 @@ create unique index if not exists pk_players_seat on public.pk_players (lobby_id
 alter table public.pk_rounds add column if not exists act_seq     integer not null default 0;
 alter table public.pk_rounds add column if not exists button_lobby_seat smallint;
 
+-- Zie je hieronder "DEEL 1 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 2.
+select 'DEEL 1 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 1 -- kopieer tot hier, RUN, en dan door naar deel 2
 -- ############################################################################
@@ -206,8 +223,13 @@ alter table public.pk_rounds add column if not exists button_lobby_seat smallint
 --  DEEL 2 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 1. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 2 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -316,6 +338,10 @@ with (security_invoker = false) as
 
 grant select on public.pk_table to anon, authenticated;
 
+-- Zie je hieronder "DEEL 2 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 3.
+select 'DEEL 2 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 2 -- kopieer tot hier, RUN, en dan door naar deel 3
 -- ############################################################################
@@ -331,8 +357,13 @@ grant select on public.pk_table to anon, authenticated;
 --  DEEL 3 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 2. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 3 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -464,6 +495,10 @@ begin
 end;
 $$;
 
+-- Zie je hieronder "DEEL 3 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 4.
+select 'DEEL 3 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 3 -- kopieer tot hier, RUN, en dan door naar deel 4
 -- ############################################################################
@@ -479,8 +514,13 @@ $$;
 --  DEEL 4 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 3. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 4 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -634,6 +674,10 @@ begin
 end;
 $$;
 
+-- Zie je hieronder "DEEL 4 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 5.
+select 'DEEL 4 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 4 -- kopieer tot hier, RUN, en dan door naar deel 5
 -- ############################################################################
@@ -649,8 +693,13 @@ $$;
 --  DEEL 5 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 4. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 5 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -754,6 +803,10 @@ $$;
 revoke all on function public.pk_sit(integer) from public, anon;
 grant execute on function public.pk_sit(integer) to authenticated;
 
+-- Zie je hieronder "DEEL 5 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 6.
+select 'DEEL 5 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 5 -- kopieer tot hier, RUN, en dan door naar deel 6
 -- ############################################################################
@@ -769,8 +822,13 @@ grant execute on function public.pk_sit(integer) to authenticated;
 --  DEEL 6 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 5. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 6 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -867,6 +925,10 @@ $$;
 revoke all on function public.pk_leave() from public, anon;
 grant execute on function public.pk_leave() to authenticated;
 
+-- Zie je hieronder "DEEL 6 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 7.
+select 'DEEL 6 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 6 -- kopieer tot hier, RUN, en dan door naar deel 7
 -- ############################################################################
@@ -882,8 +944,13 @@ grant execute on function public.pk_leave() to authenticated;
 --  DEEL 7 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 6. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 7 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1016,6 +1083,10 @@ begin
 end;
 $$;
 
+-- Zie je hieronder "DEEL 7 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 8.
+select 'DEEL 7 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 7 -- kopieer tot hier, RUN, en dan door naar deel 8
 -- ############################################################################
@@ -1031,8 +1102,13 @@ $$;
 --  DEEL 8 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 7. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 8 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1114,6 +1190,10 @@ begin
 end;
 $$;
 
+-- Zie je hieronder "DEEL 8 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 9.
+select 'DEEL 8 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 8 -- kopieer tot hier, RUN, en dan door naar deel 9
 -- ############################################################################
@@ -1129,8 +1209,13 @@ $$;
 --  DEEL 9 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 8. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 9 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1289,6 +1374,10 @@ begin
 end;
 $$;
 
+-- Zie je hieronder "DEEL 9 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 10.
+select 'DEEL 9 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 9 -- kopieer tot hier, RUN, en dan door naar deel 10
 -- ############################################################################
@@ -1304,8 +1393,13 @@ $$;
 --  DEEL 10 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 9. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 10 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1317,6 +1411,10 @@ $$;
 revoke all on function public.pk_advance(bigint) from public, anon, authenticated;
 revoke all on function public.pk_settle(bigint) from public, anon, authenticated;
 revoke all on function public.pk_next_seat(bigint, smallint) from public, anon, authenticated;
+
+-- Zie je hieronder "DEEL 10 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 11.
+select 'DEEL 10 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
 
 -- ############################################################################
 -- ####  EINDE DEEL 10 -- kopieer tot hier, RUN, en dan door naar deel 11
@@ -1333,8 +1431,13 @@ revoke all on function public.pk_next_seat(bigint, smallint) from public, anon, 
 --  DEEL 11 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 10. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 11 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1569,6 +1672,10 @@ begin
 end;
 $$;
 
+-- Zie je hieronder "DEEL 11 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 12.
+select 'DEEL 11 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 11 -- kopieer tot hier, RUN, en dan door naar deel 12
 -- ############################################################################
@@ -1584,8 +1691,13 @@ $$;
 --  DEEL 12 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 11. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 12 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1729,6 +1841,10 @@ $$;
 revoke all on function public.sprint_reset() from public;
 grant execute on function public.sprint_reset() to authenticated;
 
+-- Zie je hieronder "DEEL 12 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 13.
+select 'DEEL 12 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 12 -- kopieer tot hier, RUN, en dan door naar deel 13
 -- ############################################################################
@@ -1744,8 +1860,13 @@ grant execute on function public.sprint_reset() to authenticated;
 --  DEEL 13 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 12. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 13 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1899,6 +2020,10 @@ with (security_invoker = false, security_barrier = true) as
 
 grant select on public.pk_my_ledger to authenticated;
 
+-- Zie je hieronder "DEEL 13 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Maak de editor leeg en ga door met deel 14.
+select 'DEEL 13 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
+
 -- ############################################################################
 -- ####  EINDE DEEL 13 -- kopieer tot hier, RUN, en dan door naar deel 14
 -- ############################################################################
@@ -1914,8 +2039,13 @@ grant select on public.pk_my_ledger to authenticated;
 --  DEEL 14 VAN 14
 -- ============================================================================
 --
+--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er
+--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt
+--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.
+--
 --  Plak dit pas NA deel 13. Die volgorde doet ertoe: dit deel gebruikt
 --  wat de delen ervoor hebben aangemaakt.
+--  Onderaan hoort dan "DEEL 14 VAN 14 IS HELEMAAL GEDRAAID" te staan.
 --
 --  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is
 --  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.
@@ -1971,6 +2101,10 @@ begin
   $v$;
   execute 'grant select on public.sprint_scores to anon, authenticated';
 end $$;
+
+-- Zie je hieronder "DEEL 14 VAN 14 IS HELEMAAL GEDRAAID"? Dan is
+-- dit deel compleet aangekomen en gelukt. Dat was de laatste.
+select 'DEEL 14 VAN 14 IS HELEMAAL GEDRAAID' as klaar;
 
 -- ############################################################################
 -- ####  EINDE DEEL 14 -- kopieer tot hier, RUN -- en dan ben je klaar

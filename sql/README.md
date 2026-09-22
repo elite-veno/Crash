@@ -26,6 +26,14 @@ onder elkaar, elk tussen een regel "kopieer vanaf hier" en "EINDE DEEL n". De
 scheidingslijnen zijn SQL-commentaar, dus een regel te veel meekopiëren doet niets -- en
 het hele bestand in één keer draaien werkt ook.
 
+Maak de editor **leeg** voor elk deel ("+ New query", of Ctrl+A en Delete). Stond er nog
+een half afgebroken stuk van een eerdere poging in, dan raken de `$$`-paren van de
+functies scheef en krijg je een "syntax error" op een plek die niets zegt -- zoals
+`syntax error at or near "select"` midden in `sprint_now()`. Elk deel eindigt daarom met
+een regel die onder in de editor verschijnt: "DEEL n VAN 14 IS HELEMAAL GEDRAAID". Staat
+die er niet, dan is het deel niet compleet aangekomen. Bij een syntax error draait er
+overigens niets: de database blijft zoals hij was.
+
 De losse bestanden blijven de bron. `node tools/bouw_alles.js` maakt `alles.sql`, de
 delen en het tekstbestand daaruit, dus pas nooit alleen een afdruk aan. Wil je kleinere delen, geef dan een
 aantal regels mee: `node tools/bouw_alles.js 80`.

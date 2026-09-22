@@ -131,11 +131,15 @@ pakketten.forEach((p, k) => {
     '--  DEEL ' + nr + ' VAN ' + totaal + '\n' +
     streep +
     '--\n' +
+    '--  EERST DE EDITOR LEEGMAKEN: klik op "+ New query", of Ctrl+A en Delete. Staat er\n' +
+    '--  nog iets van een vorige poging in -- zeker een half afgebroken stuk -- dan loopt\n' +
+    '--  alles daarna scheef en krijg je een "syntax error" op een plek die niets zegt.\n' +
+    '--\n' +
     (nr === 1
-      ? '--  Begin hier. Plak dit deel in de SQL-editor van Supabase en druk op RUN.\n' +
-        '--  Pas als dat gelukt is (groen, "Success"), ga je door met deel 2.\n'
+      ? '--  Begin hier. Plak dit deel in de lege editor en druk op RUN.\n'
       : '--  Plak dit pas NA deel ' + (nr - 1) + '. Die volgorde doet ertoe: dit deel gebruikt\n' +
         '--  wat de delen ervoor hebben aangemaakt.\n') +
+    '--  Onderaan hoort dan "DEEL ' + nr + ' VAN ' + totaal + ' IS HELEMAAL GEDRAAID" te staan.\n' +
     '--\n' +
     '--  Gaat er iets mis, draai dan niet verder -- kijk eerst wat er fout ging. Alles is\n' +
     '--  veilig om opnieuw te draaien, dus een deel nog een keer plakken kan altijd.\n' +
@@ -147,8 +151,17 @@ pakketten.forEach((p, k) => {
         '--  `poker` mag daar nooit bij -- daar liggen de holekaarten en de zaadjes.\n'
       : '') +
     streep + '\n';
+  // De laatste regel van elk deel is een bevestiging die onder in de editor verschijnt.
+  // Wie op een telefoon plakt, merkt anders niet dat het klembord een stuk heeft
+  // afgekapt: een deel dat halverwege een functie ophoudt geeft een fout, maar een deel
+  // dat netjes tussen twee opdrachten ophoudt draait gewoon -- half. Deze regel komt
+  // alleen in beeld als het deel tot het eind is aangekomen.
+  const klaar = '\n\n-- Zie je hieronder "DEEL ' + nr + ' VAN ' + totaal + ' IS HELEMAAL GEDRAAID"? Dan is\n' +
+    '-- dit deel compleet aangekomen en gelukt.' +
+    (nr < totaal ? ' Maak de editor leeg en ga door met deel ' + (nr + 1) + '.' : ' Dat was de laatste.') + '\n' +
+    "select 'DEEL " + nr + ' VAN ' + totaal + " IS HELEMAAL GEDRAAID' as klaar;\n";
   fs.writeFileSync(path.join(delenMap, 'deel_' + pad2(nr) + '.sql'),
-    kopDeel + p.stukken.map(s => s.tekst).join('').replace(/\s+$/, '') + '\n');
+    kopDeel + p.stukken.map(s => s.tekst).join('').replace(/\s+$/, '') + klaar);
 });
 
 console.log('sql/alles.sql: ' + alles.split('\n').length + ' regels uit ' + DELEN.length + ' bestanden');
@@ -169,10 +182,19 @@ let txt =
   '--\n' +
   '--  Te groot om in één keer te plakken? Doe het dan per deel:\n' +
   '--\n' +
-  '--    1. Zoek hieronder "DEEL 1 VAN ' + totaal + '".\n' +
-  '--    2. Kopieer alles vanaf die regel tot aan "EINDE DEEL 1".\n' +
-  '--    3. Plak het in de SQL-editor van Supabase en druk op RUN.\n' +
-  '--    4. Pas als je groen "Success" ziet: door naar DEEL 2. Enzovoort.\n' +
+  '--    1. Maak de SQL-editor van Supabase LEEG: klik op "+ New query",\n' +
+  '--       of Ctrl+A en Delete. Er mag niets meer in staan.\n' +
+  '--    2. Zoek hieronder "DEEL 1 VAN ' + totaal + '".\n' +
+  '--    3. Kopieer alles vanaf "kopieer vanaf hier" tot en met "EINDE DEEL 1".\n' +
+  '--    4. Plak het in de lege editor en druk op RUN.\n' +
+  '--    5. Onderaan moet nu staan: "DEEL 1 VAN ' + totaal + ' IS HELEMAAL GEDRAAID".\n' +
+  '--       Zie je dat niet, dan is er iets afgekapt -- plak dat deel opnieuw.\n' +
+  '--    6. Editor weer leeg, en door met DEEL 2. Enzovoort, tot en met deel ' + totaal + '.\n' +
+  '--\n' +
+  '--  Krijg je een "syntax error"? Dan stond er bijna altijd nog iets anders in de\n' +
+  '--  editor, of is het deel niet helemaal meegekopieerd. Bij een syntax error draait\n' +
+  '--  er NIETS -- je database is dan niet veranderd. Maak de editor leeg en plak dat\n' +
+  '--  deel opnieuw.\n' +
   '--\n' +
   '--  De volgorde doet ertoe: elk deel gebruikt wat de delen ervoor hebben aangemaakt.\n' +
   '--  Gaat er iets mis, ga dan niet verder. Alles is veilig om opnieuw te draaien.\n' +
