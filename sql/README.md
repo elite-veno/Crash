@@ -43,6 +43,18 @@ su postgres -c "psql -h $D/sock -U postgres -q -f sql/poker_test.sql"
 node tools/poker_sql_test.js 2000
 ```
 
+Er staan ook twee toetsen die de PAGINA draaien in plaats van de database:
+
+```sh
+npm install playwright           # chromium staat al klaar in deze omgeving
+node tools/pok_scherm_test.js    # tekent de tafel in elke fase van een hand
+node tools/pok_eerlijk_test.js   # rekent het eerlijkheidsbewijs na, ook met een vervalst bord
+```
+
+Die twee zijn de enige die zouden merken dat het scherm klapt zodra er echt een hand op
+staat -- de rest gaat over regels en over de database. De eerste vond meteen dat de
+fasebalk "SIT DOWN TO PLAY" zei terwijl je zat te spelen.
+
 `tools/poker_sql_test.js` is de belangrijkste van de twee: die legt de handbeoordelaar in
 SQL naast die in `crash.html` en controleert dat ze op elke hand hetzelfde zeggen. Zeggen
 ze iets anders, dan ziet een speler zichzelf winnen terwijl het geld naar een ander gaat.
