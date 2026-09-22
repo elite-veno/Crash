@@ -199,3 +199,40 @@ select pg_temp.zegt('maar wel dat er gedeeld is, via de hash per stoel', '2',
   (select count(*)::text from public.pk_seats_public where card_commit is not null));
 select pg_temp.zegt('het zaadje blijft dicht zolang de hand loopt', '0',
   (select count(*)::text from public.pk_live where deck_seed is not null));
+
+-- ---------- het grootboek ----------
+-- Poker is het enige spel hier waar geld tussen accounts beweegt. Wat dat met je saldo
+-- doet wordt bijgehouden, zodat de sprintranglijst niet te sturen is door fiches naar een
+-- vriend te schuiven.
+do $$ begin
+  if to_regclass('public.pk_ledger') is null then
+    raise notice 'het grootboek staat er niet in, deze test wordt overgeslagen';
+  end if;
+end $$;
+
+truncate public.pk_players, public.pk_rounds, public.pk_seats cascade;
+delete from poker.hole; delete from poker.deck;
+delete from public.pk_ledger;
+update public.profiles set balance = 1000, poker_net = 0, poker_net_sprint = null;
+
+-- ann koopt in voor 200 en staat meteen weer op: netto nul.
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.zegt('inkopen staat als min in het grootboek', '-200',
+  (select amount::text from public.pk_ledger order by id desc limit 1));
+select pg_temp.zegt('en de stand van deze sprint ook', '-200',
+  (select poker_net::text from public.profiles where username = 'ann'));
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_leave()');
+select pg_temp.zegt('opstaan zet hem weer op nul', '0',
+  (select poker_net::text from public.profiles where username = 'ann'));
+
+-- bob koopt in voor 200 en staat op met 350: netto honderdvijftig erbij. Dat is precies
+-- wat er van de ranglijst af moet, want het kwam van een andere speler.
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+update public.pk_players set stack = 350 where username = 'bob';
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_leave()');
+select pg_temp.zegt('wat je van tafel meeneemt telt mee', '150',
+  (select poker_net::text from public.profiles where username = 'bob'));
+select pg_temp.zegt('en staat als twee regels in het grootboek', '2',
+  (select count(*)::text from public.pk_ledger where username = 'bob'));
+select pg_temp.zegt('een speler ziet alleen zijn eigen regels', 'false',
+  has_table_privilege('authenticated', 'public.pk_ledger', 'select')::text);

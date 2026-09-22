@@ -224,6 +224,12 @@ begin
   insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
        values (v_lobby, v_uid, v_naam, v_stoel, v_koop);
 
+  -- In het grootboek, zodat na te rekenen is wat poker met je saldo heeft gedaan. Zie
+  -- sql/poker_ledger.sql; zonder dat bestand slaat dit stil over.
+  if to_regprocedure('poker.note(uuid, text, bigint, text, integer)') is not null then
+    execute 'select poker.note($1, $2, $3, $4, $5)' using v_uid, v_naam, v_lobby, 'sit', -v_koop;
+  end if;
+
   return json_build_object('ok', true, 'seat', v_stoel, 'stack', v_koop,
                            'balance', v_saldo - v_koop);
 end;
@@ -258,6 +264,11 @@ begin
 
   delete from public.pk_players where user_id = v_uid;
   update public.profiles set balance = balance + v_stack where id = v_uid;
+
+  if to_regprocedure('poker.note(uuid, text, bigint, text, integer)') is not null then
+    execute 'select poker.note($1, $2, $3, $4, $5)' using
+      v_uid, (select username from public.profiles where id = v_uid), v_lobby, 'leave', v_stack;
+  end if;
 
   return json_build_object('ok', true, 'stack', v_stack);
 end;

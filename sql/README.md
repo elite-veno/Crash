@@ -9,6 +9,7 @@ draaien.
 | `sprint_reset.sql` | iedereen na elke sprint terug op $1000 |
 | `poker.sql` | de tabellen en views van poker |
 | `poker_rpc.sql` | de functies van poker: delen, inzetten, afrekenen |
+| `poker_ledger.sql` | houdt bij wat poker met een saldo doet, zodat de sprintranglijst klopt |
 
 **Er staat hier geen enkele sleutel in, en die hoort er ook niet in.** De pagina gebruikt
 alleen de publieke sleutel; de `service_role`-sleutel hoort nergens anders dan in het
@@ -29,13 +30,29 @@ su postgres -c "$PG/pg_ctl -D $D/data -o '-k $D/sock -h \"\"' -l $D/log start"
 
 # en dan alles erin
 su postgres -c "psql -h $D/sock -U postgres -q \
-  -f sql/test_stub.sql -f sql/sprint_reset.sql -f sql/poker.sql -f sql/poker_rpc.sql"
+  -f sql/test_stub.sql -f sql/sprint_reset.sql -f sql/poker.sql -f sql/poker_rpc.sql \
+  -f sql/poker_ledger.sql"
 
 # de tests
 su postgres -c "psql -h $D/sock -U postgres -q -f sql/sprint_reset_test.sql"
+su postgres -c "psql -h $D/sock -U postgres -q -f sql/poker_test.sql"
 node tools/poker_sql_test.js 2000
 ```
 
 `tools/poker_sql_test.js` is de belangrijkste van de twee: die legt de handbeoordelaar in
 SQL naast die in `crash.html` en controleert dat ze op elke hand hetzelfde zeggen. Zeggen
 ze iets anders, dan ziet een speler zichzelf winnen terwijl het geld naar een ander gaat.
+
+## Poker en de ranglijst
+
+Poker is het enige spel hier waar geld tussen ACCOUNTS beweegt; alle andere gaan tegen het
+huis. Dat botst met de sprintranglijst, die winst rekent als saldo-nu min saldo-aan-het-
+begin en de nummer één een VIP-pas geeft: twee vrienden aan een privétafel kunnen de fiches
+van de een naar de ander schuiven en die ander zo bovenaan zetten zonder dat er iets
+gewonnen is.
+
+`poker_ledger.sql` houdt daarom per speler bij wat poker deze sprint met zijn saldo heeft
+gedaan, en legt een view `sprint_scores` naast de bestaande `season_scores` met een kolom
+`gain_no_poker`. **Die view wordt alleen aangemaakt als `season_scores` al bestaat**, en de
+ranglijst op de pagina moet er nog op overgezet worden -- dat kan pas als de definitie van
+`season_scores` bekend is.
