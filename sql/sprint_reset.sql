@@ -178,7 +178,13 @@ revoke all on function public.sprint_guard() from public, anon, authenticated;
 -- inzet zelf is geen probleem -- die was al van het saldo af, en dat saldo bestaat niet
 -- meer. Alleen de uitbetaling moet tegengehouden worden.
 --
--- Deze functie is wat elke afrekening aanroept voordat hij geld bijschrijft.
+-- Hier stond "deze functie is wat elke afrekening aanroept". Dat was niet waar, en zo'n
+-- zin is erger dan geen zin: hij laat je vertrouwen op een grendel die nergens dicht zit.
+--
+-- Waar hij WEL gebruikt wordt: pk_settle roept hem aan voor de enige uitbetaling die bij
+-- poker rechtstreeks op een saldo landt -- die van een speler die tijdens de hand is
+-- opgestaan. Al het andere bij poker gaat naar de stapel op tafel en niet naar het saldo,
+-- en die stapels worden bij de sprintgrens toch afgebroken door poker.void_all.
 create or replace function public.sprint_may_pay(p_uid uuid, p_round_started timestamptz)
 returns boolean
 language sql

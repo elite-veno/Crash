@@ -38,7 +38,11 @@ create table if not exists public.pk_rounds (
   -- De hash van het zaadje gaat vooraf naar de spelers; het zaadje zelf staat in het
   -- schema hiernaast en komt pas vrij als de hand is afgerekend.
   deck_commit  text not null,
-  button_seat  smallint not null default 0,
+  button_seat  smallint not null default 0,   -- de plek BINNEN deze hand (0..n-1)
+  -- En de stoel AAN TAFEL waar de knop lag. De hand hernummert elke keer opnieuw, dus
+  -- alleen op het rondenummer draaien laat de knop verspringen zodra er iemand aanschuift
+  -- of weggaat. Dit is wat de volgende hand oppakt.
+  button_lobby_seat smallint,
   -- Fiches zijn hele dollars. Centen blijven in profiles.balance en komen de tafel niet
   -- op: dan valt er bij het verdelen van een pot niets weg in de afronding.
   sb           integer not null default 5,
@@ -75,6 +79,11 @@ create table if not exists public.pk_seats (
   -- ervan, zodat elke speler zijn eigen kaarten meteen kan narekenen zonder dat iemand
   -- anders iets te zien krijgt.
   card_commit text,
+  -- Opgestaan terwijl de hand nog liep. Dan is er geen rij meer in pk_players om de
+  -- uitbetaling op te zetten, en zonder deze vlag verdween die uitbetaling: het geld was
+  -- uit het spel weg. Ook nodig om een verse inkoop niet te overschrijven met de stapel
+  -- van de stoel die hij net verlaten heeft.
+  left_table boolean not null default false,
   shown      boolean not null default false,    -- open gegooid bij de showdown
   hole       text[] not null default '{}',      -- pas gevuld bij de showdown
   payout     integer not null default 0,
@@ -120,6 +129,17 @@ create table if not exists public.pk_players (
 create unique index if not exists pk_players_seat on public.pk_players (lobby_id, seat_no);
 
 -- ---------- de kaarten van een ander zijn niet van jou ----------
+-- ---------- kolommen die er later bij kwamen ----------
+-- `create table if not exists` slaat een bestaande tabel over, ook als er kolommen bij
+-- zijn gekomen. Zonder deze regels krijgt wie het bestand eerder al draaide de nieuwe
+-- kolommen niet, en dat valt pas op als een functie erover struikelt. Staan ze er al, dan
+-- doet dit niets.
+alter table public.pk_rounds add column if not exists act_seq     integer not null default 0;
+alter table public.pk_rounds add column if not exists button_lobby_seat smallint;
+alter table public.pk_seats  add column if not exists may_raise   boolean not null default true;
+alter table public.pk_seats  add column if not exists card_commit text;
+alter table public.pk_seats  add column if not exists left_table  boolean not null default false;
+
 -- Dit is de kern. De pagina is openbaar en iedereen kan met de publieke sleutel
 -- rechtstreeks de REST-laag bevragen, dus een view die alle kaarten teruggeeft is meteen
 -- vals spel. Row-level security laat alleen je eigen rij door -- of elke rij die bij de
@@ -247,9 +267,12 @@ begin
        set stack = s.stack + s.total_bet, total_bet = 0, bet = 0
      where s.round_id = v_ronde;
 
+    -- Op de lobby van DEZE ronde, niet op elke tafel waar deze speler toevallig zit.
+    -- Zonder die grens overschreef een reset aan de ene tafel zijn stapel aan de andere.
     update public.pk_players pl set stack = s.stack
-      from public.pk_seats s
-     where s.round_id = v_ronde and s.user_id = pl.user_id;
+      from public.pk_seats s, public.pk_rounds rd
+     where rd.id = v_ronde and s.round_id = v_ronde
+       and s.user_id = pl.user_id and pl.lobby_id = rd.lobby_id;
 
     update public.pk_rounds
        set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null

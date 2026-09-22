@@ -437,3 +437,129 @@ select pg_temp.zegt('en zijn inkoop staat helemaal terug', '1000',
   (select balance::text from public.profiles where username = 'cas'));
 select pg_temp.zegt('de hand van de anderen loopt nog steeds', '1',
   (select count(*)::text from public.pk_rounds where settled_at is null));
+
+-- ---------- opstaan terwijl je nog geld tegoed hebt ----------
+-- De uitbetaling van een hand landde op pk_players. Wie tijdens die hand opstond had daar
+-- geen rij meer, dus de join vond niets en het geld was uit het spel weg -- terwijl zijn
+-- stoel wel degelijk iets kreeg: een inzet die niemand callde komt terug, en wie all-in
+-- ging kan de hand gewoon winnen.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck;
+  -- Allebei ingekocht voor 100, dus 900 op het saldo en 100 op tafel. Dat moet kloppen,
+  -- anders toetst de som aan het eind niets.
+  update public.profiles set balance = 900, reset_sprint = public.sprint_now()
+   where username in ('ann', 'bob');
+  insert into public.lobby_members (lobby_id, user_id)
+       select 1, id from public.profiles on conflict do nothing;
+  -- Een hand waarin ann all-in staat en bob gepast heeft: ann hoort alles te krijgen.
+  -- Allebei hebben hun hele stapel van 100 ingezet, dus voor de stoelen ligt er niets meer.
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 0),
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 0);
+  insert into public.pk_rounds (id, lobby_id, deck_commit, street, high_bet)
+       values (8881, 1, 'x', 3, 100);
+  insert into public.pk_seats (round_id, seat_no, user_id, username, stack, total_bet, allin, acted, hole) values
+    (8881, 0, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 100, true,  true, '{As,Ks}'),
+    (8881, 1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 0, 100, false, true, '{2c,7d}');
+  update public.pk_seats set folded = true where round_id = 8881 and seat_no = 1;
+end $$;
+
+set test.uid = 'aaaaaaaa-0000-0000-0000-000000000001';
+select public.pk_leave();
+select pg_temp.zegt('wie all-in staat wordt niet weggepast bij het opstaan', 'false',
+  (select folded::text from public.pk_seats where round_id = 8881 and seat_no = 0));
+select pg_temp.zegt('maar hij staat wel als vertrokken gemerkt', 'true',
+  (select left_table::text from public.pk_seats where round_id = 8881 and seat_no = 0));
+select public.pk_settle(8881);
+select pg_temp.zegt('zijn stoel wint de pot', '200',
+  (select payout::text from public.pk_seats where round_id = 8881 and seat_no = 0));
+select pg_temp.zegt('en dat geld komt op zijn saldo terecht', '1100',
+  (select balance::text from public.profiles where username = 'ann'));
+select pg_temp.zegt('bob houdt zijn saldo maar is zijn inzet kwijt', '900',
+  (select balance::text from public.profiles where username = 'bob'));
+select pg_temp.zegt('en zit met een lege stapel aan tafel', '0',
+  (select stack::text from public.pk_players where username = 'bob'));
+
+-- Alles bij elkaar is nog steeds tweeduizend: 1000 + 1000 aan het begin.
+select pg_temp.zegt('er zijn geen fiches bij gekomen of af gegaan', '2000',
+  (select (coalesce((select sum(balance) from public.profiles
+                      where username in ('ann', 'bob')), 0)
+         + coalesce((select sum(stack) from public.pk_players
+                      where username in ('ann', 'bob')), 0))::text));
+
+-- En opstaan-en-meteen-opnieuw-inkopen mag de verse inkoop niet overschrijven met de
+-- stapel van de stoel die je net verlaten hebt.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  update public.profiles set balance = 1000;
+  insert into public.pk_rounds (id, lobby_id, deck_commit, street, high_bet)
+       values (8882, 1, 'x', 3, 50);
+  insert into public.pk_seats (round_id, seat_no, user_id, username, stack, total_bet, folded, acted, left_table) values
+    (8882, 0, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 50, true, true, true),
+    (8882, 1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 150, 50, false, true, '{}' is null);
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 300),
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 150);
+end $$;
+select public.pk_settle(8882);
+select pg_temp.zegt('een verse inkoop blijft staan na het afrekenen', '300',
+  (select stack::text from public.pk_players where username = 'ann'));
+
+-- ---------- de knop draait echt rond ----------
+-- De knop hing aan het nummer BINNEN de hand, en dat nummer wordt elke hand opnieuw
+-- uitgedeeld op volgorde van de tafelstoelen van wie er fiches heeft. Schuift er iemand
+-- aan op een lagere tafelstoel, dan schuift iedereen daarachter een plek op en wijst
+-- hetzelfde rondenummer een andere speler aan: dezelfde twee posten twee handen achter
+-- elkaar de blinds en de nieuwkomer krijgt de knop cadeau.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+  insert into public.lobby_members (lobby_id, user_id)
+       select 1, id from public.profiles on conflict do nothing;
+  -- bob en cas zitten op tafelstoel 1 en 2; stoel 0 is nog vrij.
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 200),
+    (1, 'aaaaaaaa-0000-0000-0000-000000000003', 'cas', 2, 200);
+end $$;
+select public.pk_tick(1);
+select pg_temp.zegt('de eerste knop ligt op de laagste bezette tafelstoel', '1',
+  (select button_lobby_seat::text from public.pk_rounds order by id desc limit 1));
+
+-- Hand afbreken en ann laten aanschuiven op tafelstoel 0 -- voor de anderen dus.
+do $$ begin
+  update public.pk_rounds set settled_at = now() where settled_at is null;
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
+       values (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 200);
+end $$;
+select public.pk_tick(1);
+select pg_temp.zegt('de knop schuift naar de volgende tafelstoel, niet terug', '2',
+  (select button_lobby_seat::text from public.pk_rounds order by id desc limit 1));
+select pg_temp.zegt('en de nieuwkomer krijgt hem niet cadeau', 'cas',
+  (select s.username from public.pk_seats s
+     join public.pk_rounds r on r.id = s.round_id
+    where r.id = (select max(id) from public.pk_rounds) and s.seat_no = r.button_seat));
+
+-- Nog een hand: nu moet hij ronddraaien naar de laagste, dus naar ann op tafelstoel 0.
+do $$ begin
+  update public.pk_rounds set settled_at = now() where settled_at is null;
+  update public.pk_players set stack = 200;
+end $$;
+select public.pk_tick(1);
+select pg_temp.zegt('daarna draait hij rond naar de laagste tafelstoel', '0',
+  (select button_lobby_seat::text from public.pk_rounds order by id desc limit 1));
+select pg_temp.zegt('en dat is ann', 'ann',
+  (select s.username from public.pk_seats s
+     join public.pk_rounds r on r.id = s.round_id
+    where r.id = (select max(id) from public.pk_rounds) and s.seat_no = r.button_seat));
+
+-- En wie van tafel gaat mag de knop niet laten terugspringen.
+do $$ begin
+  update public.pk_rounds set settled_at = now() where settled_at is null;
+  delete from public.pk_players where username = 'cas';
+  update public.pk_players set stack = 200;
+end $$;
+select public.pk_tick(1);
+select pg_temp.zegt('na een vertrek schuift hij gewoon door', '1',
+  (select button_lobby_seat::text from public.pk_rounds order by id desc limit 1));

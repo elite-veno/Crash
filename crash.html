@@ -8683,14 +8683,43 @@ async function seasonClose() {
 }
 
 // What each player earned this season: the ranking the bonus is actually decided on.
+// De ranglijst rekent winst als saldo-nu min saldo-aan-het-begin. Bij elk ander spel klopt
+// dat: je speelt tegen het huis, dus wat erbij komt is gewonnen. Bij poker niet. Daar komt
+// het geld van een ANDERE SPELER, en aan een privétafel kunnen twee vrienden de fiches van
+// de een naar de ander schuiven tot die ander bovenaan staat en de VIP-pas pakt -- zonder
+// dat er iets gewonnen is.
+//
+// `sprint_scores` trekt daarom af wat poker deze sprint met je saldo heeft gedaan. Die view
+// wordt alleen aangemaakt als sql/poker_ledger.sql gedraaid is; bestaat hij niet, dan valt
+// dit terug op de oude berekening en staat er in elk geval iets.
+let seasonScoresView = 'sprint_scores';
 async function seasonScoresPull() {
   if (!online()) { SEASON.scores = []; return; }
-  try {
-    const rows = await api('/rest/v1/season_scores?select=username,start_balance,end_balance,start_rounds,end_rounds&season=eq.' +
+  const lees = async (view) => {
+    const kolommen = view === 'sprint_scores'
+      ? 'username,start_rounds,end_rounds,gain_no_poker'
+      : 'username,start_balance,end_balance,start_rounds,end_rounds';
+    return api('/rest/v1/' + view + '?select=' + kolommen + '&season=eq.' +
       sprintId() + '&limit=200', { auth: false });
+  };
+  try {
+    let rows;
+    try {
+      rows = await lees(seasonScoresView);
+    } catch (e) {
+      // Geen sprint_scores in deze Supabase: één keer terugvallen en dat onthouden.
+      if (seasonScoresView !== 'sprint_scores' || !missingRpc(e)) throw e;
+      seasonScoresView = 'season_scores';
+      rows = await lees(seasonScoresView);
+    }
     SEASON.scores = (Array.isArray(rows) ? rows : [])
       .filter(r => Number(r.end_rounds) > Number(r.start_rounds))
-      .map(r => ({ username: String(r.username || '?').slice(0, 16), gain: round2(Number(r.end_balance) - Number(r.start_balance)) }))
+      .map(r => ({
+        username: String(r.username || '?').slice(0, 16),
+        gain: round2(r.gain_no_poker != null
+          ? Number(r.gain_no_poker)
+          : Number(r.end_balance) - Number(r.start_balance)),
+      }))
       .sort((a, b) => b.gain - a.gain);
   } catch { SEASON.scores = []; }
 }

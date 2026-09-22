@@ -298,8 +298,18 @@ begin
     -- het afrekenen bijgewerkt; tijdens een hand staat daar nog de stand van VOOR je
     -- inzetten. Wie daarmee uitbetaalt, geeft alles terug wat er al in de pot ligt --
     -- geld uit het niets, en te herhalen zo vaak je wilt.
-    update public.pk_seats s set folded = true, acted = true
-     where s.round_id = v_ronde and s.user_id = v_uid and not s.folded;
+    -- Passen, maar NIET als je all-in staat. Wie al zijn fiches in de pot heeft, heeft
+    -- niets meer te beslissen: die hand speelt zichzelf uit en hij hoort gewoon mee te
+    -- doen aan de showdown. Hem laten passen omdat hij opstaat gaf zijn pot aan de
+    -- anderen -- je verloor een hand die je misschien al gewonnen had.
+    --
+    -- En `left_table` erbij, zodat de afrekening weet dat er geen stoel aan tafel meer is
+    -- om de uitbetaling op te zetten.
+    update public.pk_seats s
+       set folded = (case when s.allin then s.folded else true end),
+           acted = true,
+           left_table = true
+     where s.round_id = v_ronde and s.user_id = v_uid;
     select s.stack into v_stoelstack from public.pk_seats s
       where s.round_id = v_ronde and s.user_id = v_uid;
     -- Maar alleen als je ook echt een stoel IN die hand hebt. Wie aanschoof terwijl er al
@@ -634,7 +644,36 @@ begin
   update public.pk_players pl
      set stack = s.stack + s.payout
     from public.pk_seats s
-   where s.round_id = p_round and s.user_id = pl.user_id;
+   where s.round_id = p_round and s.user_id = pl.user_id
+     and not s.left_table;
+
+  -- En wie tijdens de hand is opgestaan, heeft geen stapel aan tafel meer. Zijn stoel kan
+  -- nog steeds geld krijgen: een inzet die niemand heeft gecalld komt terug, en wie all-in
+  -- ging en daarna opstond kan de hand gewoon winnen. Zonder deze regel landde dat nergens
+  -- -- de join hierboven vond geen rij, en het geld was uit het spel weg.
+  --
+  -- Het gaat naar het saldo, want aan tafel zit hij niet meer. sprint_may_pay houdt tegen
+  -- dat een hand van vóór zijn sprintgrens alsnog op de verse duizend landt; bestaat die
+  -- functie niet, dan wordt er gewoon uitbetaald.
+  --
+  -- De twee takken zijn bijna gelijk, en dat is met opzet: PL/pgSQL leest een opdracht pas
+  -- in als hij hem voor het eerst uitvoert, dus de tak met sprint_may_pay erin struikelt
+  -- niet over een functie die er niet is zolang die tak niet gedraaid wordt. Eén opdracht
+  -- met `to_regprocedure(...) is null or public.sprint_may_pay(...)` erin zou dat wel doen.
+  if to_regprocedure('public.sprint_may_pay(uuid, timestamptz)') is not null then
+    update public.profiles p
+       set balance = p.balance + s.payout
+      from public.pk_seats s
+     where s.round_id = p_round and s.left_table and s.payout > 0
+       and p.id = s.user_id
+       and public.sprint_may_pay(s.user_id, r.started_at);
+  else
+    update public.profiles p
+       set balance = p.balance + s.payout
+      from public.pk_seats s
+     where s.round_id = p_round and s.left_table and s.payout > 0
+       and p.id = s.user_id;
+  end if;
 
   update public.pk_rounds
      set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null, board = v_board
@@ -667,6 +706,8 @@ declare
   v_sb smallint; v_bb smallint;
   v_zout text;
   w record;
+  v_stoelen smallint[];
+  v_knop_tafel int;
 begin
   -- Eén tafel tegelijk. Twee browsers die op hetzelfde moment porren zagen allebei geen
   -- lopende hand en deelden er allebei een; op de tijdklok sloegen ze samen een beurt over.
@@ -739,9 +780,31 @@ begin
   -- De knop schuift een stoel op ten opzichte van de VORIGE hand -- niet ten opzichte van
   -- de hoogste die er ooit was. Met een max blijft hij hangen zodra hij één keer op de
   -- laatste stoel heeft gestaan, en dan post dezelfde speler elke hand de blind.
-  select coalesce((select button_seat from public.pk_rounds
-                    where lobby_id = p_lobby order by id desc limit 1), -1)
-    into v_knop;
+  --
+  -- En hij hangt aan de stoel AAN TAFEL, niet aan het nummer binnen de hand. Die twee zijn
+  -- niet hetzelfde: de hand hernummert elke keer opnieuw van nul af, op volgorde van de
+  -- tafelstoelen van wie er fiches heeft. Schuift er iemand aan op een lagere tafelstoel,
+  -- dan schuift iedereen daarachter een plek op en wijst hetzelfde rondenummer opeens een
+  -- andere speler aan -- dezelfde twee posten twee handen achter elkaar de blinds, en de
+  -- nieuwkomer krijgt de knop zonder ooit betaald te hebben. Van tafel gaan deed hetzelfde
+  -- in de andere richting.
+  --
+  -- Dus: pak de tafelstoelen van wie meedoet, op volgorde, en zoek de eerste die ECHT na
+  -- de vorige knop komt. Is er geen, dan ronddraaien naar de laagste.
+  select array_agg(pl.seat_no order by pl.seat_no) into v_stoelen
+    from public.pk_players pl where pl.lobby_id = p_lobby and pl.stack > 0;
+
+  select coalesce((select r2.button_lobby_seat from public.pk_rounds r2
+                    where r2.lobby_id = p_lobby and r2.button_lobby_seat is not null
+                    order by r2.id desc limit 1), -1)
+    into v_knop_tafel;
+
+  v_knop := 0;
+  for v_i in 1 .. array_length(v_stoelen, 1) loop
+    if v_stoelen[v_i] > v_knop_tafel then v_knop := v_i - 1; exit; end if;
+  end loop;
+  v_knop_tafel := v_stoelen[v_knop + 1];
+  v_i := 0;
 
   v_zaad := encode(poker.sha256(gen_random_uuid()::text || clock_timestamp()::text), 'hex');
   v_commit := encode(poker.sha256('commit:' || v_zaad), 'hex');
@@ -750,8 +813,9 @@ begin
   select coalesce(max(sb), 5), coalesce(max(bb), 10) into v_sb, v_bb
     from public.pk_rounds where lobby_id = p_lobby;
 
-  insert into public.pk_rounds (lobby_id, deck_commit, button_seat, sb, bb, min_raise, street)
-       values (p_lobby, v_commit, ((v_knop + 1) % greatest(v_spelers, 2))::smallint,
+  insert into public.pk_rounds (lobby_id, deck_commit, button_seat, button_lobby_seat,
+                                sb, bb, min_raise, street)
+       values (p_lobby, v_commit, v_knop::smallint, v_knop_tafel::smallint,
                v_sb, v_bb, v_bb, 0)
     returning id into v_ronde;
 

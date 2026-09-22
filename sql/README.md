@@ -57,9 +57,13 @@ gewonnen is.
 
 `poker_ledger.sql` houdt daarom per speler bij wat poker deze sprint met zijn saldo heeft
 gedaan, en legt een view `sprint_scores` naast de bestaande `season_scores` met een kolom
-`gain_no_poker`. **Die view wordt alleen aangemaakt als `season_scores` al bestaat**, en de
-ranglijst op de pagina moet er nog op overgezet worden -- dat kan pas als de definitie van
-`season_scores` bekend is.
+`gain_no_poker`. **Die view wordt alleen aangemaakt als `season_scores` al bestaat.**
+
+De ranglijst op de pagina leest die view nu ook: `seasonScoresPull()` vraagt eerst
+`sprint_scores` en gebruikt `gain_no_poker`; komt daar een 404 op, dan valt hij één keer
+terug op `season_scores` met de oude berekening en onthoudt dat. Zolang
+`poker_ledger.sql` niet gedraaid is werkt de ranglijst dus gewoon -- alleen telt poker dan
+mee, en is de sprintstand met een privétafel te sturen.
 
 ## Twee dingen die niet op hun woord te geloven zijn
 
