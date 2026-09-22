@@ -31,6 +31,17 @@ update public.profiles
    set reset_sprint = public.sprint_now()
  where reset_sprint is null;
 
+-- De pagina schrijft deze kolom al mee bij elke opslag, maar de reset gebeurt op de
+-- server en moet hem ook kunnen zetten -- anders wint de oudere momentopname van de
+-- browser. Staat hij er al, dan doet deze regel niets.
+alter table public.profiles
+  add column if not exists updated_at timestamptz default now();
+
+-- En voor wat er hierna bij komt. Zonder deze default staat er bij een vers account null,
+-- en dan hing het van de plek in de code af of dat "nog nooit" of "bij" betekende.
+alter table public.profiles
+  alter column reset_sprint set default public.sprint_now();
+
 -- ---------- de reset zelf ----------
 -- Eén keer per speler per sprint, hoeveel tabs er ook tegelijk vragen: het `where` op
 -- reset_sprint doet het werk, en de rij wordt door de update vergrendeld. Vraagt een
@@ -65,7 +76,7 @@ begin
        where n.nspname = 'poker' and p.proname = 'void_all') > 0
      and exists (select 1 from public.profiles pr
                   where pr.id = v_uid
-                    and (pr.reset_sprint is null or pr.reset_sprint < v_now))
+                    and coalesce(pr.reset_sprint, v_now) < v_now)
   then
     execute 'select poker.void_all($1)' using v_uid;
   end if;
@@ -73,13 +84,18 @@ begin
   -- Het saldo van VOOR de reset wordt in dezelfde stap meegenomen: de `from` ziet de rij
   -- nog zoals hij was. Zonder dat trucje leest een `select` erna het nieuwe saldo, en dan
   -- meldt de pagina "$1000 -> $1000" in plaats van wat er stond.
+  -- `updated_at` moet mee. De pagina vergelijkt bij het ophalen de tijd op de server met
+  -- die van haar eigen laatste opslag en houdt de nieuwste; laat je die tijd staan, dan is
+  -- de lokale momentopname jonger dan de reset, wint hij, en schrijft de browser het oude
+  -- saldo meteen weer terug. De reset was dan wel gebeurd en toch niet.
   update public.profiles p
      set balance = 1000,
-         reset_sprint = v_now
+         reset_sprint = v_now,
+         updated_at = now()
     from public.profiles oud
    where p.id = v_uid
      and oud.id = p.id
-     and (p.reset_sprint is null or p.reset_sprint < v_now)
+     and coalesce(p.reset_sprint, v_now) < v_now
   returning oud.balance into v_before;
 
   if found then
@@ -102,6 +118,59 @@ $$;
 
 revoke all on function public.sprint_reset() from public;
 grant execute on function public.sprint_reset() to authenticated;
+
+-- ---------- en wie het niet vraagt ----------
+-- Hierboven staat een NETTE reset: de pagina vraagt hem, de server voert hem uit. Alleen
+-- is "de pagina vraagt hem" geen afspraak waar de server iets aan heeft. Het saldo gaat
+-- gewoon als kolom mee in een PATCH op /rest/v1/profiles, dus wie sprint_reset() nooit
+-- aanroept -- een aangepaste pagina, of een curl met zijn eigen token -- houdt zijn stapel
+-- van vorige sprint en schrijft die elke keer opnieuw weg. De reset was een verzoek.
+--
+-- Hij hoort op het SCHRIJFPAD te staan, niet in een functie die je mag overslaan. Elke
+-- update van een profielrij komt hier eerst langs, en staat die rij nog op een sprint die
+-- voorbij is, dan wordt hij hier afgerekend -- wat de schrijver ook meestuurde. Je kunt de
+-- reset niet ontlopen door hem niet te vragen: je eerstvolgende schrijfactie IS de reset.
+--
+-- En reset_sprint zelf is niet te verzetten. De nieuwe waarde wordt hier altijd uit de
+-- OUDE rij afgeleid, nooit uit wat er binnenkwam; anders zet een aanvaller die kolom
+-- vooruit en is hij voorgoed "bij".
+create or replace function public.sprint_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_now bigint := public.sprint_now();
+  v_had bigint := coalesce(old.reset_sprint, public.sprint_now());
+begin
+  if v_had >= v_now then
+    -- Bij. De kolom toch terugzetten op wat er stond: niemand schuift hem vooruit.
+    new.reset_sprint := v_had;
+    return new;
+  end if;
+
+  -- Achterstallig. Eerst de fiches die op een pokertafel liggen -- die zitten niet in
+  -- balance, dus zonder deze stap begint iemand de nieuwe sprint met een stapel van de
+  -- vorige. void_all raakt profiles niet aan, dus dit roept zichzelf niet terug.
+  if (select count(*) from pg_proc pr join pg_namespace n on n.oid = pr.pronamespace
+       where n.nspname = 'poker' and pr.proname = 'void_all') > 0 then
+    execute 'select poker.void_all($1)' using new.id;
+  end if;
+
+  new.balance := 1000;
+  new.reset_sprint := v_now;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists sprint_guard on public.profiles;
+create trigger sprint_guard
+  before update on public.profiles
+  for each row execute function public.sprint_guard();
+
+revoke all on function public.sprint_guard() from public, anon, authenticated;
 
 -- ---------- geld uit een vorige sprint ----------
 -- Een uitbetaling voor een ronde die vóór jouw reset begon, mag niet bovenop de verse 1000

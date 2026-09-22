@@ -146,10 +146,18 @@ alter table public.pk_players enable row level security;
 -- de view met andermans rechten.
 --
 -- Wat iedereen mag zien: alles behalve de kaarten van een ander die nog dicht liggen.
-create or replace view public.pk_seats_public
+-- Een drop hoort erbij: `create or replace view` mag er geen kolom TUSSEN zetten, en
+-- may_raise hoort naast de andere standen van de stoel te staan. De grant eronder zet het
+-- recht meteen terug.
+drop view if exists public.pk_seats_public;
+create view public.pk_seats_public
 with (security_invoker = false) as
   select s.round_id, s.seat_no, s.username, s.user_id, s.stack, s.bet, s.total_bet,
          s.folded, s.allin, s.acted, s.payout, s.shown,
+         -- Of deze stoel nog mag verhogen. Na een korte all-in mag wie al had gehandeld
+         -- alleen nog callen of passen; zonder deze kolom weet het scherm dat niet en zet
+         -- het een RAISE-knop neer die de server vervolgens weigert.
+         s.may_raise,
          s.card_commit,
          -- Alleen wat open ligt. Je eigen kaarten haal je bij pk_my_hole; die komen uit
          -- het andere schema en gaan nooit door deze view heen.
@@ -159,13 +167,23 @@ with (security_invoker = false) as
 grant select on public.pk_seats_public to anon, authenticated;
 
 -- En de ronde zelf, zonder het zaadje zolang de hand loopt.
-create or replace view public.pk_live
+-- Hier stond het zaadje in, vrijgegeven zodra de hand was afgerekend -- zoals bij crash
+-- en roulette, waar het achteraf tonen van het zaadje juist het bewijs IS.
+--
+-- Bij poker kan dat niet. Het zaadje stuurt de hele schudbeurt, dus wie het heeft rekent
+-- ELKE hand van die ronde na: ook de twee kaarten van wie gepast heeft en ze nooit heeft
+-- laten zien. Gemuckte kaarten horen nooit bekend te worden -- niet aan tafel, en niet een
+-- uur later. En het stond hier voor iedereen, ook voor wie niet is ingelogd.
+--
+-- Het bewijs loopt daarom per stoel in plaats van per deck: voor het delen staat er van
+-- elke hand een gezouten hash in pk_seats_public.card_commit, en na het delen kan elke
+-- speler met zijn eigen zout uit pk_my_hole narekenen dat die hash bij zijn kaarten hoort.
+-- Je controleert zo je eigen hand net zo hard als vroeger, zonder iets over die van een
+-- ander te leren. Het zaadje blijft in poker.deck, in het schema dat PostgREST niet serveert.
+drop view if exists public.pk_live;
+create view public.pk_live
 with (security_invoker = false) as
   select r.id, r.lobby_id, r.started_at, r.street, r.board, r.deck_commit,
-         -- Het zaadje komt pas vrij als de hand is afgerekend; daarvoor zou het de
-         -- kaarten van iedereen verraden.
-         case when r.settled_at is null then null
-              else (select d.seed from poker.deck d where d.round_id = r.id) end as deck_seed,
          r.button_seat, r.sb, r.bb, r.high_bet, r.min_raise, r.to_act_seat,
          r.act_seq, r.act_deadline, r.settled_at, now() as server_now
     from public.pk_rounds r;
@@ -236,6 +254,11 @@ begin
     update public.pk_rounds
        set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null
      where id = v_ronde;
+
+    -- En het zaadje weg. Een afgebroken hand is nooit uitgespeeld, dus er valt niets na te
+    -- rekenen -- maar de kaarten van iedereen aan die tafel zitten er wel in. Zolang de rij
+    -- bestaat is er iets te lekken; verwijderd is er niets meer te lekken.
+    delete from poker.deck d where d.round_id = v_ronde;
   end loop;
 
   -- En dan alleen deze speler van tafel. De rest blijft zitten met zijn fiches.

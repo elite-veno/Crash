@@ -271,8 +271,26 @@ select pg_temp.zegt('de openbare view laat tijdens de hand geen enkele kaart zie
      from public.pk_seats_public));
 select pg_temp.zegt('maar wel dat er gedeeld is, via de hash per stoel', '2',
   (select count(*)::text from public.pk_seats_public where card_commit is not null));
-select pg_temp.zegt('het zaadje blijft dicht zolang de hand loopt', '0',
-  (select count(*)::text from public.pk_live where deck_seed is not null));
+-- En het zaadje: dat komt helemaal niet meer naar buiten, ook niet na afloop. Wie het
+-- heeft rekent met poker.shuffle de hele schudbeurt na, dus ook de kaarten van wie heeft
+-- gepast en ze nooit heeft laten zien. Eerst gaf pk_live het vrij zodra settled_at stond.
+select pg_temp.zegt('het zaadje staat niet meer in de openbare view', '0',
+  (select count(*)::text from information_schema.columns
+    where table_schema = 'public' and table_name = 'pk_live'
+      and column_name in ('deck_seed', 'seed')));
+select pg_temp.zegt('en de tafel met de zaadjes is voor niemand te lezen', 'false',
+  has_table_privilege('authenticated', 'poker.deck', 'select')::text);
+select pg_temp.zegt('ook de schudfunctie zelf is niet aan te roepen', 'false',
+  has_function_privilege('authenticated', 'poker.shuffle(text)', 'execute')::text);
+select pg_temp.zegt('en de hash-functie evenmin', 'false',
+  has_function_privilege('authenticated', 'poker.sha256(text)', 'execute')::text);
+select pg_temp.zegt('en het verse deck ook niet', 'false',
+  has_function_privilege('authenticated', 'poker.fresh_deck()', 'execute')::text);
+-- Wat WEL kan: je eigen hand narekenen tegen de hash die voor het delen al openbaar stond.
+select pg_temp.zegt('je eigen kaarten kloppen met de hash van voor het delen', 'true',
+  (select (s.card_commit = encode(poker.sha256(h.salt || ':' || h.cards[1] || h.cards[2]), 'hex'))::text
+     from public.pk_my_hole h
+     join public.pk_seats s on s.round_id = h.round_id and s.seat_no = h.seat_no));
 
 -- ---------- het grootboek ----------
 -- Poker is het enige spel hier waar geld tussen accounts beweegt. Wat dat met je saldo
@@ -310,3 +328,82 @@ select pg_temp.zegt('en staat als twee regels in het grootboek', '2',
   (select count(*)::text from public.pk_ledger where username = 'bob'));
 select pg_temp.zegt('een speler ziet alleen zijn eigen regels', 'false',
   has_table_privilege('authenticated', 'public.pk_ledger', 'select')::text);
+
+-- ---------- blut, en toch verder kunnen ----------
+-- Wie zijn stapel kwijt is hield een rij met nul fiches: pk_tick deelt hem niets meer en
+-- pk_sit gaf 'already seated'. Vastgelopen, terwijl er gewoon geld op zijn saldo stond.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds;
+  update public.profiles set balance = 1000;
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.zegt('nog een keer aanschuiven met fiches op tafel mag niet', 'already seated',
+  pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)'));
+update public.pk_players set stack = 0 where username = 'ann';
+select pg_temp.zegt('maar wie blut is mag bijkopen', 'geen fout',
+  pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(150)'));
+select pg_temp.zegt('en zit weer met fiches', '150',
+  (select stack::text from public.pk_players where username = 'ann'));
+select pg_temp.zegt('op dezelfde stoel als daarvoor', '1',
+  (select count(distinct seat_no)::text from public.pk_players where username = 'ann'));
+select pg_temp.zegt('het saldo is twee keer afgeschreven', '650',
+  (select balance::text from public.profiles where username = 'ann'));
+select pg_temp.zegt('en het bijkopen staat apart in het grootboek', 'rebuy',
+  coalesce((select kind from public.pk_ledger order by id desc limit 1), 'geen grootboek'));
+
+-- Bijkopen midden in een hand waar je nog in zit: nee. Dat is je stapel vergroten terwijl
+-- er om gespeeld wordt.
+do $$ begin
+  insert into public.pk_rounds (id, lobby_id, deck_commit) values (7771, 1, 'x');
+  insert into public.pk_seats (round_id, seat_no, user_id, username, stack)
+       values (7771, 0, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0);
+  update public.pk_players set stack = 0 where username = 'ann';
+end $$;
+select pg_temp.zegt('bijkopen terwijl je hand nog loopt mag niet', 'wait for the hand to finish',
+  pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(150)'));
+
+-- ---------- een dichtgeslagen tab laat geen fiches achter ----------
+-- Wie de lobby verlaat zonder op te staan (of wiens tab dichtgaat) hield een rij aan een
+-- tafel waar hij niet meer bij hoort, met zijn stapel erop. pk_tick ruimt dat tussen de
+-- handen door op en zet de fiches terug op het saldo.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  update public.profiles set balance = 1000;
+  insert into public.lobby_members (lobby_id, user_id) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002') on conflict do nothing;
+  delete from public.lobby_members where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 175),
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 200);
+end $$;
+select public.pk_tick(1);
+select pg_temp.zegt('wie de lobby uit is zit niet meer aan tafel', '0',
+  (select count(*)::text from public.pk_players where username = 'ann'));
+select pg_temp.zegt('en zijn stapel staat terug op zijn saldo', '1175',
+  (select balance::text from public.profiles where username = 'ann'));
+select pg_temp.zegt('wie er nog wel bij hoort blijft zitten', '200',
+  coalesce((select stack::text from public.pk_players where username = 'bob'), 'weg'));
+
+-- ---------- de sprintgrens mag geen gratis fiches geven ----------
+-- Op profiles staat een trigger die een achterstallig account terugzet naar 1000. Raakte
+-- pk_sit dat saldo aan zonder die grens eerst af te handelen, dan gooide de trigger de
+-- aftrek weg -- en stonden de fiches er toch. Alleen te toetsen met sprint_reset.sql erbij.
+do $$ begin
+  if to_regprocedure('public.sprint_now()') is null then
+    raise notice 'sprint_reset staat er niet in, deze test wordt overgeslagen';
+    return;
+  end if;
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  alter table public.profiles disable trigger sprint_guard;
+  update public.profiles set balance = 8000, reset_sprint = public.sprint_now() - 1
+   where username = 'ann';
+  alter table public.profiles enable trigger sprint_guard;
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.zegt('inkopen over een sprintgrens heen kost gewoon geld', '800',
+  coalesce((select balance::text from public.profiles where username = 'ann'), 'geen sprint'));
+select pg_temp.zegt('en er staan niet meer fiches op tafel dan betaald', '200',
+  coalesce((select stack::text from public.pk_players where username = 'ann'), 'geen sprint'));
+select pg_temp.zegt('saldo plus stapel is precies de verse duizend', '1000',
+  coalesce((select (p.balance + pl.stack)::text from public.profiles p
+              join public.pk_players pl on pl.user_id = p.id where p.username = 'ann'), 'geen sprint'));

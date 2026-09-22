@@ -193,14 +193,37 @@ declare
   v_saldo numeric;
   v_koop integer;
   v_stoel smallint;
+  v_zat integer;
 begin
   if v_uid is null then raise exception 'not signed in'; end if;
 
   select l.lobby_id into v_lobby from public.my_lobby l limit 1;
   if v_lobby is null then raise exception 'join a table first'; end if;
 
-  if exists (select 1 from public.pk_players where lobby_id = v_lobby and user_id = v_uid) then
+  -- Eerst de sprintgrens, dan pas geld aanraken.
+  --
+  -- Op profiles zit een trigger die een achterstallig account terugzet naar 1000 zodra er
+  -- iets naar die rij geschreven wordt. Deed je dat hier niet expliciet, dan gebeurde het
+  -- alsnog -- maar midden in `balance = balance - inkoop`, en dan gooit de trigger die
+  -- aftrek weg en zet er 1000 neer. De fiches werden daarna toch op tafel gezet: gratis
+  -- inkopen, elke sprintgrens opnieuw. Een lege update laat de trigger zijn werk doen
+  -- voordat er iets te rekenen valt; is er niets achterstallig, dan verandert er niets.
+  update public.profiles set balance = balance where id = v_uid;
+
+  -- Zit je er al? Dan mag je alleen bijkopen als je blut bent. Anders stond je vast: een
+  -- speler die zijn stapel kwijt is heeft een rij met nul fiches, pk_tick deelt hem geen
+  -- kaarten meer, en opstaan-en-weer-zitten was de enige uitweg. Bijkopen met fiches nog
+  -- op tafel mag niet -- dat is midden in het spel je stapel vergroten.
+  select pl.stack into v_zat from public.pk_players pl
+   where pl.lobby_id = v_lobby and pl.user_id = v_uid for update;
+  if v_zat is not null and v_zat > 0 then
     raise exception 'already seated';
+  end if;
+  if v_zat is not null and exists (
+       select 1 from public.pk_rounds r
+        join public.pk_seats st on st.round_id = r.id
+       where r.lobby_id = v_lobby and r.settled_at is null and st.user_id = v_uid) then
+    raise exception 'wait for the hand to finish';
   end if;
 
   -- De inkoop ligt tussen honderd en vijfhonderd: met een startsaldo van 1000 kan niemand
@@ -213,23 +236,33 @@ begin
   if v_saldo is null then raise exception 'no profile'; end if;
   if v_saldo < v_koop then raise exception 'not enough money'; end if;
 
-  -- De laagste vrije stoel.
-  -- Geen coalesce: min() over niets is null, en dat is precies hoe je weet dat de tafel
-  -- vol zit. Met een coalesce naar nul werd de zevende speler op stoel nul gezet.
-  select min(x) into v_stoel
-    from generate_series(0, 5) x
-   where not exists (select 1 from public.pk_players q
-                      where q.lobby_id = v_lobby and q.seat_no = x);
-  if v_stoel is null then raise exception 'table is full'; end if;
+  if v_zat is not null then
+    -- Bijkopen: dezelfde stoel, alleen fiches erbij. Zo verschuift niemand aan tafel en
+    -- houdt de knop zijn plek.
+    update public.profiles set balance = balance - v_koop where id = v_uid;
+    update public.pk_players set stack = v_koop
+     where lobby_id = v_lobby and user_id = v_uid
+    returning seat_no into v_stoel;
+  else
+    -- De laagste vrije stoel.
+    -- Geen coalesce: min() over niets is null, en dat is precies hoe je weet dat de tafel
+    -- vol zit. Met een coalesce naar nul werd de zevende speler op stoel nul gezet.
+    select min(x) into v_stoel
+      from generate_series(0, 5) x
+     where not exists (select 1 from public.pk_players q
+                        where q.lobby_id = v_lobby and q.seat_no = x);
+    if v_stoel is null then raise exception 'table is full'; end if;
 
-  update public.profiles set balance = balance - v_koop where id = v_uid;
-  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
-       values (v_lobby, v_uid, v_naam, v_stoel, v_koop);
+    update public.profiles set balance = balance - v_koop where id = v_uid;
+    insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
+         values (v_lobby, v_uid, v_naam, v_stoel, v_koop);
+  end if;
 
   -- In het grootboek, zodat na te rekenen is wat poker met je saldo heeft gedaan. Zie
   -- sql/poker_ledger.sql; zonder dat bestand slaat dit stil over.
   if to_regprocedure('poker.note(uuid, text, bigint, text, integer)') is not null then
-    execute 'select poker.note($1, $2, $3, $4, $5)' using v_uid, v_naam, v_lobby, 'sit', -v_koop;
+    execute 'select poker.note($1, $2, $3, $4, $5)' using
+      v_uid, v_naam, v_lobby, case when v_zat is null then 'sit' else 'rebuy' end, -v_koop;
   end if;
 
   return json_build_object('ok', true, 'seat', v_stoel, 'stack', v_koop,
@@ -620,6 +653,7 @@ declare
   p record;
   v_sb smallint; v_bb smallint;
   v_zout text;
+  w record;
 begin
   -- Eén tafel tegelijk. Twee browsers die op hetzelfde moment porren zagen allebei geen
   -- lopende hand en deelden er allebei een; op de tijdklok sloegen ze samen een beurt over.
@@ -650,7 +684,41 @@ begin
     return json_build_object('ok', true, 'round', r.id);
   end if;
 
-  -- Geen hand: kan er een beginnen? Wie geen fiches meer heeft doet niet mee.
+  -- Geen hand. Eerst opruimen: wie de lobby heeft verlaten zonder op te staan, laat een
+  -- rij achter aan een tafel waar hij niet meer bij hoort, met zijn fiches erop. De pagina
+  -- staat nu eerst op voordat ze weggaat, maar een dichtgeslagen tab doet dat niet.
+  --
+  -- Dit staat met opzet tussen de handen door: midden in een hand iemand van tafel halen
+  -- zou de pot scheef trekken. En het hele blok is afgeschermd -- vindt het de ledentabel
+  -- niet, of ziet die er anders uit dan hier verwacht, dan slaat het over. Een tafel die
+  -- vastloopt omdat het opruimen struikelt is erger dan een rij die blijft staan.
+  begin
+    if (select count(*) from information_schema.columns
+         where table_schema = 'public' and table_name = 'lobby_members'
+           and column_name in ('lobby_id', 'user_id')) = 2 then
+      for w in
+        -- En één grendel erbij: alleen opruimen als er voor DEZE lobby uberhaupt leden
+        -- in die tabel staan. Staat hij leeg, dan wordt het lidmaatschap ergens anders
+        -- bijgehouden en betekent "staat er niet in" niet "hoort er niet bij" -- dan zou
+        -- dit de hele tafel leegvegen in plaats van één achterblijver.
+        execute 'select pl.user_id, pl.stack from public.pk_players pl'
+             || ' where pl.lobby_id = $1'
+             || '   and exists (select 1 from public.lobby_members m2'
+             || '                where m2.lobby_id = pl.lobby_id)'
+             || '   and not exists ('
+             || '   select 1 from public.lobby_members m'
+             || '    where m.lobby_id = pl.lobby_id and m.user_id = pl.user_id)'
+        using p_lobby
+      loop
+        update public.profiles set balance = balance + w.stack where id = w.user_id;
+        delete from public.pk_players pl
+         where pl.lobby_id = p_lobby and pl.user_id = w.user_id;
+      end loop;
+    end if;
+  exception when others then null;
+  end;
+
+  -- Kan er een hand beginnen? Wie geen fiches meer heeft doet niet mee.
   select count(*) into v_spelers from public.pk_players
    where lobby_id = p_lobby and stack > 0;
   if v_spelers < 2 then return json_build_object('ok', true, 'round', null); end if;
@@ -734,3 +802,15 @@ $$;
 
 revoke all on function public.pk_tick(bigint) from public, anon;
 grant execute on function public.pk_tick(bigint) to authenticated;
+
+-- ---------- en nog eens de sloten ----------
+-- poker.sql doet `revoke all on all functions in schema poker`, maar dat draait VOORDAT
+-- dit bestand poker.sha256, poker.fresh_deck en poker.shuffle aanmaakt. Die drie hielden
+-- dus de standaard PUBLIC EXECUTE die Postgres aan elke nieuwe functie geeft.
+--
+-- Vandaag is er niets mee te doen: zonder USAGE op het schema `poker` komt een aanroep er
+-- niet eens langs. Maar het is één `grant usage` van iemand die het schema ooit open zet
+-- verwijderd van poker.shuffle(zaadje) -- en dat geeft het hele deck terug. Een slot dat
+-- alleen houdt zolang een ander slot houdt, is geen slot. Dus hier nog een keer, nu de
+-- functies bestaan.
+revoke all on all functions in schema poker from public, anon, authenticated;

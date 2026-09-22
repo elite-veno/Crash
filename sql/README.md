@@ -11,6 +11,10 @@ draaien.
 | `poker_rpc.sql` | de functies van poker: delen, inzetten, afrekenen |
 | `poker_ledger.sql` | houdt bij wat poker met een saldo doet, zodat de sprintranglijst klopt |
 
+`poker.sql` en `poker_rpc.sql` vervangen twee views (`pk_live` en `pk_seats_public`) met
+een `drop` ervoor, omdat er kolommen bij en af gaan. Draai ze dus niet terwijl er een hand
+loopt; tussen twee handen kost het niets.
+
 **Er staat hier geen enkele sleutel in, en die hoort er ook niet in.** De pagina gebruikt
 alleen de publieke sleutel; de `service_role`-sleutel hoort nergens anders dan in het
 dashboard van Supabase.
@@ -56,3 +60,31 @@ gedaan, en legt een view `sprint_scores` naast de bestaande `season_scores` met 
 `gain_no_poker`. **Die view wordt alleen aangemaakt als `season_scores` al bestaat**, en de
 ranglijst op de pagina moet er nog op overgezet worden -- dat kan pas als de definitie van
 `season_scores` bekend is.
+
+## Twee dingen die niet op hun woord te geloven zijn
+
+**De reset is geen verzoek.** `sprint_reset()` is netjes, maar de pagina hoeft hem niet aan
+te roepen: het saldo gaat gewoon als kolom mee in een `PATCH` op `/rest/v1/profiles`, dus
+een aangepaste pagina houdt zijn stapel van vorige sprint en schrijft die elke keer opnieuw
+weg. Daarom staat de afrekening nu op het SCHRIJFPAD: de trigger `sprint_guard` op
+`profiles` zet een achterstallig account terug naar 1000 zodra er iets naar die rij
+geschreven wordt, wat de schrijver ook meestuurde -- en `reset_sprint` leidt hij altijd af
+uit de oude rij, zodat die kolom niet vooruit te zetten is. Je eerstvolgende schrijfactie
+*is* de reset.
+
+Wie daardoor iets aanraakt dat geld beweegt, moet die grens eerst afhandelen: `pk_sit`
+begint met een lege update op zijn eigen profielrij. Zonder dat gooide de trigger midden in
+`balance = inkoop` de aftrek weg, stonden de fiches er toch, en kocht je elke sprintgrens
+gratis in. `sql/poker_test.sql` pint dat vast.
+
+**Het zaadje van de schudbeurt komt niet naar buiten.** Bij crash en roulette is het zaadje
+achteraf tonen juist het bewijs. Bij poker niet: het zaadje stuurt de hele schudbeurt, dus
+wie het heeft rekent ook de kaarten uit van iemand die gepast heeft en ze nooit heeft laten
+zien. `pk_live` gaf het vrij zodra een hand was afgerekend, aan iedereen, ook aan wie niet
+was ingelogd. Die kolom is weg.
+
+Het bewijs loopt nu per stoel: voor het delen staat van elke hand een gezouten hash in
+`pk_seats_public.card_commit`, en na het delen krijgt elke speler via `pk_my_hole` zijn
+eigen zout. De pagina rekent daarmee na dat die hash bij zijn twee kaarten hoort -- je
+controleert je eigen hand net zo hard als eerst, zonder iets over die van een ander te
+leren. Het zaadje blijft in `poker.deck`, in het schema dat PostgREST niet serveert.

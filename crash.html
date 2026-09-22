@@ -1962,7 +1962,7 @@
 
     <div class="section-heading">
       <h2>AVAILABLE GAMES</h2>
-      <span class="count">9 LIVE</span>
+      <span class="count">10 LIVE</span>
       <div class="divider"></div>
     </div>
 
@@ -3684,13 +3684,18 @@ const ODDS = {
     const maxRaise = s.inzet + s.stack;
     let minRaise = stand.hoogste + stand.minVerhoging;
     if (minRaise > maxRaise) minRaise = maxRaise;
+    // En dan is er nog de korte all-in. Wie minder dan een volle verhoging all-in gaat,
+    // heropent de inzet niet: wie al had gehandeld mag daarna alleen nog callen of passen.
+    // De server houdt dat per stoel bij; ontbreekt het (een oudere server, of een stand
+    // die het niet meelevert), dan mag verhogen -- dat is hoe het hiervoor altijd ging.
+    const magVerhogen = s.magVerhogen !== false;
     return {
       fold: true,
       check: teGaan === 0,
       call: teGaan > 0 ? call : 0,
       // Verhogen kan alleen als je boven de hoogste inzet uit komt.
-      minRaise: maxRaise > stand.hoogste ? minRaise : 0,
-      maxRaise: maxRaise > stand.hoogste ? maxRaise : 0,
+      minRaise: magVerhogen && maxRaise > stand.hoogste ? minRaise : 0,
+      maxRaise: magVerhogen && maxRaise > stand.hoogste ? maxRaise : 0,
     };
   },
 
@@ -5647,7 +5652,17 @@ async function lobbyCall(path, body, msg) {
 
 const lobbyQuick   = () => lobbyCall('lobby_quick', {}, 'JOINED A PUBLIC TABLE');
 const lobbyPrivate = () => lobbyCall('lobby_create', { p_private: true }, 'PRIVATE TABLE OPENED');
-const lobbyLeave   = () => lobbyCall('lobby_leave', {}, 'LEFT THE TABLE');
+// Eerst van de pokertafel af, dan pas de lobby uit. Fiches aan een pokertafel staan op
+// pk_players en niet op je saldo; verdwijn je uit de lobby zonder op te staan, dan blijft
+// die rij achter aan een tafel waar je niet meer bij hoort en staat je stapel daar vast.
+// pk_leave doet niets als je niet zat, en een oudere server die de functie niet heeft
+// geeft hier hooguit een fout die we inslikken -- weglopen moet altijd lukken.
+const lobbyLeave = async () => {
+  if (online() && AUTH.session) {
+    try { await api('/rest/v1/rpc/pk_leave', { method: 'POST', body: {} }); } catch {}
+  }
+  return lobbyCall('lobby_leave', {}, 'LEFT THE TABLE');
+};
 // `goThere` is het scherm waar je heen wilt nadat je aan tafel zit. Aan één tafel kun je
 // blackjack of poker spelen, dus een uitnodiging brengt je naar het spel dat erbij staat --
 // niet altijd naar blackjack, wat het eerst was.
@@ -6102,6 +6117,8 @@ const POK = {
   seats: [],
   players: [],      // wie er aan tafel zit tussen de handen door
   hole: [],         // je eigen twee kaarten
+  zout: null,       // het zout bij je eigen hand, om de hash mee na te rekenen
+  bewijs: '',       // 'ok' als die hash klopt, 'mis' als hij dat niet doet
   offset: 0,        // klok van de server min die van deze browser, in ms
   timer: null,
   ticking: false,
@@ -6154,6 +6171,8 @@ async function pokPull() {
       POK.seats = r ? await pokSeats(r.id) : [];
       if (r) pokRecord(r);
       POK.hole = [];
+      POK.zout = null;
+      POK.bewijs = '';
       POK.error = '';
       await pokTick();
     } else {
@@ -6161,6 +6180,7 @@ async function pokPull() {
       POK.seats = await pokSeats(r.id);
       // Je eigen kaarten komen achter je eigen token vandaan, niet uit de openbare view.
       POK.hole = AUTH.session ? await pokHole(r.id) : [];
+      await pokEerlijk();
       POK.error = '';
       // Denkt iemand te lang na, dan port deze browser de server om door te gaan.
       if (r.act_deadline && pokNow() > Date.parse(r.act_deadline) + 500) await pokTick();
@@ -6180,10 +6200,38 @@ async function pokSeats(roundId) {
 
 async function pokHole(roundId) {
   try {
-    const rows = await api('/rest/v1/pk_my_hole?select=cards&round_id=eq.' + roundId + '&limit=1');
+    const rows = await api('/rest/v1/pk_my_hole?select=cards,salt,seat_no&round_id=eq.' + roundId + '&limit=1');
     const r = Array.isArray(rows) ? rows[0] : null;
+    POK.zout = r && r.salt ? { salt: r.salt, seat: Number(r.seat_no), kaarten: r.cards } : null;
     return r && Array.isArray(r.cards) ? r.cards : [];
-  } catch { return []; }
+  } catch { POK.zout = null; return []; }
+}
+
+// Het eerlijkheidsbewijs, en waarom het er zo uitziet.
+//
+// Bij crash en roulette staat er vooraf een hash en achteraf het zaadje: je rekent de
+// uitslag na en klaar. Bij poker kan dat niet. Het zaadje stuurt de hele schudbeurt, dus
+// wie het krijgt rekent ook de twee kaarten uit van iemand die heeft gepast en ze nooit
+// heeft laten zien. Gemuckte kaarten horen nooit bekend te worden -- niet aan tafel, en
+// niet achteraf.
+//
+// Dus loopt het bewijs per stoel. Voor het delen staat van elke hand een gezouten hash in
+// de openbare stoelenview; jij krijgt na het delen je eigen zout, en dan reken je hier na
+// dat die hash bij jouw twee kaarten hoort. Klopt hij, dan stond jouw hand vast voordat er
+// een kaart viel -- net zo hard als vroeger, en zonder iets over die van een ander.
+async function pokEerlijk() {
+  const z = POK.zout;
+  POK.bewijs = '';
+  if (!z || !Array.isArray(z.kaarten) || z.kaarten.length < 2) return;
+  const stoel = POK.seats.find(s => Number(s.seat_no) === z.seat);
+  if (!stoel || !stoel.card_commit) return;
+  if (!window.crypto || !crypto.subtle) return;
+  try {
+    const ruw = new TextEncoder().encode(z.salt + ':' + z.kaarten[0] + z.kaarten[1]);
+    const hash = await crypto.subtle.digest('SHA-256', ruw);
+    const hex = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
+    POK.bewijs = hex === stoel.card_commit ? 'ok' : 'mis';
+  } catch { POK.bewijs = ''; }
 }
 
 // Een afgerekende hand telt één keer mee in de statistieken.
@@ -6218,10 +6266,21 @@ async function pokCall(path, body, msg) {
   } finally { POK.acting = false; pokRender(); }
 }
 
+// De inkoop ligt tussen 100 en 500 -- dat staat onder het invulvak en de server houdt het
+// ook aan. Maar de server deed dat STIL: tik je 20 in, dan kocht je voor 100 in zonder dat
+// iemand je dat vertelde. Hier wordt het rechtgezet voor het verstuurd wordt, en dan zie
+// je in het vak wat er echt gebeurt.
+const POK_MIN_KOOP = 100, POK_MAX_KOOP = 500;
 const pokSit = () => {
   const el = $('pokerBuyin');
-  const v = Math.round(Number(el && el.value) || 200);
-  return pokCall('pk_sit', { p_buyin: v }, 'YOU ARE IN');
+  const gevraagd = Math.round(Number(el && el.value) || 200);
+  const v = Math.max(POK_MIN_KOOP, Math.min(POK_MAX_KOOP, gevraagd));
+  if (v !== gevraagd) {
+    if (el) el.value = v;
+    flash('BUY IN IS $' + POK_MIN_KOOP + ' TO $' + POK_MAX_KOOP + ' — USING $' + v, 'red', 'pokerToasts');
+  }
+  const ik = pokAtTable();
+  return pokCall('pk_sit', { p_buyin: v }, ik && Number(ik.stack) <= 0 ? 'CHIPS ADDED' : 'YOU ARE IN');
 };
 const pokLeave = () => pokCall('pk_leave', {}, 'CHIPS BACK IN YOUR BALANCE');
 
@@ -6250,6 +6309,9 @@ function pokLegal() {
       gefold: !!s.folded,
       allin: !!s.allin,
       gezet: !!s.acted,
+      // Ontbreekt de kolom (server van voor deze stap), dan blijft het undefined en leest
+      // pokerLegal dat als "mag verhogen" -- precies zoals het daarvoor werkte.
+      magVerhogen: s.may_raise,
     })),
     hoogste: Number(r.high_bet) || 0,
     minVerhoging: Number(r.min_raise) || 0,
@@ -6365,8 +6427,14 @@ function pokRender() {
   $('pkPhase').textContent = fase;
 
   // De knoppen links.
+  //
+  // Blut is niet hetzelfde als weg: wie zijn stapel kwijt is heeft nog een stoel, maar
+  // krijgt geen kaarten meer. Dan hoort er BIJKOPEN te staan en niet OPSTAAN -- anders
+  // moet je van tafel en weer terug om verder te kunnen, en ben je je plek kwijt.
   const zit = !!ik;
-  $('pkSitBtn').hidden = zit;
+  const blut = zit && Number(ik.stack) <= 0;
+  $('pkSitBtn').hidden = zit && !blut;
+  $('pkSitBtn').textContent = blut ? 'BUY MORE CHIPS' : 'TAKE A SEAT';
   $('pkSitBtn').disabled = POK.acting || !LOBBY.id || !online();
   $('pkLeaveBtn').hidden = !zit;
   $('pkLeaveBtn').disabled = POK.acting;
@@ -6399,10 +6467,13 @@ function pokRender() {
   const eerlijk = $('pkFair');
   if (r && r.deck_commit) {
     eerlijk.hidden = false;
+    eerlijk.title = 'Poker never releases the shuffle seed: it would also reveal the cards ' +
+      'of everyone who folded. Instead every hand is hashed before the deal, and you can ' +
+      'check your own against that hash.';
     eerlijk.innerHTML = '<b>Shuffle ' + String(r.deck_commit).slice(0, 16) + '…</b> · ' +
-      (r.deck_seed
-        ? 'seed ' + String(r.deck_seed).slice(0, 16) + '… — the deck was fixed before the deal'
-        : 'the seed is released when the hand is over');
+      (POK.bewijs === 'ok' ? '✓ your hand matches the hash published before the deal'
+       : POK.bewijs === 'mis' ? '⚠ your hand does NOT match the published hash'
+       : 'every hand was hashed before the deal');
   } else eerlijk.hidden = true;
 }
 
@@ -8402,7 +8473,11 @@ const ACHIEVEMENTS = [
   { id: 'first_win',   icon: '💵', tier: 'bronze', title: 'First win',          desc: 'Win a round',                               test: (c, s) => s.won >= 1 },
   { id: 'rounds_50',   icon: '🕐', tier: 'bronze', title: 'Regular',            desc: 'Play 50 rounds',                             test: (c, s) => s.rounds >= 50 },
   { id: 'rounds_250',  icon: '🏛', tier: 'silver', title: 'Fixture',            desc: 'Play 250 rounds',                            test: (c, s) => s.rounds >= 250 },
-  { id: 'all_games',   icon: '🎠', tier: 'silver', title: 'Allrounder',         desc: 'Play every mode at least once',           test: (c, s) => BASE_GAMES.every(g => s.stats[g].rounds > 0) },
+  // Poker staat hier met opzet NIET in. Voor poker heb je een tweede speler aan tafel
+  // nodig, en die is er niet altijd; zou hij meetellen, dan was Allrounder niet te halen
+  // door wie in zijn eentje speelt. Poker heeft hieronder zijn eigen penning.
+  { id: 'all_games',   icon: '🎠', tier: 'silver', title: 'Allrounder',         desc: 'Play every mode at least once',           test: (c, s) => BASE_GAMES.filter(g => g !== 'poker').every(g => s.stats[g].rounds > 0) },
+  { id: 'poker_seat',  icon: '🃏', tier: 'silver', title: 'Took a Seat',        desc: 'Play a hand of poker against someone',     test: (c, s) => s.stats.poker.rounds > 0 },
   { id: 'streak_5',    icon: '📈', tier: 'bronze', title: 'On a roll',          desc: 'Win five rounds in a row',                      test: (c, s) => s.extra.bestStreak >= 5 },
   { id: 'streak_10',   icon: '🚀', tier: 'gold',  title: 'Untouchable',        desc: 'Win ten rounds in a row',                      test: (c, s) => s.extra.bestStreak >= 10 },
   { id: 'balance_2500',icon: '💰', tier: 'bronze', title: 'Well off',           desc: 'Reach a balance of $2,500',                 test: (c, s) => s.balance >= 2500 },

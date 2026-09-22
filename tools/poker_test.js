@@ -516,4 +516,30 @@ function tafel(stacks, blinds = [50, 100]) {
   h.check('en iedereen staat op hetzelfde bedrag', 350, st.stoelen[0].inzet);
 }
 
+
+{
+  // De korte all-in heropent de inzet niet. De server houdt per stoel bij of je nog mag
+  // verhogen; het scherm rekent met dezelfde functie, want anders zet het een RAISE-knop
+  // neer die de server daarna weigert -- en dan lijkt het spel stuk terwijl het klopt.
+  const st = { stoelen: [
+    { stack: 900, inzet: 100, gefold: false, allin: false, gezet: true, magVerhogen: false },
+    { stack: 800, inzet: 200, gefold: false, allin: false, gezet: true },
+  ], hoogste: 200, minVerhoging: 100, beurt: 0 };
+  const m = O.pokerLegal(st, 0);
+  h.check('na een korte all-in mag je nog callen', 100, m.call);
+  h.check('en passen', true, m.fold);
+  h.check('maar niet meer verhogen', 0, m.maxRaise);
+  h.check('en er staat geen ondergrens meer', 0, m.minRaise);
+  h.check('de zet wordt ook echt geweigerd', 'cannot raise', O.pokerAct(st, 0, 'raise', 400).fout);
+  h.check('terwijl callen gewoon doorgaat', true, O.pokerAct(st, 0, 'call').ok);
+
+  // En wie de kolom niet meekrijgt (een server van voor deze stap) mag gewoon verhogen.
+  const st2 = { stoelen: [
+    { stack: 900, inzet: 100, gefold: false, allin: false, gezet: true },
+    { stack: 800, inzet: 200, gefold: false, allin: false, gezet: true },
+  ], hoogste: 200, minVerhoging: 100, beurt: 0 };
+  h.check('zonder die kolom verandert er niets', 300, O.pokerLegal(st2, 0).minRaise);
+  h.check('en all-in kan nog steeds', 1000, O.pokerLegal(st2, 0).maxRaise);
+}
+
 process.exit(h.rapport('POKER'));
