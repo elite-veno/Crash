@@ -11,6 +11,15 @@ draaien.
 | `poker_rpc.sql` | de functies van poker: delen, inzetten, afrekenen |
 | `poker_ledger.sql` | houdt bij wat poker met een saldo doet, zodat de sprintranglijst klopt |
 
+Of, als je liever één keer plakt: **`alles.sql`** is precies die vier bestanden achter
+elkaar, in deze volgorde, met een kop erboven. Eén keer plakken in de SQL-editor en RUN.
+De losse bestanden blijven de bron -- `alles.sql` wordt daaruit samengesteld, dus pas nooit
+alleen `alles.sql` aan.
+
+**Kijk na het draaien één ding na:** Settings -> API -> Exposed schemas moet ALLEEN `public`
+bevatten. Het schema `poker` mag daar nooit bij staan -- daar liggen de holekaarten en de
+zaadjes van de schudbeurt.
+
 `poker.sql` en `poker_rpc.sql` vervangen twee views (`pk_live` en `pk_seats_public`) met
 een `drop` ervoor, omdat er kolommen bij en af gaan. Draai ze dus niet terwijl er een hand
 loopt; tussen twee handen kost het niets.
