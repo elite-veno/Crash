@@ -3349,6 +3349,101 @@ const ODDS = {
   busMultiplier(prob) { return prob > 0 ? Math.floor((1 - this.HOUSE_EDGE) / prob * 100) / 100 : 0; },
 
   // Blackjack
+
+  // Texas Hold'em: de beste hand van vijf uit zeven kaarten, als één getal waarmee twee
+  // handen tegen elkaar te leggen zijn. Poker is speler tegen speler, dus hier wint het
+  // huis niets -- het huisvoordeel hierboven geldt voor deze functies niet.
+  //
+  // De score is `categorie` gevolgd door de tiebreakers, elk in een eigen positie van
+  // vijftien. Hoger is beter, gelijk is echt gelijk (gedeelde pot). Vijftien omdat de
+  // hoogste kaart 14 is (aas) en nul betekent "geen".
+  POKER_RANKS: ['2','3','4','5','6','7','8','9','10','J','Q','K','A'],
+  POKER_CATS: ['high card', 'pair', 'two pair', 'three of a kind', 'straight',
+               'flush', 'full house', 'four of a kind', 'straight flush'],
+  pokerRank(card) { return this.POKER_RANKS.indexOf(card.r) + 2; },
+
+  // De hoogste straat in een verzameling rangen, of 0. Het aas telt aan beide kanten: als
+  // hoogste kaart in 10-J-Q-K-A en als laagste in A-2-3-4-5 (het wiel), en dan is de
+  // straat er een van vijf, niet van veertien.
+  pokerStraight(rangen) {
+    const heeft = new Set(rangen);
+    if (heeft.has(14)) heeft.add(1);
+    for (let hoog = 14; hoog >= 5; hoog--) {
+      let alle = true;
+      for (let i = 0; i < 5; i++) if (!heeft.has(hoog - i)) { alle = false; break; }
+      if (alle) return hoog;
+    }
+    return 0;
+  },
+
+  // Zeven kaarten naar één score. Geeft ook de categorie terug, om te laten zien wat het
+  // geworden is ("FULL HOUSE"), en de vijf kaarten die tellen.
+  pokerScore(kaarten) {
+    const rangen = kaarten.map(c => this.pokerRank(c));
+    const perRang = new Map();
+    const perKleur = new Map();
+    for (let i = 0; i < kaarten.length; i++) {
+      perRang.set(rangen[i], (perRang.get(rangen[i]) || 0) + 1);
+      const k = kaarten[i].s;
+      if (!perKleur.has(k)) perKleur.set(k, []);
+      perKleur.get(k).push(rangen[i]);
+    }
+
+    // Kleur: vijf of meer van één soort. De straight flush wordt binnen die soort gezocht,
+    // want een straat over twee soorten telt daar niet.
+    let kleurRangen = null;
+    for (const [, rs] of perKleur) if (rs.length >= 5) kleurRangen = rs.slice().sort((a, b) => b - a);
+
+    if (kleurRangen) {
+      const sf = this.pokerStraight(kleurRangen);
+      if (sf) return { cat: 8, sleutels: [sf, 0, 0, 0, 0] };
+    }
+
+    // De rangen op aantal, en bij gelijk aantal op hoogte: [[rang, aantal], ...]
+    const groepen = [...perRang.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+    const aantal = groepen.map(g => g[1]);
+
+    if (aantal[0] === 4) {
+      const kicker = groepen.slice(1).map(g => g[0]).sort((a, b) => b - a)[0] || 0;
+      return { cat: 7, sleutels: [groepen[0][0], kicker, 0, 0, 0] };
+    }
+    if (aantal[0] === 3 && aantal[1] >= 2) {
+      return { cat: 6, sleutels: [groepen[0][0], groepen[1][0], 0, 0, 0] };
+    }
+    if (kleurRangen) return { cat: 5, sleutels: kleurRangen.slice(0, 5) };
+
+    const st = this.pokerStraight(rangen);
+    if (st) return { cat: 4, sleutels: [st, 0, 0, 0, 0] };
+
+    if (aantal[0] === 3) {
+      const rest = groepen.slice(1).map(g => g[0]).sort((a, b) => b - a).slice(0, 2);
+      return { cat: 3, sleutels: [groepen[0][0], rest[0] || 0, rest[1] || 0, 0, 0] };
+    }
+    if (aantal[0] === 2 && aantal[1] === 2) {
+      const paren = groepen.filter(g => g[1] === 2).map(g => g[0]).sort((a, b) => b - a);
+      const rest = groepen.filter(g => g[1] === 1).map(g => g[0]).sort((a, b) => b - a);
+      // Drie paren kan met zeven kaarten: het laagste paar telt dan niet mee, maar de
+      // hoogste kaart ervan kan wel de kicker zijn.
+      const kickers = [...rest, ...paren.slice(2)].sort((a, b) => b - a);
+      return { cat: 2, sleutels: [paren[0], paren[1], kickers[0] || 0, 0, 0] };
+    }
+    if (aantal[0] === 2) {
+      const rest = groepen.slice(1).map(g => g[0]).sort((a, b) => b - a).slice(0, 3);
+      return { cat: 1, sleutels: [groepen[0][0], rest[0] || 0, rest[1] || 0, rest[2] || 0, 0] };
+    }
+    const hoog = rangen.slice().sort((a, b) => b - a).slice(0, 5);
+    return { cat: 0, sleutels: hoog };
+  },
+
+  // Eén getal, zodat twee handen met > en === te vergelijken zijn.
+  pokerValue(kaarten) {
+    const s = this.pokerScore(kaarten);
+    let v = s.cat;
+    for (const k of s.sleutels) v = v * 15 + k;
+    return v;
+  },
+  pokerName(kaarten) { return this.POKER_CATS[this.pokerScore(kaarten).cat]; },
+
   bjNewShoe(decks = 6) {
     const shoe = [];
     for (let d = 0; d < decks; d++)
