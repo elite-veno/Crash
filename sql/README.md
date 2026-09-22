@@ -21,8 +21,13 @@ volgende als het vorige groen is. Er wordt alleen tussen twee complete opdrachte
 geknipt, nooit midden in een functie; het grootste deel is `pk_tick`, dat niet kleiner
 kan.
 
-De losse bestanden blijven de bron. `node tools/bouw_alles.js` maakt `alles.sql` en de
-delen daaruit, dus pas nooit alleen een afdruk aan. Wil je kleinere delen, geef dan een
+Liever één bestand dan veertien? **`alles_in_delen.txt`** heeft dezelfde veertien delen
+onder elkaar, elk tussen een regel "kopieer vanaf hier" en "EINDE DEEL n". De
+scheidingslijnen zijn SQL-commentaar, dus een regel te veel meekopiëren doet niets -- en
+het hele bestand in één keer draaien werkt ook.
+
+De losse bestanden blijven de bron. `node tools/bouw_alles.js` maakt `alles.sql`, de
+delen en het tekstbestand daaruit, dus pas nooit alleen een afdruk aan. Wil je kleinere delen, geef dan een
 aantal regels mee: `node tools/bouw_alles.js 80`.
 
 **Kijk na het draaien één ding na:** Settings -> API -> Exposed schemas moet ALLEEN `public`

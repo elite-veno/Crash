@@ -154,3 +154,50 @@ pakketten.forEach((p, k) => {
 console.log('sql/alles.sql: ' + alles.split('\n').length + ' regels uit ' + DELEN.length + ' bestanden');
 console.log('sql/delen/:    ' + totaal + ' delen, grootste ' +
   Math.max(...pakketten.map(p => p.regels)) + ' regels (doel ' + MAX + ')');
+
+// ---------- alles in één tekstbestand, per deel gemarkeerd ----------
+// Voor wie niet alles in één keer kan plakken, maar ook geen veertien losse bestanden wil.
+// Eén .txt die op elke telefoon opengaat, met de delen onder elkaar. De scheidingslijnen
+// zijn SQL-commentaar: kopieer je een regel te veel mee, dan doet dat niets. En omdat
+// alles ertussen gewoon SQL is, draait het hele bestand in één keer ook -- voor wie het
+// wel in één keer kan plakken.
+const hekjes = '-- ' + '#'.repeat(76) + '\n';
+let txt =
+  hekjes +
+  '--  CRASH CASINO -- ALLE SQL, IN ' + totaal + ' DELEN\n' +
+  hekjes +
+  '--\n' +
+  '--  Te groot om in één keer te plakken? Doe het dan per deel:\n' +
+  '--\n' +
+  '--    1. Zoek hieronder "DEEL 1 VAN ' + totaal + '".\n' +
+  '--    2. Kopieer alles vanaf die regel tot aan "EINDE DEEL 1".\n' +
+  '--    3. Plak het in de SQL-editor van Supabase en druk op RUN.\n' +
+  '--    4. Pas als je groen "Success" ziet: door naar DEEL 2. Enzovoort.\n' +
+  '--\n' +
+  '--  De volgorde doet ertoe: elk deel gebruikt wat de delen ervoor hebben aangemaakt.\n' +
+  '--  Gaat er iets mis, ga dan niet verder. Alles is veilig om opnieuw te draaien.\n' +
+  '--\n' +
+  '--  Kan het wel in één keer? Dan mag je ook dit hele bestand plakken. De regels met\n' +
+  '--  hekjes zijn commentaar en doen niets.\n' +
+  '--\n' +
+  '--  Er staat hier geen enkele sleutel in. De service_role-sleutel hoort nergens anders\n' +
+  '--  dan in het dashboard van Supabase.\n' +
+  '--\n' +
+  hekjes;
+
+pakketten.forEach((p, k) => {
+  const nr = k + 1;
+  const inhoud = fs.readFileSync(path.join(delenMap, 'deel_' + pad2(nr) + '.sql'), 'utf8');
+  const titel = '   DEEL ' + nr + ' VAN ' + totaal + '   ';
+  const breed = 76, links = Math.floor((breed - titel.length) / 2);
+  txt += '\n\n\n' + hekjes +
+    '-- ' + '#'.repeat(links) + titel + '#'.repeat(breed - links - titel.length) + '\n' +
+    '-- ####  kopieer vanaf hier\n' +
+    hekjes + '\n' + inhoud.replace(/\s+$/, '') + '\n\n' +
+    hekjes +
+    '-- ####  EINDE DEEL ' + nr + ' -- kopieer tot hier' +
+    (nr < totaal ? ', RUN, en dan door naar deel ' + (nr + 1) : ', RUN -- en dan ben je klaar') + '\n' +
+    hekjes;
+});
+fs.writeFileSync(path.join(map, 'alles_in_delen.txt'), txt);
+console.log('sql/alles_in_delen.txt: ' + txt.split('\n').length + ' regels, ' + totaal + ' delen');
