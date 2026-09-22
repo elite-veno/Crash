@@ -280,6 +280,7 @@ declare
   v_uid uuid := auth.uid();
   v_lobby bigint;
   v_stack integer;
+  v_stoelstack integer;
   v_ronde bigint;
 begin
   if v_uid is null then raise exception 'not signed in'; end if;
@@ -299,12 +300,24 @@ begin
     -- geld uit het niets, en te herhalen zo vaak je wilt.
     update public.pk_seats s set folded = true, acted = true
      where s.round_id = v_ronde and s.user_id = v_uid and not s.folded;
-    select s.stack into v_stack from public.pk_seats s
+    select s.stack into v_stoelstack from public.pk_seats s
       where s.round_id = v_ronde and s.user_id = v_uid;
-    -- De stoel in de hand houdt geen fiches meer vast: die zijn nu van het saldo.
-    update public.pk_seats s set stack = 0
-      where s.round_id = v_ronde and s.user_id = v_uid;
+    -- Maar alleen als je ook echt een stoel IN die hand hebt. Wie aanschoof terwijl er al
+    -- gedeeld was, staat wel in pk_players en niet in pk_seats: hij wacht op de volgende
+    -- hand. Dan geeft dit null, en dat null verderop bij het saldo optellen deed niets --
+    -- zijn hele inkoop was weg, zonder foutmelding. Voor hem is pk_players.stack juist wel
+    -- de goede stand: hij heeft nog niets ingezet.
+    if v_stoelstack is not null then
+      v_stack := v_stoelstack;
+      -- De stoel in de hand houdt geen fiches meer vast: die zijn nu van het saldo.
+      update public.pk_seats s set stack = 0
+        where s.round_id = v_ronde and s.user_id = v_uid;
+    end if;
   end if;
+
+  -- En wat er ook misgaat, hier staat nooit null. Het grootboek weigert dat terecht, en
+  -- dan kwam je met een rauwe databasefout niet meer van tafel.
+  v_stack := coalesce(v_stack, 0);
 
   -- Alleen de stoel aan DEZE tafel. Zonder dat filter haalt opstaan je overal weg terwijl
   -- er maar één stapel wordt uitbetaald.

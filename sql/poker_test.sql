@@ -407,3 +407,33 @@ select pg_temp.zegt('en er staan niet meer fiches op tafel dan betaald', '200',
 select pg_temp.zegt('saldo plus stapel is precies de verse duizend', '1000',
   coalesce((select (p.balance + pl.stack)::text from public.profiles p
               join public.pk_players pl on pl.user_id = p.id where p.username = 'ann'), 'geen sprint'));
+
+-- ---------- aanschuiven terwijl er al gedeeld is ----------
+-- Wie tijdens een lopende hand aanschuift staat wel in pk_players en niet in pk_seats: hij
+-- wacht op de volgende hand. pk_leave ging toch de stoelen-tak in, vond daar niets, en
+-- telde null bij het saldo op -- zijn hele inkoop verdween zonder een woord.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+  -- De toets hierboven haalde er een lid uit om het opruimen te laten zien; hier hoort
+  -- iedereen er weer bij, anders veegt pk_tick ze meteen van tafel.
+  insert into public.lobby_members (lobby_id, user_id)
+       select 1, id from public.profiles on conflict do nothing;
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+select public.pk_tick(1);
+select pg_temp.zegt('er loopt een hand met twee stoelen', '2',
+  (select count(*)::text from public.pk_seats));
+select pg_temp.zegt('en cas schuift aan terwijl die loopt', 'geen fout',
+  pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000003', 'select public.pk_sit(500)'));
+select pg_temp.zegt('hij zit aan tafel maar niet in de hand', '0',
+  (select count(*)::text from public.pk_seats s
+    where s.user_id = 'aaaaaaaa-0000-0000-0000-000000000003'));
+select pg_temp.zegt('opstaan lukt gewoon', 'geen fout',
+  pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000003', 'select public.pk_leave()'));
+select pg_temp.zegt('en zijn inkoop staat helemaal terug', '1000',
+  (select balance::text from public.profiles where username = 'cas'));
+select pg_temp.zegt('de hand van de anderen loopt nog steeds', '1',
+  (select count(*)::text from public.pk_rounds where settled_at is null));
