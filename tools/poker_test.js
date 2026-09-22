@@ -303,4 +303,171 @@ function sluitend(wat, spelers, knop = 0) {
   h.check('tot op de cent verdeeld', 1000, som);
 }
 
+// ================== DE INZETRONDE ==================
+// Wat een speler mag doen, en wat er gebeurt als hij het doet. Dit is de grendel: de
+// browser stuurt hooguit "raise" met een bedrag, en als dat bedrag niet mag gaat de zet
+// niet door. Alle bedragen in centen.
+function tafel(stacks, blinds = [50, 100]) {
+  const stoelen = stacks.map(x => ({ stack: x, inzet: 0, gefold: false, allin: false, gezet: false }));
+  // De blinds staan er al in: de kleine op stoel 0, de grote op stoel 1.
+  stoelen[0].stack -= blinds[0]; stoelen[0].inzet = blinds[0];
+  stoelen[1].stack -= blinds[1]; stoelen[1].inzet = blinds[1];
+  return { stoelen, hoogste: blinds[1], minVerhoging: blinds[1], beurt: 2 % stacks.length };
+}
+
+{
+  const st = tafel([1000, 1000, 1000]);
+  const m = O.pokerLegal(st, 2);
+  h.check('wie nog niets heeft ingelegd moet de grote blind matchen', 100, m.call);
+  h.check('en kan dus niet checken', false, m.check);
+  h.check('de kleinste verhoging is twee blinds', 200, m.minRaise);
+  h.check('en de grootste is zijn hele stapel', 1000, m.maxRaise);
+}
+{
+  // Buiten je beurt mag niets.
+  const st = tafel([1000, 1000, 1000]);
+  h.check('buiten je beurt wordt geweigerd', 'not your turn', O.pokerAct(st, 0, 'call').fout);
+}
+{
+  // Checken terwijl er een inzet staat mag niet.
+  const st = tafel([1000, 1000, 1000]);
+  h.check('checken kan niet als er een inzet staat', 'cannot check', O.pokerAct(st, 2, 'check').fout);
+}
+{
+  // Een te kleine verhoging wordt geweigerd.
+  const st = tafel([1000, 1000, 1000]);
+  h.check('een verhoging onder het minimum mag niet', 'raise too small',
+    O.pokerAct(st, 2, 'raise', 150).fout);
+  h.check('precies het minimum mag wel', true, O.pokerAct(st, 2, 'raise', 200).ok);
+  h.check('en de hoogste inzet staat dan op 200', 200, st.hoogste);
+  h.check('de minimumverhoging blijft honderd', 100, st.minVerhoging);
+}
+{
+  // Meer inzetten dan je hebt kan niet.
+  const st = tafel([1000, 1000, 300]);
+  h.check('meer dan je stapel wordt geweigerd', 'more than you have',
+    O.pokerAct(st, 2, 'raise', 500).fout);
+  h.check('all-in voor precies je stapel mag', true, O.pokerAct(st, 2, 'raise', 300).ok);
+  h.check('en dan sta je all-in', true, st.stoelen[2].allin);
+  h.check('met een lege stapel', 0, st.stoelen[2].stack);
+}
+{
+  // Een verhoging van 100 naar 250 is 150 erbij, en dat is meer dan de minimumverhoging
+  // van 100 -- dus dit is een VOLLE verhoging, en het minimum gaat mee omhoog naar 150.
+  const st = tafel([1000, 1000, 250]);
+  O.pokerAct(st, 2, 'raise', 250);
+  h.check('de hoogste inzet staat op 250', 250, st.hoogste);
+  h.check('en de minimumverhoging is nu honderdvijftig', 150, st.minVerhoging);
+}
+{
+  // De regel die mensen verrast: een all-in die KLEINER is dan een volle verhoging
+  // verhoogt de inzet wel, maar heropent de ronde niet voor wie al gezet had. Stoel 2
+  // heeft maar 150 en gaat all-in: dat is 50 boven de grote blind, waar 100 voor een
+  // volle verhoging nodig was.
+  const st = tafel([1000, 1000, 150]);
+  st.stoelen[0].gezet = true;             // de kleine blind had al gecalld
+  st.stoelen[0].stack -= 50; st.stoelen[0].inzet = 100;
+  h.check('all-in onder het minimum mag', true, O.pokerAct(st, 2, 'raise', 150).ok);
+  h.check('de hoogste inzet gaat wel mee omhoog', 150, st.hoogste);
+  h.check('maar de minimumverhoging blijft staan', 100, st.minVerhoging);
+  h.check('en wie al gezet had blijft op gezet staan', true, st.stoelen[0].gezet);
+  // Hij moet nog wel die vijftig bijleggen, dus de ronde is niet klaar.
+  h.check('maar hij moet het verschil nog matchen', false, O.pokerRondeKlaar(st));
+  h.check('en is dus weer aan de beurt', 0, O.pokerVolgende(st, 2));
+  // En dan mag hij alleen callen of folden -- niet heropenen met een minimumverhoging die
+  // op de te kleine all-in is gebouwd.
+  const m = O.pokerLegal(st, 0);
+  h.check('hij moet vijftig bijleggen', 50, m.call);
+  // Stoel 0 begon met 1000, legde 50 in als kleine blind en vulde aan tot 100: hij heeft
+  // nog 900 en staat op 100, dus verhogen kan tot 1000.
+  h.check('en verhogen kan tot alles wat hij nog heeft', 1000, m.maxRaise);
+  h.check('met als ondergrens de hoogste plus de oude minimumverhoging', 250, m.minRaise);
+}
+{
+  // En het spiegelbeeld: een volle verhoging heropent de ronde wél.
+  const st = tafel([1000, 1000, 1000]);
+  O.pokerAct(st, 2, 'call');              // stoel 2 gaat mee tot 100
+  st.beurt = 0; O.pokerAct(st, 0, 'call');
+  st.beurt = 1; O.pokerAct(st, 1, 'check');
+  h.check('iedereen heeft gezet, de ronde is klaar', true, O.pokerRondeKlaar(st));
+  // Nu dezelfde tafel, maar stoel 1 verhoogt in plaats van te checken.
+  const st2 = tafel([1000, 1000, 1000]);
+  O.pokerAct(st2, 2, 'call');
+  st2.beurt = 0; O.pokerAct(st2, 0, 'call');
+  st2.beurt = 1; O.pokerAct(st2, 1, 'raise', 300);
+  h.check('een volle verhoging heropent de ronde', false, O.pokerRondeKlaar(st2));
+  h.check('en zet de anderen weer op niet-gezet', false, st2.stoelen[0].gezet);
+  h.check('de verhoger zelf staat wel op gezet', true, st2.stoelen[1].gezet);
+  h.check('de minimumverhoging is nu tweehonderd', 200, st2.minVerhoging);
+}
+{
+  // Een ronde is klaar als iedereen gezet heeft en op dezelfde inzet staat.
+  const st = tafel([1000, 1000, 1000]);
+  h.check('aan het begin is de ronde niet klaar', false, O.pokerRondeKlaar(st));
+  O.pokerAct(st, 2, 'call'); st.beurt = 0;
+  O.pokerAct(st, 0, 'call'); st.beurt = 1;
+  h.check('de grote blind mag nog reageren', 1, O.pokerVolgende(st, 0));
+  O.pokerAct(st, 1, 'check');
+  h.check('daarna is hij klaar', true, O.pokerRondeKlaar(st));
+  h.check('en is er niemand meer aan de beurt', -1, O.pokerVolgende(st, 1));
+}
+{
+  // Iedereen fold behalve één: klaar, ongeacht de inzetten.
+  const st = tafel([1000, 1000, 1000]);
+  O.pokerAct(st, 2, 'fold'); st.beurt = 0;
+  O.pokerAct(st, 0, 'fold');
+  h.check('met nog één speler is de ronde klaar', true, O.pokerRondeKlaar(st));
+}
+{
+  // Iedereen all-in: er valt niets meer te doen.
+  const st = tafel([200, 200, 200]);
+  O.pokerAct(st, 2, 'raise', 200); st.beurt = 0;
+  O.pokerAct(st, 0, 'call'); st.beurt = 1;
+  O.pokerAct(st, 1, 'call');
+  h.check('alle drie all-in', 3, st.stoelen.filter(x => x.allin).length);
+  h.check('en dus is de ronde klaar', true, O.pokerRondeKlaar(st));
+}
+{
+  // Een speler die all-in is, krijgt geen beurt meer.
+  const st = tafel([1000, 1000, 100]);
+  O.pokerAct(st, 2, 'call');   // stoel 2 gaat met zijn laatste honderd mee
+  h.check('die staat all-in', true, st.stoelen[2].allin);
+  h.check('en mag niets meer', false, O.pokerLegal(st, 2).fold);
+  h.check('en wordt overgeslagen', 0, O.pokerVolgende(st, 2));
+}
+{
+  // Een onzinbedrag wordt geweigerd, en een onbekende zet ook.
+  const st = tafel([1000, 1000, 1000]);
+  h.check('een verhoging naar niets wordt geweigerd', 'bad amount',
+    O.pokerAct(st, 2, 'raise', 'veel').fout);
+  h.check('een onbekende zet wordt geweigerd', 'unknown move', O.pokerAct(st, 2, 'dansen').fout);
+  h.check('en de tafel is niet veranderd', 100, st.hoogste);
+}
+{
+  // Na de flop begint iedereen op nul en mag de eerste checken.
+  const st = { stoelen: [
+    { stack: 900, inzet: 0, gefold: false, allin: false, gezet: false },
+    { stack: 900, inzet: 0, gefold: false, allin: false, gezet: false },
+  ], hoogste: 0, minVerhoging: 100, beurt: 0 };
+  const m = O.pokerLegal(st, 0);
+  h.check('na de flop kun je checken', true, m.check);
+  h.check('er valt niets te callen', 0, m.call);
+  h.check('en de kleinste inzet is een grote blind', 100, m.minRaise);
+  O.pokerAct(st, 0, 'check'); st.beurt = 1;
+  h.check('één check maakt de ronde nog niet klaar', 1, O.pokerVolgende(st, 0));
+  O.pokerAct(st, 1, 'check');
+  h.check('twee checks wel', true, O.pokerRondeKlaar(st));
+}
+{
+  // Het geld klopt: wat van de stapels af gaat, staat in de inzetten.
+  const st = tafel([1000, 1000, 1000]);
+  O.pokerAct(st, 2, 'raise', 350); st.beurt = 0;
+  O.pokerAct(st, 0, 'call'); st.beurt = 1;
+  O.pokerAct(st, 1, 'call');
+  const over = st.stoelen.reduce((a, x) => a + x.stack, 0);
+  const inzet = st.stoelen.reduce((a, x) => a + x.inzet, 0);
+  h.check('stapels plus inzetten is wat er begon', 3000, over + inzet);
+  h.check('en iedereen staat op hetzelfde bedrag', 350, st.stoelen[0].inzet);
+}
+
 process.exit(h.rapport('POKER'));

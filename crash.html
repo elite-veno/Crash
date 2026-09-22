@@ -3510,6 +3510,117 @@ const ODDS = {
     return terug;
   },
 
+  // De inzetronde. Dit is wat de server gebruikt om te bepalen of een zet mag: de browser
+  // stuurt hooguit "raise" met een bedrag, en als dat bedrag niet klopt gaat de zet niet
+  // door. Zonder dit stukje is elke andere grendel zinloos.
+  //
+  // `stand` is de tafel zoals hij nu staat:
+  //   stoelen: [{ stack, inzet, gefold, allin, gezet }]  -- inzet is wat deze speler DEZE
+  //            straat in de pot heeft gedaan; gezet zegt of hij al aan de beurt is geweest
+  //            sinds de laatste verhoging.
+  //   hoogste: de hoogste inzet van deze straat
+  //   minVerhoging: hoe groot de laatste volle verhoging was (in het begin de grote blind)
+  //
+  // Alle bedragen in centen, zodat er niets wegvalt in de afronding.
+  pokerLegal(stand, i) {
+    const s = stand.stoelen[i];
+    const leeg = { fold: false, check: false, call: 0, minRaise: 0, maxRaise: 0 };
+    if (!s || s.gefold || s.allin || s.stack <= 0) return leeg;
+    const teGaan = Math.max(0, stand.hoogste - s.inzet);
+    const call = Math.min(teGaan, s.stack);
+    // Verhogen kan tot alles wat je hebt. De ondergrens is de vorige verhoging erbovenop,
+    // maar wie daar niet aan komt mag nog steeds all-in -- alleen heropent dat de ronde
+    // niet voor wie al gezet had.
+    const maxRaise = s.inzet + s.stack;
+    let minRaise = stand.hoogste + stand.minVerhoging;
+    if (minRaise > maxRaise) minRaise = maxRaise;
+    return {
+      fold: true,
+      check: teGaan === 0,
+      call: teGaan > 0 ? call : 0,
+      // Verhogen kan alleen als je boven de hoogste inzet uit komt.
+      minRaise: maxRaise > stand.hoogste ? minRaise : 0,
+      maxRaise: maxRaise > stand.hoogste ? maxRaise : 0,
+    };
+  },
+
+  // Een zet uitvoeren. Geeft { ok, fout } terug en past `stand` aan. `naar` is bij een
+  // verhoging het bedrag waar je NAAR gaat, niet wat je erbij legt -- zo staat het ook op
+  // de knop ("RAISE TO $40"), en zo kan er geen verwarring over ontstaan.
+  pokerAct(stand, i, zet, naar) {
+    const mag = this.pokerLegal(stand, i);
+    const s = stand.stoelen[i];
+    if (!s || (!mag.fold && !mag.check && !mag.call)) return { ok: false, fout: 'not your turn' };
+    if (stand.beurt !== i) return { ok: false, fout: 'not your turn' };
+
+    if (zet === 'fold') {
+      s.gefold = true; s.gezet = true;
+      return { ok: true };
+    }
+    if (zet === 'check') {
+      if (!mag.check) return { ok: false, fout: 'cannot check' };
+      s.gezet = true;
+      return { ok: true };
+    }
+    if (zet === 'call') {
+      if (mag.call <= 0) return { ok: false, fout: 'nothing to call' };
+      s.stack -= mag.call; s.inzet += mag.call; s.gezet = true;
+      if (s.stack === 0) s.allin = true;
+      return { ok: true };
+    }
+    if (zet === 'raise') {
+      const doel = Math.round(Number(naar));
+      if (!Number.isFinite(doel)) return { ok: false, fout: 'bad amount' };
+      if (!mag.maxRaise) return { ok: false, fout: 'cannot raise' };
+      if (doel > mag.maxRaise) return { ok: false, fout: 'more than you have' };
+      // Onder de minimumverhoging mag alleen als het je hele stapel is.
+      const alles = doel === mag.maxRaise;
+      if (doel < mag.minRaise && !alles) return { ok: false, fout: 'raise too small' };
+      const bij = doel - s.inzet;
+      if (bij <= 0) return { ok: false, fout: 'raise too small' };
+      const vol = doel - stand.hoogste >= stand.minVerhoging;
+      s.stack -= bij; s.inzet = doel; s.gezet = true;
+      if (s.stack === 0) s.allin = true;
+      if (vol) {
+        stand.minVerhoging = doel - stand.hoogste;
+        // Een volle verhoging heropent de ronde: iedereen mag weer reageren.
+        for (const a of stand.stoelen) if (a !== s && !a.gefold && !a.allin) a.gezet = false;
+      }
+      // Een all-in die te klein is om te heropenen verhoogt de hoogste inzet wel, maar
+      // laat wie al gezet had met rust. Dat is de regel die mensen het vaakst verrast.
+      if (doel > stand.hoogste) stand.hoogste = doel;
+      return { ok: true };
+    }
+    return { ok: false, fout: 'unknown move' };
+  },
+
+  // Is deze inzetronde klaar? Ja als er niemand meer is die nog mag en moet reageren.
+  pokerRondeKlaar(stand) {
+    const levend = stand.stoelen.filter(s => !s.gefold);
+    if (levend.length <= 1) return true;
+    const kunnen = levend.filter(s => !s.allin && s.stack > 0);
+    if (kunnen.length === 0) return true;
+    // Eén speler over die nog kan handelen, en hij heeft al gezet: klaar. Anders moet
+    // iedereen gezet hebben én op de hoogste inzet staan.
+    for (const s of kunnen) {
+      if (!s.gezet) return false;
+      if (s.inzet !== stand.hoogste) return false;
+    }
+    return true;
+  },
+
+  // Wie is er hierna aan de beurt? Geeft -1 als er niemand meer hoeft.
+  pokerVolgende(stand, vanaf) {
+    const n = stand.stoelen.length;
+    for (let d = 1; d <= n; d++) {
+      const i = (vanaf + d) % n;
+      const s = stand.stoelen[i];
+      if (s.gefold || s.allin || s.stack <= 0) continue;
+      if (!s.gezet || s.inzet !== stand.hoogste) return i;
+    }
+    return -1;
+  },
+
   bjNewShoe(decks = 6) {
     const shoe = [];
     for (let d = 0; d < decks; d++)
