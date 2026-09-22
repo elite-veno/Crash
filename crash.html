@@ -1597,6 +1597,46 @@
   .bj-message.push { color: var(--gold); }
   .bj-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 
+  /* ---------- poker ---------- */
+  .pk-table { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 22px; }
+  .pk-seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .pk-seat {
+    background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+    transition: border-color 0.2s, opacity 0.2s;
+  }
+  /* Wie aan de beurt is licht op, zodat je in één oogopslag ziet op wie er gewacht wordt. */
+  .pk-seat.acting { border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon-glow); }
+  .pk-seat.folded { opacity: 0.4; }
+  .pk-seat.mine .pk-seat-name { color: var(--neon); }
+  .pk-seat-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .pk-seat-name { font-size: 11px; letter-spacing: 0.6px; color: var(--text); }
+  .pk-seat-stack { font-family: var(--font-num); font-size: 12px; color: var(--gold); }
+  .pk-seat-bet { font-family: var(--font-num); font-size: 10px; color: var(--muted); min-height: 13px; }
+  .pk-seat-tag { font-size: 9px; letter-spacing: 1px; color: var(--muted); min-height: 11px; }
+  .pk-seat-tag.allin { color: var(--red); }
+  .pk-seat .cards { min-height: 0; gap: 4px; }
+  /* Aan tafel zijn de kaarten kleiner dan bij blackjack: er liggen er zes paar naast elkaar. */
+  .pk-seat .card { width: 34px; height: 48px; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.45); }
+  .pk-seat .card .corner { font-size: 10px; }
+  .pk-seat .card .pip { font-size: 15px; }
+  /* Een dichte kaart: dezelfde maat, maar de rug naar boven. */
+  .pk-seat .card.down {
+    background: linear-gradient(135deg, #1d3a63 0%, #14283f 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .pk-middle { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .pk-pot {
+    font-family: var(--font-num); font-size: 26px; color: var(--gold);
+  }
+  .pk-board { justify-content: center; min-height: 100px; }
+  .pk-phase { font-size: 11px; letter-spacing: 1px; color: var(--muted); text-align: center; }
+  .pk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .pk-raise { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .pk-raise input[type="range"] { flex: 1; accent-color: var(--neon); }
+  .pk-raise input[type="number"] { width: 92px; margin: 0; }
+  .pk-buyin-note { margin-top: 6px; }
+
   @media (max-width: 900px) {
     .content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .game-view.active { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow: visible; height: auto; min-height: 100vh; }
@@ -1788,6 +1828,18 @@
       </svg>
     </div>
     <div class="nav-label">BLACKJACK</div>
+    <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
+  </div>
+
+  <div class="nav-item" data-route="poker">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="3" y="3" width="18" height="18" rx="3"/>
+        <path d="M12 7l3.2 3.6c1.1 1.3.2 3.4-1.6 3.4-.7 0-1.2-.3-1.6-.8-.4.5-.9.8-1.6.8-1.8 0-2.7-2.1-1.6-3.4L12 7z"/>
+        <path d="M12 14.6V17"/>
+      </svg>
+    </div>
+    <div class="nav-label">POKER</div>
     <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
   </div>
 
@@ -2107,6 +2159,36 @@
           </div>
         </div>
       </div>
+      <!-- POKER -->
+      <div class="game-card available" data-route="poker">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #14281c 0%, #0e1a13 100%);">
+          <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
+            <ellipse cx="140" cy="86" rx="104" ry="52" fill="#1c4028" stroke="#2f6b42" stroke-width="2"/>
+            <ellipse cx="140" cy="86" rx="90" ry="42" fill="none" stroke="#2a5c39" stroke-width="1"/>
+            <g>
+              <rect x="96" y="66" width="30" height="42" rx="3" fill="#fdfdf5" stroke="#aaa"/>
+              <text x="111" y="86" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="bold">A</text>
+              <text x="111" y="99" text-anchor="middle" fill="#e0616e" font-size="10">♦</text>
+              <rect x="132" y="66" width="30" height="42" rx="3" fill="#fdfdf5" stroke="#aaa"/>
+              <text x="147" y="86" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="bold">K</text>
+              <text x="147" y="99" text-anchor="middle" fill="#1a1a1a" font-size="10">♠</text>
+              <rect x="168" y="66" width="30" height="42" rx="3" fill="#1d3a63" stroke="#2c5286"/>
+            </g>
+            <circle cx="72" cy="110" r="7" fill="#e0b555" stroke="#a8811f"/>
+            <circle cx="84" cy="106" r="7" fill="#e0616e" stroke="#9c3b45"/>
+            <circle cx="206" cy="108" r="7" fill="#3ecf8e" stroke="#237a54"/>
+            <text x="140" y="146" text-anchor="middle" fill="#e0b555" font-size="11" font-family="monospace" letter-spacing="2">TEXAS HOLD'EM</text>
+          </svg>
+        </div>
+        <div class="game-card-body">
+          <div class="game-card-title">POKER</div>
+          <div class="game-card-desc">Against the other players, not the house. Bring friends to your table.</div>
+          <div class="game-card-footer">
+            <span class="game-card-tag">NO HOUSE EDGE</span>
+            <span class="game-card-arrow">→</span>
+          </div>
+        </div>
+      </div>
       <!-- PAARDENRACE -->
       <div class="game-card available" data-route="horse">
         <div class="game-card-preview" style="background: linear-gradient(180deg, #7ec8ff 0%, #b8e4ff 55%, #4a8a2a 55%, #3d7a1f 100%);">
@@ -2226,6 +2308,7 @@
         <tr><td>SAFETY NET</td><td class="rtp">—</td><td>—</td><td class="note">No stake. Only available when you are broke: stop the marker near the middle and get $10 to $40 to play on.</td></tr>
         <tr><td>HORSE RACE</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every horse has a fixed win chance; payout = 0.97 / that chance. The finishing order is drawn before the start and the animation follows it.</td></tr>
         <tr><td>BLACKJACK</td><td class="rtp">~99%</td><td>~1%</td><td class="note">6 decks, continuously shuffled, dealer stands on all 17s, blackjack 3:2, double on any two cards, no split.</td></tr>
+        <tr><td>POKER</td><td class="rtp">—</td><td>0%</td><td class="note">Texas Hold'em against the other players at your table. The house takes nothing out of the pot, so there is no edge and no RTP to quote: what one player wins, another lost. The deck is fixed before the deal and the seed is published when the hand is over.</td></tr>
         <tr><td>WHEEL</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Twenty equal segments paying 19.4x between them: 19.4 / 20 = 0.97.</td></tr>
         <tr><td>777 <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Three reels. Three of a kind pay 3x to 40x, two cherries 1.5x. 17% of spins pay.</td></tr>
         <tr><td>RIDE THE BUS <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every multiplier is 0.97 divided by the chance of getting that far, counted off the cards still in the deck. So stopping after any call returns 97%.</td></tr>
@@ -2995,6 +3078,69 @@
     </main>
   </div>
 
+  <!-- =================== POKER VIEW =================== -->
+  <div class="view game-view" id="pokerView">
+    <aside class="game-aside">
+      <div class="crash-header">
+        <button class="back-btn" data-route="home">← LOBBY</button>
+        <div class="crash-header-title">POKER</div>
+      </div>
+
+      <div class="panel balance">
+        <div class="balance-label">BALANCE</div>
+        <div class="balance-amount js-balance">1000.00</div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="field-group">
+          <div class="field-label"><span>BUY IN</span><span class="hint">$</span></div>
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="pokerBuyin" value="200" min="100" max="500" step="10">
+          <div class="pk-buyin-note odds-note">$100 to $500. Your chips go back to your balance when you leave.</div>
+        </div>
+        <button class="btn-primary btn-bet" id="pkSitBtn">TAKE A SEAT</button>
+        <button class="btn-secondary" id="pkLeaveBtn" hidden>LEAVE THE TABLE</button>
+
+        <div class="pk-actions" id="pkActions" hidden>
+          <button class="btn-secondary" id="pkFoldBtn">FOLD</button>
+          <button class="btn-secondary" id="pkCheckBtn">CHECK</button>
+          <button class="btn-primary btn-bet" id="pkRaiseBtn" style="grid-column: 1 / 3;">RAISE</button>
+          <div class="pk-raise" style="grid-column: 1 / 3;">
+            <input type="range" id="pkRaiseSlider" min="0" max="100" value="0">
+            <input type="number" inputmode="decimal" id="pkRaiseAmount" value="0" min="0" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► STATISTICS</div>
+        <div class="stats-grid" data-stats="poker"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">► HOW IT WORKS</div>
+        <div class="odds-note">Texas Hold'em against the other players at your table, not against the house — so there is no edge here and nothing is taken out of the pot. Blinds <b>$5/$10</b>, up to six seats. Invite friends from the <b>FRIENDS</b> page or share your table code. You have <b>25 seconds</b> to act; run out and you check if it is free, fold if it is not.</div>
+      </div>
+    </aside>
+
+    <main class="game-main">
+      <div class="panel board">
+        <div class="toast-host" id="pokerToasts"></div>
+        <div class="lobby-bar" id="pokerLobbyBar"></div>
+        <div class="pk-table" id="pkTable">
+          <div class="pk-seats" id="pkSeats"></div>
+          <div class="pk-middle">
+            <div class="pk-pot" id="pkPot">—</div>
+            <div class="cards pk-board" id="pkBoard"></div>
+            <div class="pk-phase" id="pkPhase">SIT DOWN TO PLAY</div>
+          </div>
+        </div>
+        <div class="odds-note" id="pkFair" hidden></div>
+      </div>
+    </main>
+  </div>
+
   <!-- =================== PAARDENRACE VIEW =================== -->
   <div class="view game-view" id="horseView">
     <aside class="game-aside">
@@ -3078,7 +3224,7 @@ const MIN_BET = 1;
 const randInt = n => Math.floor(Math.random() * n);
 // De basisspellen staan voor iedereen open; de VIP-spellen alleen voor de winnaar van het
 // vorige seizoen. GAMES is alles wat statistieken bijhoudt.
-const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'horse', 'scratch', 'wheel'];
+const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'poker', 'horse', 'scratch', 'wheel'];
 const VIP_GAMES = ['slots', 'bus'];
 const GAMES = [...BASE_GAMES, ...VIP_GAMES];
 
@@ -3995,6 +4141,7 @@ function navigate(route) {
     if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
     if (route === 'blackjack') mbjStart(); else if (MBJ.timer) clearTimeout(MBJ.timer);
+    if (route === 'poker') pokStart(); else pokStop();
     if (route === 'friends') { friendsRender(); friendsPull(); }
     if (route === 'profile') { if (PROF.user === null) profOpen(profMine()); else profRender(); }
     if (route === 'home') seasonRender();
@@ -5479,14 +5626,15 @@ async function lobbyCall(path, body, msg) {
     // opslag het saldo van voor de terugbetaling er weer overheen, en is het geld alsnog weg.
     await mpSyncBalance();
     await lobbyPull();
-    if (msg) flash(msg, 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    if (msg) flash(msg, 'green', lobbyToasts());
     // Een andere tafel betekent een andere ronde: alles van de vorige moet weg.
     MBJ.round = null; MBJ.seats = []; MBJ.settled = 0;
+    POK.round = null; POK.seats = []; POK.players = []; POK.hole = []; POK.seen = 0;
     if (currentRoute === 'blackjack') await mbjPull();
+    if (currentRoute === 'poker') await pokPull();
     return d;
   } catch (e) {
-    flash(String(e.message || 'FAILED').toUpperCase(), 'red',
-          currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    flash(String(e.message || 'FAILED').toUpperCase(), 'red', lobbyToasts());
     return null;
   } finally { LOBBY.busy = false; lobbyRender(); }
 }
@@ -5502,10 +5650,9 @@ async function lobbyJoin(code, goThere) {
 async function lobbyInvite(username) {
   try {
     await api('/rest/v1/rpc/lobby_invite', { method: 'POST', body: { p_username: username } });
-    flash('INVITED ' + String(username).toUpperCase(), 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    flash('INVITED ' + String(username).toUpperCase(), 'green', lobbyToasts());
   } catch (e) {
-    flash(String(e.message || 'COULD NOT INVITE').toUpperCase(), 'red',
-          currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    flash(String(e.message || 'COULD NOT INVITE').toUpperCase(), 'red', lobbyToasts());
   }
 }
 
@@ -5517,8 +5664,20 @@ async function lobbyBeat() {
   try { await api('/rest/v1/rpc/lobby_heartbeat', { method: 'POST', body: {} }); } catch {}
 }
 
+// De balk staat op twee schermen: bij blackjack en bij poker. Het is dezelfde tafel en
+// dezelfde knoppen, dus wordt hij twee keer getekend in plaats van twee keer geschreven.
 function lobbyRender() {
-  const bar = $('lobbyBar');
+  for (const id of ['lobbyBar', 'pokerLobbyBar']) lobbyRenderIn(id);
+}
+
+// Waar een melding over de tafel heen moet: op het scherm waar je nu staat.
+function lobbyToasts() {
+  return currentRoute === 'poker' ? 'pokerToasts'
+       : currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts';
+}
+
+function lobbyRenderIn(barId) {
+  const bar = $(barId);
   if (!bar) return;
   bar.innerHTML = '';
   if (!online() || !AUTH.session) { bar.hidden = true; return; }
@@ -5529,7 +5688,7 @@ function lobbyRender() {
     const quick = frButton('QUICK PLAY', '', lobbyQuick);
     const priv  = frButton('PRIVATE TABLE', '', lobbyPrivate);
     const codeIn = document.createElement('input');
-    codeIn.type = 'text'; codeIn.id = 'lobbyCode'; codeIn.placeholder = 'CODE';
+    codeIn.type = 'text'; codeIn.placeholder = 'CODE';
     codeIn.maxLength = 6;
     codeIn.style.cssText = 'width: 90px; text-transform: uppercase; font-family: var(--font-num);';
     const joinBtn = frButton('JOIN', '', () => lobbyJoin(codeIn.value, false));
@@ -5543,8 +5702,8 @@ function lobbyRender() {
   bar.appendChild(frText('span', 'code', LOBBY.code));
   if (LOBBY.host) bar.appendChild(frText('span', 'tag', 'HOST'));
   const copy = frButton('COPY CODE', '', async () => {
-    try { await navigator.clipboard.writeText(LOBBY.code); flash('CODE COPIED', 'green', 'blackjackToasts'); }
-    catch { flash('CODE: ' + LOBBY.code, 'gold', 'blackjackToasts'); }
+    try { await navigator.clipboard.writeText(LOBBY.code); flash('CODE COPIED', 'green', lobbyToasts()); }
+    catch { flash('CODE: ' + LOBBY.code, 'gold', lobbyToasts()); }
   });
   bar.appendChild(copy);
   bar.appendChild(frButton('FRIENDS', '', () => navigate('friends')));
@@ -5913,6 +6072,360 @@ $('frName').addEventListener('keydown', e => { if (e.key === 'Enter') friendAdd(
 $('bjHitBtn').addEventListener('click', () => MBJ.on ? mbjAct('hit') : bjHit());
 $('bjStandBtn').addEventListener('click', () => MBJ.on ? mbjAct('stand') : bjStand());
 $('bjDoubleBtn').addEventListener('click', () => MBJ.on ? mbjAct('double') : bjDouble());
+
+// =================== GEDEELDE POKERTAFEL ===================
+// Texas Hold'em aan de tafel waar je met je vrienden al zit. Dezelfde lobby als bij
+// blackjack -- er is geen tweede soort gezelschap -- maar hier hangt een pokerronde aan.
+//
+// Wat deze kant doet: laten zien en doorgeven. De server deelt, houdt de beurt bij en
+// rekent af. De browser stuurt één getal in het hele spel: het totaal waar je deze straat
+// naartoe verhoogt. Zie sql/poker.sql en sql/poker_rpc.sql.
+//
+// De kaarten van een ander komen hier niet binnen. De view op de server geeft ze pas als
+// ze bij de showdown open liggen, dus er valt aan deze kant niets te verbergen: wat
+// binnenkomt is wat je mag zien.
+const POK = {
+  on: false,
+  round: null,      // de lopende hand, of null
+  seats: [],
+  players: [],      // wie er aan tafel zit tussen de handen door
+  hole: [],         // je eigen twee kaarten
+  offset: 0,        // klok van de server min die van deze browser, in ms
+  timer: null,
+  ticking: false,
+  tickAt: 0,
+  acting: false,
+  error: '',
+  seen: 0,          // de laatste hand die in de statistieken staat
+};
+
+const POK_KLEUR = { s: '♠', h: '♥', d: '♦', c: '♣' };
+function pokNow() { return Date.now() + POK.offset; }
+
+// 'Th' -> { r: '10', s: '♥' }, dezelfde vorm als de kaarten bij blackjack.
+function pokCard(t) {
+  const txt = String(t || '');
+  const r = txt.slice(0, -1);
+  return { r: r === 'T' ? '10' : r, s: POK_KLEUR[txt.slice(-1)] || txt.slice(-1) };
+}
+function pokMine() {
+  return AUTH.session ? POK.seats.find(s => s.user_id === AUTH.session.userId) || null : null;
+}
+function pokAtTable() {
+  return AUTH.session ? POK.players.find(p => p.user_id === AUTH.session.userId) || null : null;
+}
+
+async function pokTick() {
+  if (POK.ticking || !LOBBY.id || Date.now() - POK.tickAt < 1000) return;
+  POK.ticking = true;
+  POK.tickAt = Date.now();
+  try { await api('/rest/v1/rpc/pk_tick', { method: 'POST', body: { p_lobby: LOBBY.id } }); }
+  catch (e) { POK.error = e.message || 'geen verbinding'; }
+  finally { POK.ticking = false; }
+}
+
+async function pokPull() {
+  if (!online() || !LOBBY.id) { POK.round = null; POK.seats = []; POK.players = []; pokRender(); return; }
+  try {
+    const [spelers, rondes] = await Promise.all([
+      api('/rest/v1/pk_table?select=*&lobby_id=eq.' + LOBBY.id + '&order=seat_no.asc', { auth: false }),
+      api('/rest/v1/pk_live?select=*&lobby_id=eq.' + LOBBY.id + '&order=id.desc&limit=1', { auth: false }),
+    ]);
+    POK.players = Array.isArray(spelers) ? spelers : [];
+    const r = Array.isArray(rondes) ? rondes[0] : null;
+    const srv = r ? Date.parse(r.server_now) : NaN;
+    if (Number.isFinite(srv)) POK.offset = srv - Date.now();
+
+    if (!r || r.settled_at) {
+      // Geen hand of net afgerekend: de uitslag nog één keer laten staan, dan opnieuw.
+      POK.round = r || null;
+      POK.seats = r ? await pokSeats(r.id) : [];
+      if (r) pokRecord(r);
+      POK.hole = [];
+      POK.error = '';
+      await pokTick();
+    } else {
+      POK.round = r;
+      POK.seats = await pokSeats(r.id);
+      // Je eigen kaarten komen achter je eigen token vandaan, niet uit de openbare view.
+      POK.hole = AUTH.session ? await pokHole(r.id) : [];
+      POK.error = '';
+      // Denkt iemand te lang na, dan port deze browser de server om door te gaan.
+      if (r.act_deadline && pokNow() > Date.parse(r.act_deadline) + 500) await pokTick();
+    }
+  } catch (e) {
+    POK.error = e.message || 'geen verbinding';
+    if (/404|does not exist|relation|schema cache/i.test(POK.error)) { POK.round = null; POK.seats = []; }
+  }
+  pokRender();
+}
+
+async function pokSeats(roundId) {
+  const rows = await api('/rest/v1/pk_seats_public?select=*&round_id=eq.' + roundId +
+    '&order=seat_no.asc', { auth: false });
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function pokHole(roundId) {
+  try {
+    const rows = await api('/rest/v1/pk_my_hole?select=cards&round_id=eq.' + roundId + '&limit=1');
+    const r = Array.isArray(rows) ? rows[0] : null;
+    return r && Array.isArray(r.cards) ? r.cards : [];
+  } catch { return []; }
+}
+
+// Een afgerekende hand telt één keer mee in de statistieken.
+function pokRecord(r) {
+  const id = Number(r.id);
+  if (!r.settled_at || POK.seen >= id) return;
+  POK.seen = id;
+  const me = pokMine();
+  if (!me) return;
+  const inzet = Number(me.total_bet) || 0;
+  const uit = Number(me.payout) || 0;
+  if (inzet <= 0) return;
+  // Poker is speler tegen speler: winst hier is andermans verlies, niet die van het huis.
+  recordRound('poker', inzet, uit, uit > 0 ? round2(uit / inzet) : 0);
+}
+
+async function pokCall(path, body, msg) {
+  if (POK.acting) return null;
+  POK.acting = true;
+  pokRender();
+  try {
+    await mpFlush();
+    const d = await api('/rest/v1/rpc/' + path, { method: 'POST', body: body || {} });
+    await mpSyncBalance();
+    await pokPull();
+    if (msg) flash(msg, 'green', 'pokerToasts');
+    return d;
+  } catch (e) {
+    flash(String(e.message || 'FAILED').toUpperCase(), 'red', 'pokerToasts');
+    await pokPull();
+    return null;
+  } finally { POK.acting = false; pokRender(); }
+}
+
+const pokSit = () => {
+  const el = $('pokerBuyin');
+  const v = Math.round(Number(el && el.value) || 200);
+  return pokCall('pk_sit', { p_buyin: v }, 'YOU ARE IN');
+};
+const pokLeave = () => pokCall('pk_leave', {}, 'CHIPS BACK IN YOUR BALANCE');
+
+function pokAct(move, to) {
+  const r = POK.round;
+  if (!r) return null;
+  return pokCall('pk_act', {
+    p_round: Number(r.id), p_seq: Number(r.act_seq), p_move: move,
+    p_to: to == null ? null : Math.round(to),
+  });
+}
+
+// Wat mag er nu? Dezelfde rekensom als ODDS.pokerLegal, maar alleen om de knoppen goed te
+// zetten -- de server rekent hem zelf nog een keer en die beslist.
+function pokLegal() {
+  const r = POK.round, me = pokMine();
+  if (!r || r.settled_at || !me || me.folded || me.allin) return null;
+  if (Number(r.to_act_seat) !== Number(me.seat_no)) return null;
+  const hoogste = Number(r.high_bet) || 0;
+  const mijn = Number(me.bet) || 0;
+  const stack = Number(me.stack) || 0;
+  const teGaan = Math.max(0, hoogste - mijn);
+  const maxRaise = mijn + stack;
+  return {
+    check: teGaan === 0,
+    call: Math.min(teGaan, stack),
+    minRaise: maxRaise > hoogste ? Math.min(hoogste + (Number(r.min_raise) || 0), maxRaise) : 0,
+    maxRaise: maxRaise > hoogste ? maxRaise : 0,
+  };
+}
+
+// ---------- tekenen ----------
+function pokRender() {
+  const tafel = $('pkSeats');
+  if (!tafel) return;
+  const r = POK.round;
+  const ik = pokAtTable();
+  const me = pokMine();
+  const mag = pokLegal();
+
+  // De stoelen. Tussen de handen door staan de spelers uit pk_table er; tijdens een hand
+  // de stoelen van die hand, want daar staan de inzetten en de kaarten bij.
+  const rijen = (r && !r.settled_at) || (r && POK.seats.length) ? POK.seats : POK.players;
+  tafel.innerHTML = '';
+  if (!rijen.length) {
+    const leeg = document.createElement('div');
+    leeg.className = 'odds-note';
+    leeg.textContent = !online()
+      ? 'Every other game here works on your own. This one does not: poker is against the other players, so it needs an account and a table. Sign in from the balance panel on the left.'
+      : LOBBY.id
+        ? 'Nobody at this table yet. Take a seat, and invite a friend from the FRIENDS page.'
+        : 'Join or open a table first — the bar above does that.';
+    tafel.appendChild(leeg);
+  }
+  for (const s of rijen) {
+    const el = document.createElement('div');
+    const mijn = AUTH.session && s.user_id === AUTH.session.userId;
+    el.className = 'pk-seat' + (mijn ? ' mine' : '')
+      + (s.folded ? ' folded' : '')
+      + (r && !r.settled_at && Number(r.to_act_seat) === Number(s.seat_no) ? ' acting' : '');
+
+    const top = document.createElement('div');
+    top.className = 'pk-seat-top';
+    const naam = document.createElement('span');
+    naam.className = 'pk-seat-name';
+    naam.textContent = String(s.username || '?').slice(0, 14);
+    const stapel = document.createElement('span');
+    stapel.className = 'pk-seat-stack';
+    stapel.textContent = '$' + (Number(s.stack) || 0);
+    top.appendChild(naam); top.appendChild(stapel);
+    el.appendChild(top);
+
+    const kaarten = document.createElement('div');
+    kaarten.className = 'cards';
+    // Je eigen kaarten ken je; die van een ander pas als ze open liggen. Wat hier niet
+    // binnenkomt kan ook niet getoond worden -- de server stuurt ze simpelweg niet.
+    const open = mijn && POK.hole.length ? POK.hole
+               : (Array.isArray(s.hole) && s.hole.length ? s.hole : null);
+    if (r && !r.settled_at && !s.folded) {
+      if (open) for (const c of open) kaarten.appendChild(bjCardEl(pokCard(c), false));
+      else for (let i = 0; i < 2; i++) {
+        const d = document.createElement('div'); d.className = 'card down'; kaarten.appendChild(d);
+      }
+    } else if (open) {
+      for (const c of open) kaarten.appendChild(bjCardEl(pokCard(c), false));
+    }
+    el.appendChild(kaarten);
+
+    const inzet = document.createElement('div');
+    inzet.className = 'pk-seat-bet';
+    const b = Number(s.bet) || 0;
+    inzet.textContent = b > 0 ? 'BET $' + b : (Number(s.payout) > 0 ? '+$' + s.payout : '');
+    el.appendChild(inzet);
+
+    const tag = document.createElement('div');
+    tag.className = 'pk-seat-tag' + (s.allin ? ' allin' : '');
+    tag.textContent = s.folded ? 'FOLDED' : (s.allin ? 'ALL IN' : '');
+    el.appendChild(tag);
+
+    tafel.appendChild(el);
+  }
+
+  // Het midden: de pot, het bord en waar we zijn.
+  const pot = POK.seats.reduce((a, s) => a + (Number(s.total_bet) || 0), 0);
+  $('pkPot').textContent = pot > 0 ? '$' + pot : '—';
+  const bord = $('pkBoard');
+  bord.innerHTML = '';
+  const kaarten = (r && Array.isArray(r.board)) ? r.board : [];
+  for (const c of kaarten) bord.appendChild(bjCardEl(pokCard(c), false));
+
+  const STRAAT = ['PRE-FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN', 'HAND OVER'];
+  let fase;
+  // Poker is het enige spel hier dat niet alleen kan: je speelt tegen andere mensen, dus
+  // zonder verbinding valt er niets terug te vallen op een solo-versie. Dat staat er dan
+  // ook zo, in plaats van een tafel te beloven die er niet komt.
+  if (!online()) fase = 'POKER NEEDS AN ACCOUNT — SIGN IN TO PLAY AGAINST OTHERS';
+  else if (POK.error) fase = POK.error.toUpperCase();
+  else if (!LOBBY.id) fase = 'JOIN A TABLE TO PLAY';
+  else if (!ik) fase = POK.players.length ? 'TAKE A SEAT TO JOIN THE NEXT HAND' : 'SIT DOWN TO PLAY';
+  else if (!r || r.settled_at) fase = POK.players.filter(p => Number(p.stack) > 0).length < 2
+      ? 'WAITING FOR ONE MORE PLAYER' : 'NEXT HAND COMING UP';
+  else {
+    fase = STRAAT[Number(r.street)] || '';
+    if (Number(r.to_act_seat) >= 0 && r.act_deadline) {
+      const over = Math.max(0, Math.ceil((Date.parse(r.act_deadline) - pokNow()) / 1000));
+      const wie = POK.seats.find(s => Number(s.seat_no) === Number(r.to_act_seat));
+      fase += ' · ' + (mag ? 'YOUR MOVE' : String((wie && wie.username) || '?').toUpperCase())
+           + ' · ' + over + 's';
+    }
+  }
+  $('pkPhase').textContent = fase;
+
+  // De knoppen links.
+  const zit = !!ik;
+  $('pkSitBtn').hidden = zit;
+  $('pkSitBtn').disabled = POK.acting || !LOBBY.id || !online();
+  $('pkLeaveBtn').hidden = !zit;
+  $('pkLeaveBtn').disabled = POK.acting;
+  $('pkLeaveBtn').textContent = zit && me && r && !r.settled_at && !me.folded
+    ? 'FOLD AND LEAVE' : 'LEAVE THE TABLE';
+
+  const acties = $('pkActions');
+  acties.hidden = !mag;
+  if (mag) {
+    $('pkFoldBtn').disabled = POK.acting;
+    $('pkCheckBtn').disabled = POK.acting || (!mag.check && mag.call <= 0);
+    $('pkCheckBtn').textContent = mag.check ? 'CHECK' : 'CALL $' + mag.call;
+    const schuif = $('pkRaiseSlider'), vak = $('pkRaiseAmount'), knop = $('pkRaiseBtn');
+    if (mag.maxRaise > 0) {
+      knop.disabled = POK.acting;
+      schuif.min = mag.minRaise; schuif.max = mag.maxRaise;
+      vak.min = mag.minRaise; vak.max = mag.maxRaise;
+      if (Number(vak.value) < mag.minRaise || Number(vak.value) > mag.maxRaise) {
+        vak.value = mag.minRaise; schuif.value = mag.minRaise;
+      }
+      const naar = Math.round(Number(vak.value) || mag.minRaise);
+      knop.textContent = naar >= mag.maxRaise ? 'ALL IN $' + mag.maxRaise : 'RAISE TO $' + naar;
+    } else {
+      knop.disabled = true;
+      knop.textContent = 'RAISE';
+    }
+  }
+
+  // Het eerlijkheidsbewijs: de hash vooraf, het zaadje als de hand om is.
+  const eerlijk = $('pkFair');
+  if (r && r.deck_commit) {
+    eerlijk.hidden = false;
+    eerlijk.innerHTML = '<b>Shuffle ' + String(r.deck_commit).slice(0, 16) + '…</b> · ' +
+      (r.deck_seed
+        ? 'seed ' + String(r.deck_seed).slice(0, 16) + '… — the deck was fixed before the deal'
+        : 'the seed is released when the hand is over');
+  } else eerlijk.hidden = true;
+}
+
+function pokStart() {
+  if (!online()) { pokRender(); return; }
+  POK.on = true;
+  const lus = async () => {
+    if (!POK.on || currentRoute !== 'poker') return;
+    await lobbyBeat();
+    await pokPull();
+    POK.timer = setTimeout(lus, POK.round && !POK.round.settled_at ? 1500 : 2500);
+  };
+  if (POK.timer) clearTimeout(POK.timer);
+  lus();
+}
+
+function pokStop() {
+  POK.on = false;
+  if (POK.timer) { clearTimeout(POK.timer); POK.timer = null; }
+}
+
+// ---------- de knoppen van poker ----------
+$('pkSitBtn').addEventListener('click', pokSit);
+$('pkLeaveBtn').addEventListener('click', pokLeave);
+$('pkFoldBtn').addEventListener('click', () => pokAct('fold'));
+$('pkCheckBtn').addEventListener('click', () => {
+  const mag = pokLegal();
+  if (!mag) return;
+  pokAct(mag.check ? 'check' : 'call');
+});
+$('pkRaiseBtn').addEventListener('click', () => {
+  const mag = pokLegal();
+  if (!mag || !mag.maxRaise) return;
+  const naar = Math.round(Number($('pkRaiseAmount').value) || mag.minRaise);
+  pokAct('raise', Math.max(mag.minRaise, Math.min(mag.maxRaise, naar)));
+});
+// De schuif en het vakje wijzen naar hetzelfde bedrag.
+$('pkRaiseSlider').addEventListener('input', () => {
+  $('pkRaiseAmount').value = $('pkRaiseSlider').value;
+  pokRender();
+});
+$('pkRaiseAmount').addEventListener('input', () => {
+  $('pkRaiseSlider').value = $('pkRaiseAmount').value;
+  pokRender();
+});
 
 // =================== PAARDENRACE ===================
 const HR = { horses: [], bets: {}, racing: false, generation: 0, order: [], finish: [], t0: 0, lastPodium: [], history: [], pendingPayout: 0 };
