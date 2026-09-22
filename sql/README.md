@@ -13,8 +13,17 @@ draaien.
 
 Of, als je liever één keer plakt: **`alles.sql`** is precies die vier bestanden achter
 elkaar, in deze volgorde, met een kop erboven. Eén keer plakken in de SQL-editor en RUN.
-De losse bestanden blijven de bron -- `alles.sql` wordt daaruit samengesteld, dus pas nooit
-alleen `alles.sql` aan.
+
+Lukt dat niet in één keer -- te groot voor het klembord, of voor de editor -- gebruik dan
+**`sql/delen/`**: hetzelfde in veertien stukken van zo'n 150 regels, `deel_01.sql` tot en
+met `deel_14.sql`. Op volgorde plakken, elk deel apart op RUN, en pas door naar het
+volgende als het vorige groen is. Er wordt alleen tussen twee complete opdrachten
+geknipt, nooit midden in een functie; het grootste deel is `pk_tick`, dat niet kleiner
+kan.
+
+De losse bestanden blijven de bron. `node tools/bouw_alles.js` maakt `alles.sql` en de
+delen daaruit, dus pas nooit alleen een afdruk aan. Wil je kleinere delen, geef dan een
+aantal regels mee: `node tools/bouw_alles.js 80`.
 
 **Kijk na het draaien één ding na:** Settings -> API -> Exposed schemas moet ALLEEN `public`
 bevatten. Het schema `poker` mag daar nooit bij staan -- daar liggen de holekaarten en de
