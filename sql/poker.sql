@@ -46,6 +46,10 @@ create table if not exists public.pk_rounds (
   high_bet     integer not null default 0,      -- hoogste inzet van deze straat
   min_raise    integer not null default 10,
   to_act_seat  smallint,
+  -- Het volgnummer van de volgende zet. De browser stuurt mee welke zet hij dénkt te doen;
+  -- klopt dat nummer niet meer -- omdat een tweede tab net voor was -- dan gebeurt er
+  -- niets in plaats van twee keer hetzelfde.
+  act_seq      integer not null default 0,
   act_deadline timestamptz,
   settled_at   timestamptz
 );
@@ -94,6 +98,13 @@ create table if not exists poker.deck (
 );
 create index if not exists pk_seats_user on public.pk_seats (user_id);
 
+-- Ook op de tabellen in het schema hiernaast, al komt daar al niets bij: drie sloten op de
+-- kaarten en de stok is niet te veel voor het enige dat bij poker echt geheim moet blijven.
+alter table poker.hole enable row level security;
+alter table poker.deck enable row level security;
+revoke all on all tables in schema poker from public, anon, authenticated;
+revoke all on all functions in schema poker from public, anon, authenticated;
+
 -- ---------- wie er aan tafel zit tussen de handen door ----------
 -- Je stapel hoort bij de tafel, niet bij de hand: je blijft zitten als een hand voorbij is.
 create table if not exists public.pk_players (
@@ -128,6 +139,7 @@ alter table public.pk_rounds  enable row level security;
 alter table public.pk_seats   enable row level security;
 alter table public.pk_players enable row level security;
 
+
 -- En dit is de enige deur: een view die draait als zijn eigenaar (security_invoker = false,
 -- de standaard) en zelf beslist wat hij laat zien. `auth.uid()` leest de claim uit het
 -- token van de AANROEPER, niet van de eigenaar, dus de regel hieronder klopt ook al draait
@@ -155,7 +167,7 @@ with (security_invoker = false) as
          case when r.settled_at is null then null
               else (select d.seed from poker.deck d where d.round_id = r.id) end as deck_seed,
          r.button_seat, r.sb, r.bb, r.high_bet, r.min_raise, r.to_act_seat,
-         r.act_deadline, r.settled_at, now() as server_now
+         r.act_seq, r.act_deadline, r.settled_at, now() as server_now
     from public.pk_rounds r;
 
 grant select on public.pk_live to anon, authenticated;

@@ -128,3 +128,563 @@ begin
   return waarde;
 end;
 $$;
+
+-- ---------- eerlijk delen ----------
+-- De stok ligt vast voordat er gedeeld wordt. De hash gaat vooraf naar de spelers, het
+-- zaadje pas als de hand is afgerekend -- dan kan iedereen naspelen dat er onderweg niet
+-- is geschud. Dezelfde afspraak als bij crash en blackjack.
+create or replace function poker.fresh_deck()
+returns text[] language sql immutable set search_path = '' as $$
+  select array_agg(r.v || s.v order by s.i, r.i)
+    from unnest(array['s','h','d','c']) with ordinality as s(v, i),
+         unnest(array['2','3','4','5','6','7','8','9','T','J','Q','K','A']) with ordinality as r(v, i);
+$$;
+
+-- pgcrypto staat op Supabase in het schema `extensions` en op een kale Postgres meestal in
+-- `public`. De functies hieronder draaien met `search_path = ''` -- dat hoort zo, want een
+-- definer-functie met een te kapen zoekpad voert iets anders uit dan je denkt -- en dan
+-- moet elke naam volledig gekwalificeerd zijn. Dus wordt hier één keer opgezocht waar
+-- `digest` staat, en daar wijst poker.sha256 naar.
+do $$
+declare v_schema text;
+begin
+  select n.nspname into v_schema
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where p.proname = 'digest' and pg_get_function_identity_arguments(p.oid) = 'text, text'
+   limit 1;
+  if v_schema is null then
+    raise exception 'pgcrypto is niet geinstalleerd: create extension pgcrypto;';
+  end if;
+  execute format($f$
+    create or replace function poker.sha256(p text)
+    returns bytea language sql immutable set search_path = '' as
+    $b$ select %I.digest(p, 'sha256') $b$;
+  $f$, v_schema);
+end $$;
+
+-- Fisher-Yates, gestuurd door het zaadje. Zelfde zaadje, zelfde stok.
+create or replace function poker.shuffle(p_seed text)
+returns text[] language plpgsql immutable set search_path = '' as $$
+declare
+  kaarten text[] := poker.fresh_deck();
+  n int := array_length(kaarten, 1);
+  i int; j int; tmp text; h bytea;
+begin
+  for i in reverse n..2 loop
+    -- Voor elke stap een eigen hash van zaadje plus positie: zo hangt elke trekking aan
+    -- het zaadje en is de hele stok uit dat ene getal na te rekenen.
+    h := poker.sha256(p_seed || ':' || i::text);
+    j := 1 + (('x' || encode(substring(h from 1 for 4), 'hex'))::bit(32)::bigint
+              & 2147483647) % i;
+    tmp := kaarten[i]; kaarten[i] := kaarten[j]; kaarten[j] := tmp;
+  end loop;
+  return kaarten;
+end;
+$$;
+
+-- ---------- aan tafel gaan ----------
+-- Fiches komen uit je saldo en gaan er weer heen. Ze worden nergens gemaakt.
+create or replace function public.pk_sit(p_buyin integer)
+returns json language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_lobby bigint;
+  v_naam text;
+  v_saldo numeric;
+  v_koop integer;
+  v_stoel smallint;
+begin
+  if v_uid is null then raise exception 'not signed in'; end if;
+
+  select l.lobby_id into v_lobby from public.my_lobby l limit 1;
+  if v_lobby is null then raise exception 'join a table first'; end if;
+
+  if exists (select 1 from public.pk_players where lobby_id = v_lobby and user_id = v_uid) then
+    raise exception 'already seated';
+  end if;
+
+  -- De inkoop ligt tussen honderd en vijfhonderd: met een startsaldo van 1000 kan niemand
+  -- zijn hele hebben en houden op één tafel zetten, en een tafel loopt niet leeg omdat er
+  -- iemand met tien dollar aanschuift.
+  v_koop := greatest(100, least(500, coalesce(p_buyin, 200)));
+
+  select p.balance, p.username into v_saldo, v_naam
+    from public.profiles p where p.id = v_uid for update;
+  if v_saldo is null then raise exception 'no profile'; end if;
+  if v_saldo < v_koop then raise exception 'not enough money'; end if;
+
+  -- De laagste vrije stoel.
+  select coalesce(min(x), 0) into v_stoel
+    from generate_series(0, 5) x
+   where not exists (select 1 from public.pk_players q
+                      where q.lobby_id = v_lobby and q.seat_no = x);
+  if v_stoel is null then raise exception 'table is full'; end if;
+
+  update public.profiles set balance = balance - v_koop where id = v_uid;
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack)
+       values (v_lobby, v_uid, v_naam, v_stoel, v_koop);
+
+  return json_build_object('ok', true, 'seat', v_stoel, 'stack', v_koop,
+                           'balance', v_saldo - v_koop);
+end;
+$$;
+
+revoke all on function public.pk_sit(integer) from public, anon;
+grant execute on function public.pk_sit(integer) to authenticated;
+
+-- ---------- opstaan ----------
+create or replace function public.pk_leave()
+returns json language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_lobby bigint;
+  v_stack integer;
+  v_ronde bigint;
+begin
+  if v_uid is null then raise exception 'not signed in'; end if;
+
+  select p.lobby_id, p.stack into v_lobby, v_stack
+    from public.pk_players p where p.user_id = v_uid for update;
+  if v_lobby is null then return json_build_object('ok', true, 'stack', 0); end if;
+
+  -- Zit je midden in een hand, dan pas je eerst. Je inzet blijft in de pot staan -- dat is
+  -- geld dat je al hebt ingelegd, en weglopen mag dat niet ongedaan maken.
+  select r.id into v_ronde from public.pk_rounds r
+    where r.lobby_id = v_lobby and r.settled_at is null order by r.id desc limit 1;
+  if v_ronde is not null then
+    update public.pk_seats s set folded = true, acted = true
+     where s.round_id = v_ronde and s.user_id = v_uid and not s.folded;
+  end if;
+
+  delete from public.pk_players where user_id = v_uid;
+  update public.profiles set balance = balance + v_stack where id = v_uid;
+
+  return json_build_object('ok', true, 'stack', v_stack);
+end;
+$$;
+
+revoke all on function public.pk_leave() from public, anon;
+grant execute on function public.pk_leave() to authenticated;
+
+-- ---------- een zet doen ----------
+-- Dit is de grendel. De browser stuurt één getal in het hele spel: het totaal waar je deze
+-- straat naartoe verhoogt. Dat getal zit aan twee kanten vast in de stand op de server, en
+-- alles eromheen -- of je aan de beurt bent, of je al gezet hebt, wat je nog hebt -- komt
+-- uit de tabellen en niet uit wat de browser beweert.
+--
+-- `p_seq` is het volgnummer van de zet die de speler dénkt te doen. Stuurt een tweede tab
+-- dezelfde zet nog een keer, dan klopt dat nummer niet meer en gebeurt er niets.
+create or replace function public.pk_act(p_round bigint, p_seq integer, p_move text, p_to integer default null)
+returns json language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  r public.pk_rounds%rowtype;
+  s public.pk_seats%rowtype;
+  v_tegaan integer;
+  v_doel integer;
+  v_bij integer;
+  v_vol boolean;
+begin
+  if v_uid is null then raise exception 'not signed in'; end if;
+
+  select * into r from public.pk_rounds where id = p_round for update;
+  if r.id is null then raise exception 'no such hand'; end if;
+  if r.settled_at is not null then raise exception 'hand is over'; end if;
+  if r.act_seq <> p_seq then raise exception 'too late'; end if;
+
+  select * into s from public.pk_seats
+   where round_id = p_round and user_id = v_uid for update;
+  if s.round_id is null then raise exception 'not in this hand'; end if;
+  if r.to_act_seat is distinct from s.seat_no then raise exception 'not your turn'; end if;
+  if s.folded or s.allin then raise exception 'you are out of this hand'; end if;
+
+  v_tegaan := greatest(0, r.high_bet - s.bet);
+
+  if p_move = 'fold' then
+    update public.pk_seats set folded = true, acted = true
+     where round_id = p_round and seat_no = s.seat_no;
+
+  elsif p_move = 'check' then
+    if v_tegaan > 0 then raise exception 'cannot check'; end if;
+    update public.pk_seats set acted = true
+     where round_id = p_round and seat_no = s.seat_no;
+
+  elsif p_move = 'call' then
+    if v_tegaan <= 0 then raise exception 'nothing to call'; end if;
+    v_bij := least(v_tegaan, s.stack);
+    update public.pk_seats
+       set stack = stack - v_bij, bet = bet + v_bij, total_bet = total_bet + v_bij,
+           acted = true, allin = (stack - v_bij) = 0
+     where round_id = p_round and seat_no = s.seat_no;
+
+  elsif p_move = 'raise' then
+    if not s.may_raise then raise exception 'cannot raise again'; end if;
+    v_doel := coalesce(p_to, 0);
+    if v_doel > s.bet + s.stack then raise exception 'more than you have'; end if;
+    if v_doel <= r.high_bet then raise exception 'raise too small'; end if;
+    -- Onder het minimum mag alleen als het alles is wat je hebt.
+    if v_doel < r.high_bet + r.min_raise and v_doel <> s.bet + s.stack then
+      raise exception 'raise too small';
+    end if;
+    v_bij := v_doel - s.bet;
+    v_vol := (v_doel - r.high_bet) >= r.min_raise;
+
+    update public.pk_seats
+       set stack = stack - v_bij, bet = v_doel, total_bet = total_bet + v_bij,
+           acted = true, allin = (stack - v_bij) = 0
+     where round_id = p_round and seat_no = s.seat_no;
+
+    if v_vol then
+      -- Een volle verhoging heropent de ronde: iedereen mag weer reageren en weer verhogen.
+      update public.pk_rounds set min_raise = v_doel - r.high_bet, high_bet = v_doel
+       where id = p_round;
+      update public.pk_seats set acted = false, may_raise = true
+       where round_id = p_round and seat_no <> s.seat_no and not folded and not allin;
+    else
+      -- Een korte all-in verhoogt de inzet wel, maar wie al gezet had mag alleen nog het
+      -- verschil bijleggen -- niet opnieuw verhogen op een minimum dat hierop gebouwd is.
+      update public.pk_rounds set high_bet = v_doel where id = p_round;
+      update public.pk_seats set acted = false, may_raise = false
+       where round_id = p_round and seat_no <> s.seat_no and not folded and not allin and acted;
+    end if;
+
+  else
+    raise exception 'unknown move';
+  end if;
+
+  update public.pk_rounds set act_seq = act_seq + 1 where id = p_round;
+  perform public.pk_advance(p_round);
+  return json_build_object('ok', true);
+end;
+$$;
+
+revoke all on function public.pk_act(bigint, integer, text, integer) from public, anon;
+grant execute on function public.pk_act(bigint, integer, text, integer) to authenticated;
+
+-- ---------- de hand vooruit ----------
+-- Wie is er hierna? De eerste die nog kan en nog moet: niet gepast, niet all-in, en of nog
+-- niet gezet of nog niet op de hoogste inzet.
+create or replace function public.pk_next_seat(p_round bigint, p_vanaf smallint)
+returns smallint language plpgsql security definer set search_path = '' as $$
+declare
+  r public.pk_rounds%rowtype;
+  d int; i smallint; s public.pk_seats%rowtype;
+  n int;
+begin
+  select * into r from public.pk_rounds where id = p_round;
+  select count(*) into n from public.pk_seats where round_id = p_round;
+  for d in 1..n loop
+    i := ((p_vanaf + d) % n)::smallint;
+    select * into s from public.pk_seats where round_id = p_round and seat_no = i;
+    if s.seat_no is null or s.folded or s.allin or s.stack <= 0 then continue; end if;
+    if not s.acted or s.bet <> r.high_bet then return i; end if;
+  end loop;
+  return null;
+end;
+$$;
+
+-- De hand een stap verder: volgende speler, volgende straat, of afrekenen.
+create or replace function public.pk_advance(p_round bigint)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  r public.pk_rounds%rowtype;
+  v_levend int;
+  v_kunnen int;
+  v_volgende smallint;
+  v_kaarten text[];
+  v_gedeeld int;
+begin
+  select * into r from public.pk_rounds where id = p_round for update;
+  if r.settled_at is not null then return; end if;
+
+  select count(*) into v_levend from public.pk_seats where round_id = p_round and not folded;
+  -- Iedereen op één na gepast: die krijgt de pot, zonder te hoeven laten zien.
+  if v_levend <= 1 then
+    perform public.pk_settle(p_round);
+    return;
+  end if;
+
+  v_volgende := public.pk_next_seat(p_round, coalesce(r.to_act_seat, r.button_seat));
+  if v_volgende is not null then
+    update public.pk_rounds
+       set to_act_seat = v_volgende, act_deadline = now() + interval '25 seconds'
+     where id = p_round;
+    return;
+  end if;
+
+  -- De straat is dicht. Inzetten van deze straat gaan in de pot (total_bet houdt ze bij),
+  -- en dan de volgende kaarten.
+  update public.pk_seats set bet = 0, acted = false, may_raise = true
+   where round_id = p_round;
+  update public.pk_rounds set high_bet = 0, min_raise = bb where id = p_round;
+
+  if r.street >= 3 then
+    perform public.pk_settle(p_round);
+    return;
+  end if;
+
+  select d.cards into v_kaarten from poker.deck d where d.round_id = p_round;
+  -- De eerste kaarten van de stok zijn voor de spelers: twee per stoel.
+  select count(*) * 2 into v_gedeeld from public.pk_seats where round_id = p_round;
+
+  update public.pk_rounds
+     set street = r.street + 1,
+         board = case r.street
+                   when 0 then v_kaarten[v_gedeeld + 1 : v_gedeeld + 3]
+                   when 1 then r.board || v_kaarten[v_gedeeld + 4]
+                   else r.board || v_kaarten[v_gedeeld + 5]
+                 end
+   where id = p_round;
+
+  -- Na de flop begint de eerste levende stoel links van de knop.
+  select count(*) into v_kunnen from public.pk_seats
+   where round_id = p_round and not folded and not allin and stack > 0;
+  if v_kunnen <= 1 then
+    -- Niemand meer die kan inzetten: de rest van het bord valt vanzelf en dan showdown.
+    perform public.pk_advance(p_round);
+    return;
+  end if;
+
+  update public.pk_rounds
+     set to_act_seat = public.pk_next_seat(p_round, r.button_seat),
+         act_deadline = now() + interval '25 seconds'
+   where id = p_round;
+end;
+$$;
+
+-- ---------- afrekenen ----------
+-- De pot verdelen, met zijpotten. Dezelfde rekensom als ODDS.pokerPots in crash.html:
+-- iedereen speelt alleen om het geld dat hij zelf heeft kunnen matchen.
+create or replace function public.pk_settle(p_round bigint)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  r public.pk_rounds%rowtype;
+  v_niveau int;
+  v_vorig int := 0;
+  v_pot int;
+  v_beste bigint;
+  v_winnaars smallint[];
+  v_ieder int;
+  v_rest int;
+  v_board text[];
+  v_kaarten text[];
+  w smallint;
+  v_eerste smallint;
+  v_n int;
+begin
+  select * into r from public.pk_rounds where id = p_round for update;
+  if r.settled_at is not null then return; end if;
+
+  select count(*) into v_n from public.pk_seats where round_id = p_round;
+  v_board := r.board;
+
+  -- De rest van het bord moet er liggen voordat er vergeleken wordt: als iedereen all-in
+  -- ging op de flop, komen turn en river er alsnog.
+  select d.cards into v_kaarten from poker.deck d where d.round_id = p_round;
+  if (select count(*) from public.pk_seats where round_id = p_round and not folded) > 1 then
+    while array_length(v_board, 1) is null or array_length(v_board, 1) < 5 loop
+      v_board := coalesce(v_board, '{}'::text[]) ||
+                 v_kaarten[v_n * 2 + coalesce(array_length(v_board, 1), 0) + 1];
+    end loop;
+  end if;
+
+  -- De kaarten van wie nog meedoet gaan open, en krijgen hun score.
+  update public.pk_seats s
+     set shown = true,
+         hole = (select h.cards from poker.hole h
+                  where h.round_id = p_round and h.seat_no = s.seat_no)
+   where s.round_id = p_round and not s.folded
+     and (select count(*) from public.pk_seats q where q.round_id = p_round and not q.folded) > 1;
+
+  -- Elk verschillend inzetbedrag is een laag.
+  v_eerste := ((r.button_seat + 1) % v_n)::smallint;
+  for v_niveau in
+    select distinct total_bet from public.pk_seats
+     where round_id = p_round and total_bet > 0 order by 1
+  loop
+    select sum(least(total_bet, v_niveau) - least(total_bet, v_vorig)) into v_pot
+      from public.pk_seats where round_id = p_round;
+
+    if v_pot > 0 then
+      select max(public.pk_score(
+               (select h.cards from poker.hole h
+                 where h.round_id = p_round and h.seat_no = s.seat_no) || v_board))
+        into v_beste
+        from public.pk_seats s
+       where s.round_id = p_round and not s.folded and s.total_bet >= v_niveau;
+
+      if v_beste is null then
+        -- Iedereen die om deze laag speelde is gepast: terug naar wie hem stortte.
+        update public.pk_seats set payout = payout + v_pot
+         where round_id = p_round
+           and seat_no = (select seat_no from public.pk_seats
+                           where round_id = p_round and total_bet >= v_niveau
+                           order by total_bet desc limit 1);
+      else
+        select array_agg(s.seat_no order by ((s.seat_no - v_eerste + v_n) % v_n))
+          into v_winnaars
+          from public.pk_seats s
+         where s.round_id = p_round and not s.folded and s.total_bet >= v_niveau
+           and public.pk_score(
+                 (select h.cards from poker.hole h
+                   where h.round_id = p_round and h.seat_no = s.seat_no) || v_board) = v_beste;
+
+        v_ieder := v_pot / array_length(v_winnaars, 1);
+        v_rest := v_pot - v_ieder * array_length(v_winnaars, 1);
+        -- De oneven fiches gaan naar links van de knop, zoals aan een echte tafel.
+        foreach w in array v_winnaars loop
+          update public.pk_seats
+             set payout = payout + v_ieder + (case when v_rest > 0 then 1 else 0 end)
+           where round_id = p_round and seat_no = w;
+          if v_rest > 0 then v_rest := v_rest - 1; end if;
+        end loop;
+      end if;
+    end if;
+    v_vorig := v_niveau;
+  end loop;
+
+  -- De uitbetaling gaat naar de stapel, niet naar het saldo: je blijft aan tafel zitten.
+  --
+  -- Let op wat hier de waarheid is. `pk_seats.stack` is wat er ná deze hand nog voor je
+  -- ligt: daar zijn de blinds, de calls en de verhogingen al van af. `pk_players.stack`
+  -- stond nog op de stand van vóór de hand. Er stond hier eerst `pk_players.stack + payout`
+  -- en dat maakte fiches: alles wat je tijdens de hand had ingelegd kwam er zo weer bij.
+  update public.pk_players pl
+     set stack = s.stack + s.payout
+    from public.pk_seats s
+   where s.round_id = p_round and s.user_id = pl.user_id;
+
+  update public.pk_rounds
+     set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null, board = v_board
+   where id = p_round;
+end;
+$$;
+
+revoke all on function public.pk_advance(bigint) from public, anon, authenticated;
+revoke all on function public.pk_settle(bigint) from public, anon, authenticated;
+revoke all on function public.pk_next_seat(bigint, smallint) from public, anon, authenticated;
+
+-- ---------- de klok ----------
+-- Elke browser mag dit porren: wie als eerste merkt dat er gedeeld of afgerekend moet
+-- worden, vraagt het aan, en de server doet het één keer. Er zit geen controle op of de
+-- aanroeper aan tafel zit, met opzet -- anders kan een vastgelopen tafel door niemand meer
+-- losgemaakt worden. Er valt ook niets mee te winnen: alles wat hier gebeurt hangt aan
+-- now() en aan de stand, niet aan wie het vraagt.
+create or replace function public.pk_tick(p_lobby bigint)
+returns json language plpgsql security definer set search_path = '' as $$
+declare
+  r public.pk_rounds%rowtype;
+  v_spelers int;
+  v_zaad text;
+  v_commit text;
+  v_kaarten text[];
+  v_ronde bigint;
+  v_knop smallint;
+  v_i int := 0;
+  p record;
+  v_sb smallint; v_bb smallint;
+  v_zout text;
+begin
+  select * into r from public.pk_rounds
+   where lobby_id = p_lobby and settled_at is null order by id desc limit 1;
+
+  -- Loopt er een hand? Dan alleen kijken of iemand te lang nadenkt.
+  if r.id is not null then
+    if r.act_deadline is not null and now() > r.act_deadline and r.to_act_seat is not null then
+      -- Wie zijn tijd laat verlopen checkt als dat gratis is, en past anders. Zo blijft een
+      -- tafel niet staan omdat iemand zijn tab dichtgooit, en verliest niemand zijn inzet
+      -- door een haperende verbinding als er niets te betalen viel.
+      if (select s.bet from public.pk_seats s
+           where s.round_id = r.id and s.seat_no = r.to_act_seat) = r.high_bet then
+        update public.pk_seats set acted = true
+         where round_id = r.id and seat_no = r.to_act_seat;
+      else
+        update public.pk_seats set folded = true, acted = true
+         where round_id = r.id and seat_no = r.to_act_seat;
+      end if;
+      update public.pk_rounds set act_seq = act_seq + 1 where id = r.id;
+      perform public.pk_advance(r.id);
+    end if;
+    return json_build_object('ok', true, 'round', r.id);
+  end if;
+
+  -- Geen hand: kan er een beginnen? Wie geen fiches meer heeft doet niet mee.
+  select count(*) into v_spelers from public.pk_players
+   where lobby_id = p_lobby and stack > 0;
+  if v_spelers < 2 then return json_build_object('ok', true, 'round', null); end if;
+
+  -- De knop schuift een stoel op ten opzichte van de vorige hand.
+  select coalesce(max(button_seat), -1) into v_knop from public.pk_rounds where lobby_id = p_lobby;
+
+  v_zaad := encode(poker.sha256(gen_random_uuid()::text || clock_timestamp()::text), 'hex');
+  v_commit := encode(poker.sha256('commit:' || v_zaad), 'hex');
+  v_kaarten := poker.shuffle(v_zaad);
+
+  select coalesce(max(sb), 5), coalesce(max(bb), 10) into v_sb, v_bb
+    from public.pk_rounds where lobby_id = p_lobby;
+
+  insert into public.pk_rounds (lobby_id, deck_commit, button_seat, sb, bb, min_raise, street)
+       values (p_lobby, v_commit, ((v_knop + 1) % greatest(v_spelers, 2))::smallint,
+               v_sb, v_bb, v_bb, 0)
+    returning id into v_ronde;
+
+  insert into poker.deck (round_id, seed, cards) values (v_ronde, v_zaad, v_kaarten);
+
+  -- De stoelen, op volgorde, met hun kaarten. De kaarten gaan naar het andere schema; wat
+  -- hier blijft staan is een gezouten hash, zodat elke speler zijn eigen hand meteen kan
+  -- narekenen zonder dat iemand anders iets te zien krijgt.
+  for p in select * from public.pk_players
+            where lobby_id = p_lobby and stack > 0 order by seat_no loop
+    v_zout := encode(poker.sha256(v_zaad || ':zout:' || v_i::text), 'hex');
+    insert into public.pk_seats (round_id, seat_no, user_id, username, stack, card_commit)
+         values (v_ronde, v_i::smallint, p.user_id, p.username, p.stack,
+                 encode(poker.sha256(v_zout || ':' ||
+                        v_kaarten[v_i * 2 + 1] || v_kaarten[v_i * 2 + 2]), 'hex'));
+    insert into poker.hole (round_id, seat_no, player, cards, salt)
+         values (v_ronde, v_i::smallint, p.user_id,
+                 array[v_kaarten[v_i * 2 + 1], v_kaarten[v_i * 2 + 2]], v_zout);
+    v_i := v_i + 1;
+  end loop;
+
+  -- De blinds. Heads-up post de knop de kleine blind; met meer spelers de stoel erna.
+  declare
+    v_n int := v_i;
+    v_knop2 smallint;
+    v_sbs smallint; v_bbs smallint;
+  begin
+    select button_seat into v_knop2 from public.pk_rounds where id = v_ronde;
+    if v_n = 2 then
+      v_sbs := v_knop2;
+      v_bbs := ((v_knop2 + 1) % v_n)::smallint;
+    else
+      v_sbs := ((v_knop2 + 1) % v_n)::smallint;
+      v_bbs := ((v_knop2 + 2) % v_n)::smallint;
+    end if;
+
+    update public.pk_seats
+       set bet = least(v_sb, stack), total_bet = least(v_sb, stack),
+           stack = stack - least(v_sb, stack), allin = stack <= v_sb
+     where round_id = v_ronde and seat_no = v_sbs;
+    update public.pk_seats
+       set bet = least(v_bb, stack), total_bet = least(v_bb, stack),
+           stack = stack - least(v_bb, stack), allin = stack <= v_bb
+     where round_id = v_ronde and seat_no = v_bbs;
+
+    update public.pk_rounds
+       set high_bet = v_bb,
+           to_act_seat = ((v_bbs + 1) % v_n)::smallint,
+           act_deadline = now() + interval '25 seconds'
+     where id = v_ronde;
+  end;
+
+  -- De stapels aan tafel volgen die in de hand.
+  update public.pk_players pl set stack = s.stack
+    from public.pk_seats s
+   where s.round_id = v_ronde and s.user_id = pl.user_id;
+
+  return json_build_object('ok', true, 'round', v_ronde, 'dealt', true);
+end;
+$$;
+
+revoke all on function public.pk_tick(bigint) from public, anon;
+grant execute on function public.pk_tick(bigint) to authenticated;
