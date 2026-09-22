@@ -563,3 +563,87 @@ end $$;
 select public.pk_tick(1);
 select pg_temp.zegt('na een vertrek schuift hij gewoon door', '1',
   (select button_lobby_seat::text from public.pk_rounds order by id desc limit 1));
+
+-- ---------- het bord ligt vast voordat het valt ----------
+-- Sinds het zaadje niet meer naar buiten komt, hield niets de vijf gemeenschappelijke
+-- kaarten nog vast: deck_commit stond wel op het scherm maar ging nooit meer open. Een
+-- oneerlijke server kon dus de flop neerleggen die hem uitkwam. Nu staat er bij het delen
+-- een hash van het hele bord, en komt het zout bij het afrekenen vrij.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+  insert into public.lobby_members (lobby_id, user_id)
+       select 1, id from public.profiles on conflict do nothing;
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+select public.pk_tick(1);
+select pg_temp.zegt('er staat een hash van het bord zodra er gedeeld is', 'true',
+  (select (board_commit is not null)::text from public.pk_rounds order by id desc limit 1));
+select pg_temp.zegt('maar het zout nog niet', '0',
+  (select count(*)::text from public.pk_live where board_salt is not null));
+
+-- De hand uitspelen: een speler past, dan rekent de server af.
+do $$
+declare v_r bigint; v_beurt smallint; v_seq integer;
+begin
+  select id, to_act_seat, act_seq into v_r, v_beurt, v_seq
+    from public.pk_rounds order by id desc limit 1;
+  perform set_config('test.uid',
+    (select user_id::text from public.pk_seats where round_id = v_r and seat_no = v_beurt), true);
+  perform public.pk_act(v_r, v_seq, 'fold');
+end $$;
+-- Iedereen past voor de flop, dus er valt geen kaart: dan is er ook geen zout vrij te
+-- geven, en valt er niets na te rekenen. Dat is goed -- er is niets getoond.
+select pg_temp.zegt('zonder bord komt er geen zout vrij', '0',
+  (select coalesce(array_length(board_salt, 1), 0)::text from public.pk_live
+    order by id desc limit 1));
+
+-- En nu een hand die WEL uitkomt: twee keer checken tot de river.
+do $$
+declare v_r bigint; v_beurt smallint; v_seq integer; v_uid uuid; v_n int := 0;
+begin
+  perform public.pk_tick(1);
+  select id into v_r from public.pk_rounds order by id desc limit 1;
+  while v_n < 40 loop
+    select to_act_seat, act_seq into v_beurt, v_seq from public.pk_rounds where id = v_r;
+    exit when v_beurt is null;
+    select user_id into v_uid from public.pk_seats where round_id = v_r and seat_no = v_beurt;
+    perform set_config('test.uid', v_uid::text, true);
+    -- Callen als er wat te betalen valt, anders checken: zo komt de hand tot de river.
+    begin perform public.pk_act(v_r, v_seq, 'check');
+    exception when others then perform public.pk_act(v_r, v_seq, 'call'); end;
+    v_n := v_n + 1;
+  end loop;
+end $$;
+select pg_temp.zegt('een hand die uitkomt heeft vijf bordkaarten', '5',
+  (select array_length(board, 1)::text from public.pk_rounds order by id desc limit 1));
+select pg_temp.zegt('en evenveel zouten komen vrij', '5',
+  (select array_length(board_salt, 1)::text from public.pk_live order by id desc limit 1));
+select pg_temp.zegt('elke bordkaart klopt met zijn hash van voor de flop', '5',
+  (select count(*)::text from public.pk_rounds r,
+          generate_series(1, array_length(r.board, 1)) k
+    where r.id = (select max(id) from public.pk_rounds)
+      and r.board_commit[k] = encode(poker.sha256(r.board_salt[k] || ':' || r.board[k]), 'hex')));
+select pg_temp.zegt('het zaadje is opgeruimd zodra de hand om is', '0',
+  (select count(*)::text from poker.deck));
+
+-- ---------- opstaan en opruimen tegelijk geeft geen dubbele fiches ----------
+-- Het opruimen betaalde uit en verwijderde daarna; wie tegelijk zelf opstond kreeg zijn
+-- inkoop twee keer terug. Nu haalt het opruimen eerst weg en betaalt alleen uit wat het
+-- echt heeft weggehaald, dus een tweede poging levert niets meer op.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  update public.profiles set balance = 500 where username = 'ann';
+  insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 500),
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 200);
+  delete from public.lobby_members where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+end $$;
+select public.pk_tick(1);
+select pg_temp.zegt('het opruimen betaalt een keer uit', '1000',
+  (select balance::text from public.profiles where username = 'ann'));
+select public.pk_tick(1);
+select pg_temp.zegt('en een tweede keer porren doet er niets bij', '1000',
+  (select balance::text from public.profiles where username = 'ann'));

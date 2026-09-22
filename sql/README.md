@@ -81,6 +81,20 @@ begint met een lege update op zijn eigen profielrij. Zonder dat gooide de trigge
 `balance = inkoop` de aftrek weg, stonden de fiches er toch, en kocht je elke sprintgrens
 gratis in. `sql/poker_test.sql` pint dat vast.
 
+**Het bord ligt vast voordat het valt.** Toen het zaadje eruit ging, hield niets de vijf
+gemeenschappelijke kaarten meer vast: `deck_commit` stond nog op het scherm maar ging nooit
+meer open, dus een oneerlijke server kon de flop neerleggen die hem uitkwam. Daarom staat
+er nu bij het delen per bordkaart een gezouten hash in `pk_rounds.board_commit`, en komen
+bij het afrekenen de zouten vrij van precies de kaarten die ook echt gevallen zijn. Per
+kaart en niet over het hele bord, want een hand hoeft niet uit te komen.
+
+Wat dit wel en niet bewijst: de server kan na het delen niets meer omgooien zonder dat de
+browser het ziet, want die heeft de hashes van voor de flop al binnen. Het bewijst niet dat
+de server de kaarten niet heeft gekozen -- alles wordt in één transactie weggeschreven. Dat
+laatste vraagt een zaadje dat de speler zelf meebrengt; dat zit er nog niet in. De tekst op
+het scherm zegt daarom "not checked" als er niets gecontroleerd is, en claimt verder niet
+meer dan er gecontroleerd is.
+
 **Het zaadje van de schudbeurt komt niet naar buiten.** Bij crash en roulette is het zaadje
 achteraf tonen juist het bewijs. Bij poker niet: het zaadje stuurt de hele schudbeurt, dus
 wie het heeft rekent ook de kaarten uit van iemand die gepast heeft en ze nooit heeft laten
@@ -91,4 +105,7 @@ Het bewijs loopt nu per stoel: voor het delen staat van elke hand een gezouten h
 `pk_seats_public.card_commit`, en na het delen krijgt elke speler via `pk_my_hole` zijn
 eigen zout. De pagina rekent daarmee na dat die hash bij zijn twee kaarten hoort -- je
 controleert je eigen hand net zo hard als eerst, zonder iets over die van een ander te
-leren. Het zaadje blijft in `poker.deck`, in het schema dat PostgREST niet serveert.
+leren. Het zaadje blijft in `poker.deck`, in het schema dat PostgREST niet serveert -- en `pk_settle`
+gooit die rij weg zodra de hand is afgerekend. Wat er anders zou blijven staan is de hele
+geschudde stok van elke hand die er ooit is gespeeld, inclusief elke gemuckte kaart, in elke
+back-up en elke supportvraag.

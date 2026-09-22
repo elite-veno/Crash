@@ -200,6 +200,10 @@ begin
   select l.lobby_id into v_lobby from public.my_lobby l limit 1;
   if v_lobby is null then raise exception 'join a table first'; end if;
 
+  -- Eén tafel tegelijk, net als in pk_tick en pk_leave: aanschuiven raakt dezelfde rijen
+  -- als het opruimen en het delen.
+  perform pg_advisory_xact_lock(v_lobby);
+
   -- Eerst de sprintgrens, dan pas geld aanraken.
   --
   -- Op profiles zit een trigger die een achterstallig account terugzet naar 1000 zodra er
@@ -288,6 +292,12 @@ begin
   select p.lobby_id, p.stack into v_lobby, v_stack
     from public.pk_players p where p.user_id = v_uid for update;
   if v_lobby is null then return json_build_object('ok', true, 'stack', 0); end if;
+
+  -- Hetzelfde slot als pk_tick, op dezelfde tafel. Zonder dit kon opstaan tegelijk lopen
+  -- met het opruimen daar: allebei lazen ze dezelfde stapel, allebei schreven ze hem op
+  -- het saldo, en de delete van de tweede raakte niets meer. Je inkoop kwam dan dubbel
+  -- terug, en dat was te herhalen zo vaak je wilde.
+  perform pg_advisory_xact_lock(v_lobby);
 
   -- Zit je midden in een hand, dan pas je eerst. Je inzet blijft in de pot staan -- dat is
   -- geld dat je al hebt ingelegd, en weglopen mag dat niet ongedaan maken.
@@ -645,6 +655,7 @@ begin
      set stack = s.stack + s.payout
     from public.pk_seats s
    where s.round_id = p_round and s.user_id = pl.user_id
+     and pl.lobby_id = r.lobby_id
      and not s.left_table;
 
   -- En wie tijdens de hand is opgestaan, heeft geen stapel aan tafel meer. Zijn stoel kan
@@ -678,6 +689,12 @@ begin
   update public.pk_rounds
      set settled_at = now(), street = 5, to_act_seat = null, act_deadline = null, board = v_board
    where id = p_round;
+
+  -- En het zaadje weg. De hand is uitgespeeld: wat open moest gaan staat in pk_seats.hole,
+  -- het bord in pk_rounds.board met zijn eigen zout ernaast. Wat er nog zou blijven staan
+  -- is de hele geschudde stok van deze hand, inclusief de kaarten van wie heeft gepast --
+  -- voor altijd, in elke back-up en elke supportvraag. Daar was het juist om begonnen.
+  delete from poker.deck d where d.round_id = p_round;
 end;
 $$;
 
@@ -708,6 +725,7 @@ declare
   w record;
   v_stoelen smallint[];
   v_knop_tafel int;
+  v_terug integer;
 begin
   -- Eén tafel tegelijk. Twee browsers die op hetzelfde moment porren zagen allebei geen
   -- lopende hand en deelden er allebei een; op de tijdklok sloegen ze samen een beurt over.
@@ -764,9 +782,16 @@ begin
              || '    where m.lobby_id = pl.lobby_id and m.user_id = pl.user_id)'
         using p_lobby
       loop
-        update public.profiles set balance = balance + w.stack where id = w.user_id;
+        -- Eerst weghalen, dan pas uitbetalen, en alleen wat de delete echt heeft
+        -- weggehaald. Andersom betaalde het opruimen ook uit als iemand anders die rij
+        -- net had opgeruimd -- fiches uit het niets. Nu levert een tweede poging niets op.
         delete from public.pk_players pl
-         where pl.lobby_id = p_lobby and pl.user_id = w.user_id;
+         where pl.lobby_id = p_lobby and pl.user_id = w.user_id
+        returning pl.stack into v_terug;
+        if v_terug is not null then
+          update public.profiles set balance = balance + v_terug where id = w.user_id;
+          v_terug := null;
+        end if;
       end loop;
     end if;
   exception when others then null;
@@ -837,6 +862,28 @@ begin
     v_i := v_i + 1;
   end loop;
 
+  -- Het bord vastleggen. De vijf gemeenschappelijke kaarten liggen op vaste plekken in de
+  -- stok -- meteen na de holekaarten -- dus ze zijn hier al bekend, lang voordat ze vallen.
+  -- Publiceer er nu een hash van; het zout komt pas vrij bij het afrekenen. Daarmee is
+  -- achteraf na te rekenen dat de flop, turn en river zijn wat ze bij het delen al waren,
+  -- zonder dat er iets over iemands holekaarten uit lekt.
+  declare
+    v_zouten text[] := '{}';
+    v_commits text[] := '{}';
+    v_k int;
+    v_z text;
+  begin
+    for v_k in 1 .. 5 loop
+      v_z := encode(poker.sha256(v_zaad || ':bord:' || v_k::text), 'hex');
+      v_zouten := v_zouten || v_z;
+      v_commits := v_commits ||
+        encode(poker.sha256(v_z || ':' || v_kaarten[v_i * 2 + v_k]), 'hex');
+    end loop;
+    update public.pk_rounds
+       set board_salt = v_zouten, board_commit = v_commits
+     where id = v_ronde;
+  end;
+
   -- De blinds. Heads-up post de knop de kleine blind; met meer spelers de stoel erna.
   declare
     v_n int := v_i;
@@ -871,7 +918,8 @@ begin
   -- De stapels aan tafel volgen die in de hand.
   update public.pk_players pl set stack = s.stack
     from public.pk_seats s
-   where s.round_id = v_ronde and s.user_id = pl.user_id;
+   where s.round_id = v_ronde and s.user_id = pl.user_id
+     and pl.lobby_id = p_lobby;
 
   return json_build_object('ok', true, 'round', v_ronde, 'dealt', true);
 end;

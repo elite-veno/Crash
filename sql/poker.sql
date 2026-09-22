@@ -38,6 +38,18 @@ create table if not exists public.pk_rounds (
   -- De hash van het zaadje gaat vooraf naar de spelers; het zaadje zelf staat in het
   -- schema hiernaast en komt pas vrij als de hand is afgerekend.
   deck_commit  text not null,
+  -- Het bord, vastgelegd bij het delen. Sinds het zaadje niet meer naar buiten komt, was
+  -- er niets meer dat de vijf gemeenschappelijke kaarten vasthield: deck_commit stond nog
+  -- wel op het scherm maar ging nooit meer open, dus een oneerlijke server kon de flop,
+  -- turn en river neerleggen die hem uitkwamen.
+  --
+  -- Per kaart een eigen hash, niet een over het hele bord. Een hand hoeft niet uit te
+  -- komen: past iedereen voor de flop, dan valt er geen kaart, en eindigt hij op de turn
+  -- dan liggen er vier. Met een hash over vijf kaarten viel er in die gevallen niets na te
+  -- rekenen. Nu komt bij het afrekenen het zout vrij van precies de kaarten die ook echt
+  -- gevallen zijn; de rest blijft dicht, en de holekaarten zitten er sowieso niet in.
+  board_commit text[],
+  board_salt   text[],
   button_seat  smallint not null default 0,   -- de plek BINNEN deze hand (0..n-1)
   -- En de stoel AAN TAFEL waar de knop lag. De hand hernummert elke keer opnieuw, dus
   -- alleen op het rondenummer draaien laat de knop verspringen zodra er iemand aanschuift
@@ -136,6 +148,8 @@ create unique index if not exists pk_players_seat on public.pk_players (lobby_id
 -- doet dit niets.
 alter table public.pk_rounds add column if not exists act_seq     integer not null default 0;
 alter table public.pk_rounds add column if not exists button_lobby_seat smallint;
+alter table public.pk_rounds add column if not exists board_commit text[];
+alter table public.pk_rounds add column if not exists board_salt   text[];
 alter table public.pk_seats  add column if not exists may_raise   boolean not null default true;
 alter table public.pk_seats  add column if not exists card_commit text;
 alter table public.pk_seats  add column if not exists left_table  boolean not null default false;
@@ -204,6 +218,12 @@ drop view if exists public.pk_live;
 create view public.pk_live
 with (security_invoker = false) as
   select r.id, r.lobby_id, r.started_at, r.street, r.board, r.deck_commit,
+         r.board_commit,
+         -- De zouten van het bord pas als de hand om is, en dan alleen van de kaarten die
+         -- ook echt gevallen zijn. Eerder, of verder, zou het kaarten verraden die nog
+         -- dicht horen te liggen.
+         case when r.settled_at is null then null
+              else r.board_salt[1:coalesce(array_length(r.board, 1), 0)] end as board_salt,
          r.button_seat, r.sb, r.bb, r.high_bet, r.min_raise, r.to_act_seat,
          r.act_seq, r.act_deadline, r.settled_at, now() as server_now
     from public.pk_rounds r;
