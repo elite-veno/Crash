@@ -10292,6 +10292,8 @@ local Theme = require(ReplicatedStorage.Shared.Theme)
 local UI = require(ReplicatedStorage.Shared.UI)
 local Money = require(ReplicatedStorage.Shared.Money)
 local Art = require(script.Parent.Art)
+-- Icons hangt naast de map Views, niet erin.
+local Icons = require(script.Parent.Parent.Icons)
 local Common = require(script.Parent.Common)
 
 local Home = {}
@@ -10463,6 +10465,12 @@ local function topChip(ouder: Instance, tekst: string, ga: () -&gt; (), goud: bo
 	rij.VerticalAlignment = Enum.VerticalAlignment.Center
 	rij.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	b.Parent = ouder
+
+	-- `.home-chip svg { width: 15px; height: 15px }`: het pictogram voor de naam. Dezelfde
+	-- twee die ook in de zijbalk staan -- een poppetje en de kroon.
+	local icoon = Icons.build(b, if goud then "vip" else "profile", 15)
+	icoon.LayoutOrder = 0
+	Icons.tint(icoon, if goud then Theme.color.gold else Theme.color.text, 0)
 
 	local naam = UI.label(b, tekst, {
 		size = Theme.text.tiny, color = if goud then Theme.color.gold else Theme.color.text,

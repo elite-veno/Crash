@@ -65,11 +65,17 @@ local eigenRequire
 local function omgevingVoor(naam)
 	local e = setmetatable({}, { __index = env })
 	e.require = eigenRequire
-	-- script.Parent.X voor de views, script.Parent voor de gedeelde modules
+	-- script.Parent.X voor de views, script.Parent voor de gedeelde modules. En
+	-- script.Parent.Parent.X: Icons hangt naast de map Views, niet erin, dus komt een
+	-- scherm er zo bij -- net als in Studio.
+	local naast = setmetatable({}, { __index = function(_, kk)
+		return Views[kk] or ReplicatedStorage.Shared[kk]
+	end })
 	e.script = setmetatable({}, {
 		__index = function(_, k)
 			if k == "Parent" then
 				return setmetatable({}, { __index = function(_, kk)
+					if kk == "Parent" then return naast end
 					return Views[kk] or ReplicatedStorage.Shared[kk]
 				end })
 			end
