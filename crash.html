@@ -6222,23 +6222,33 @@ function pokAct(move, to) {
   });
 }
 
-// Wat mag er nu? Dezelfde rekensom als ODDS.pokerLegal, maar alleen om de knoppen goed te
-// zetten -- de server rekent hem zelf nog een keer en die beslist.
+// Wat mag er nu? Dit zet alleen de knoppen goed -- de server rekent het zelf nog een keer
+// en die beslist. Maar het rekent wel met dezelfde functie als de rest: ODDS.pokerLegal,
+// die in tools/poker_test.js is vastgepind. Een tweede, eenvoudiger versie hier zou een
+// tweede kans op een ander antwoord zijn, en dan staat er CALL $12 op een knop die $14
+// gaat kosten.
 function pokLegal() {
   const r = POK.round, me = pokMine();
   if (!r || r.settled_at || !me || me.folded || me.allin) return null;
   if (Number(r.to_act_seat) !== Number(me.seat_no)) return null;
-  const hoogste = Number(r.high_bet) || 0;
-  const mijn = Number(me.bet) || 0;
-  const stack = Number(me.stack) || 0;
-  const teGaan = Math.max(0, hoogste - mijn);
-  const maxRaise = mijn + stack;
-  return {
-    check: teGaan === 0,
-    call: Math.min(teGaan, stack),
-    minRaise: maxRaise > hoogste ? Math.min(hoogste + (Number(r.min_raise) || 0), maxRaise) : 0,
-    maxRaise: maxRaise > hoogste ? maxRaise : 0,
+  const stand = {
+    stoelen: POK.seats.map(s => ({
+      stack: Number(s.stack) || 0,
+      inzet: Number(s.bet) || 0,
+      gefold: !!s.folded,
+      allin: !!s.allin,
+      gezet: !!s.acted,
+    })),
+    hoogste: Number(r.high_bet) || 0,
+    minVerhoging: Number(r.min_raise) || 0,
+    beurt: Number(r.to_act_seat),
   };
+  const i = POK.seats.findIndex(s => Number(s.seat_no) === Number(me.seat_no));
+  if (i < 0) return null;
+  const mag = ODDS.pokerLegal(stand, i);
+  // pokerLegal geeft een leeg antwoord terug voor een stoel die niets mag, en `null` is
+  // wat de rest van dit scherm daarvoor leest.
+  return mag && mag.fold ? mag : null;
 }
 
 // ---------- tekenen ----------
