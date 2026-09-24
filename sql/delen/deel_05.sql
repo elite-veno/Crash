@@ -32,7 +32,12 @@ declare
 begin
   if v_uid is null then raise exception 'not signed in'; end if;
 
-  select l.lobby_id into v_lobby from public.my_lobby l limit 1;
+  -- `id`, niet `lobby_id`. Zo heet de kolom in de echte my_lobby -- de pagina leest hem
+  -- ook zo (lobbyPull: `LOBBY.id = r.id`). Hier stond eerst `l.lobby_id`, en omdat
+  -- PL/pgSQL een kolomnaam pas bij het uitvoeren opzoekt, ging het aanmaken van deze
+  -- functie gewoon goed en klapte daarna elke poging om te gaan zitten. De toetsen zagen
+  -- het niet: de nagebouwde my_lobby in test_stub.sql had wél een kolom lobby_id.
+  select l.id into v_lobby from public.my_lobby l limit 1;
   if v_lobby is null then raise exception 'join a table first'; end if;
 
   -- Eén tafel tegelijk, net als in pk_tick en pk_leave: aanschuiven raakt dezelfde rijen

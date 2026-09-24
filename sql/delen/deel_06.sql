@@ -82,6 +82,36 @@ begin
      where s.round_id = v_ronde and s.user_id = v_uid and not s.left_table;
 
     if v_stoelstack is not null then v_stack := v_stoelstack; end if;
+
+    -- En dan de hand laten doorlopen, net als na een gewone fold. Hier stond eerst niets:
+    -- de stoel werd gepast, maar de hand bleef staan. Stond de ander daarna ook op, dan
+    -- had iedereen gepast en won niemand -- en omdat een lege lobby wordt opgeruimd, kwam
+    -- er ook nooit meer iemand die de tafel porde. De inzetten bleven voor altijd in een
+    -- pot waar niemand meer bij kon.
+    --
+    -- Niet blind pk_advance aanroepen: dat geeft de beurt door vanaf wie er aan de beurt
+    -- IS, en was dat iemand anders, dan sloeg je diens beurt over. Dus alleen als de
+    -- vertrekker zelf aan de beurt was, of als er nog maar één speler over is -- die wint
+    -- dan meteen, zoals aan elke tafel.
+    if v_stoelstack is not null then
+      declare
+        v_r public.pk_rounds%rowtype;
+        v_mijn smallint;
+        v_levend int;
+      begin
+        select * into v_r from public.pk_rounds where id = v_ronde for update;
+        select s.seat_no into v_mijn from public.pk_seats s
+         where s.round_id = v_ronde and s.user_id = v_uid and s.left_table
+         order by s.seat_no limit 1;
+        select count(*) into v_levend from public.pk_seats
+         where round_id = v_ronde and not folded;
+        if v_r.settled_at is null
+           and (v_levend <= 1 or v_r.to_act_seat is not distinct from v_mijn) then
+          update public.pk_rounds set act_seq = act_seq + 1 where id = v_ronde;
+          perform public.pk_advance(v_ronde);
+        end if;
+      end;
+    end if;
   end if;
 
   -- En wat er ook misgaat, hier staat nooit null. Het grootboek weigert dat terecht, en

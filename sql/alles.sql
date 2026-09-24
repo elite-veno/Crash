@@ -579,7 +579,12 @@ declare
 begin
   if v_uid is null then raise exception 'not signed in'; end if;
 
-  select l.lobby_id into v_lobby from public.my_lobby l limit 1;
+  -- `id`, niet `lobby_id`. Zo heet de kolom in de echte my_lobby -- de pagina leest hem
+  -- ook zo (lobbyPull: `LOBBY.id = r.id`). Hier stond eerst `l.lobby_id`, en omdat
+  -- PL/pgSQL een kolomnaam pas bij het uitvoeren opzoekt, ging het aanmaken van deze
+  -- functie gewoon goed en klapte daarna elke poging om te gaan zitten. De toetsen zagen
+  -- het niet: de nagebouwde my_lobby in test_stub.sql had wél een kolom lobby_id.
+  select l.id into v_lobby from public.my_lobby l limit 1;
   if v_lobby is null then raise exception 'join a table first'; end if;
 
   -- Eén tafel tegelijk, net als in pk_tick en pk_leave: aanschuiven raakt dezelfde rijen
@@ -724,6 +729,36 @@ begin
      where s.round_id = v_ronde and s.user_id = v_uid and not s.left_table;
 
     if v_stoelstack is not null then v_stack := v_stoelstack; end if;
+
+    -- En dan de hand laten doorlopen, net als na een gewone fold. Hier stond eerst niets:
+    -- de stoel werd gepast, maar de hand bleef staan. Stond de ander daarna ook op, dan
+    -- had iedereen gepast en won niemand -- en omdat een lege lobby wordt opgeruimd, kwam
+    -- er ook nooit meer iemand die de tafel porde. De inzetten bleven voor altijd in een
+    -- pot waar niemand meer bij kon.
+    --
+    -- Niet blind pk_advance aanroepen: dat geeft de beurt door vanaf wie er aan de beurt
+    -- IS, en was dat iemand anders, dan sloeg je diens beurt over. Dus alleen als de
+    -- vertrekker zelf aan de beurt was, of als er nog maar één speler over is -- die wint
+    -- dan meteen, zoals aan elke tafel.
+    if v_stoelstack is not null then
+      declare
+        v_r public.pk_rounds%rowtype;
+        v_mijn smallint;
+        v_levend int;
+      begin
+        select * into v_r from public.pk_rounds where id = v_ronde for update;
+        select s.seat_no into v_mijn from public.pk_seats s
+         where s.round_id = v_ronde and s.user_id = v_uid and s.left_table
+         order by s.seat_no limit 1;
+        select count(*) into v_levend from public.pk_seats
+         where round_id = v_ronde and not folded;
+        if v_r.settled_at is null
+           and (v_levend <= 1 or v_r.to_act_seat is not distinct from v_mijn) then
+          update public.pk_rounds set act_seq = act_seq + 1 where id = v_ronde;
+          perform public.pk_advance(v_ronde);
+        end if;
+      end;
+    end if;
   end if;
 
   -- En wat er ook misgaat, hier staat nooit null. Het grootboek weigert dat terecht, en
@@ -1161,21 +1196,21 @@ begin
   -- niet, of ziet die er anders uit dan hier verwacht, dan slaat het over. Een tafel die
   -- vastloopt omdat het opruimen struikelt is erger dan een rij die blijft staan.
   begin
+    -- De speler heet in lobby_members `player`, niet `user_id`. Hier stond eerst
+    -- user_id, en de controle hieronder vond die kolom dus nooit: het opruimen werd
+    -- stilletjes overgeslagen. Er ging niets kapot, maar het deed ook nooit iets.
     if (select count(*) from information_schema.columns
          where table_schema = 'public' and table_name = 'lobby_members'
-           and column_name in ('lobby_id', 'user_id')) = 2 then
+           and column_name in ('lobby_id', 'player')) = 2 then
       for w in
-        -- En één grendel erbij: alleen opruimen als er voor DEZE lobby uberhaupt leden
-        -- in die tabel staan. Staat hij leeg, dan wordt het lidmaatschap ergens anders
-        -- bijgehouden en betekent "staat er niet in" niet "hoort er niet bij" -- dan zou
-        -- dit de hele tafel leegvegen in plaats van één achterblijver.
+        -- lobby_prune haalt wie een minuut niets van zich liet horen uit de lobby; wie
+        -- daarna nog aan deze tafel zit, hoort er niet meer bij. Dezelfde regel als voor
+        -- blackjack, dus een tafel voelt overal hetzelfde aan.
         execute 'select pl.user_id, pl.stack from public.pk_players pl'
              || ' where pl.lobby_id = $1'
-             || '   and exists (select 1 from public.lobby_members m2'
-             || '                where m2.lobby_id = pl.lobby_id)'
              || '   and not exists ('
              || '   select 1 from public.lobby_members m'
-             || '    where m.lobby_id = pl.lobby_id and m.user_id = pl.user_id)'
+             || '    where m.lobby_id = pl.lobby_id and m.player = pl.user_id)'
         using p_lobby
       loop
         -- Eerst weghalen, dan pas uitbetalen, en alleen wat de delete echt heeft

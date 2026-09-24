@@ -82,6 +82,25 @@ node tools/pok_scherm_test.js    # tekent de tafel in elke fase van een hand
 node tools/pok_eerlijk_test.js   # rekent het eerlijkheidsbewijs na, ook met een vervalst bord
 ```
 
+En één die het GESPREK ertussen toetst, van inloggen tot opstaan:
+
+```sh
+node tools/pok_e2e_test.js       # twee spelers, twee browsers, één tafel
+```
+
+Die onderschept elk verzoek van de pagina naar Supabase en beantwoordt het uit een lokale
+Postgres -- met de rol `authenticated`, met `auth.uid()` van de ingelogde speler, en met
+de rechten die Supabase standaard geeft. Ann en Bob loggen in, drukken op TAKE A SEAT,
+spelen een hand, staan op, en openen daarna samen een privétafel met een code.
+
+Dat die toets er is, heeft een reden. `pk_sit` las het tafelnummer uit
+`my_lobby.lobby_id`, maar in de echte view heet die kolom `id` -- en in productie kon
+daardoor niemand gaan zitten. Alle andere toetsen waren groen, want `test_stub.sql` had
+my_lobby zelf nagebouwd, met dezelfde verkeerde naam. Die stub bevat nu de lobby-tabellen,
+de view en de lobby-functies zoals ze in de echte Supabase staan, en de browsertoets
+draait er doorheen. Hij vond meteen nog iets: stonden beide spelers op midden in een hand,
+dan bleef die hand voor altijd open, met de blinds in een pot waar niemand meer bij kon.
+
 Die twee zijn de enige die zouden merken dat het scherm klapt zodra er echt een hand op
 staat -- de rest gaat over regels en over de database. De eerste vond meteen dat de
 fasebalk "SIT DOWN TO PLAY" zei terwijl je zat te spelen.

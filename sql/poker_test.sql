@@ -26,6 +26,8 @@ create or replace function pg_temp.ronde() returns bigint language sql as $$
   select id from public.pk_rounds order by id desc limit 1; $$;
 create or replace function pg_temp.seq() returns int language sql as $$
   select act_seq from public.pk_rounds order by id desc limit 1; $$;
+create or replace function pg_temp.beurt_uid_of_iemand() returns uuid language sql as $$
+  select user_id from public.pk_players order by seat_no limit 1; $$;
 create or replace function pg_temp.beurt_uid() returns uuid language sql as $$
   select s.user_id from public.pk_seats s join public.pk_rounds r on r.id = s.round_id
    where r.id = pg_temp.ronde() and s.seat_no = r.to_act_seat; $$;
@@ -37,6 +39,14 @@ insert into public.profiles (id, username, balance, reset_sprint) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'ann', 1000, public.sprint_now()),
   ('aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1000, public.sprint_now()),
   ('aaaaaaaa-0000-0000-0000-000000000003', 'cas', 1000, public.sprint_now());
+
+-- Aan tafel 1 zitten, zoals lobby_join dat doet. De echte my_lobby laat je alleen je
+-- tafel zien als je in lobby_members staat -- en pk_sit leest precies daaruit. En tafel 1
+-- moet er zijn: de echte lobby-functies ruimen een lege lobby op.
+insert into public.lobbies (id, code) values (1, 'TEST') on conflict (id) do nothing;
+delete from public.lobby_members;
+insert into public.lobby_members (lobby_id, player, username)
+     select 1, id, username from public.profiles;
 
 select pg_temp.zegt('drieduizend om mee te beginnen', '3000', pg_temp.totaal()::text);
 
@@ -161,6 +171,14 @@ insert into public.profiles (id, username, balance, reset_sprint) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'ann', 1000, public.sprint_now()),
   ('aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1000, public.sprint_now()),
   ('aaaaaaaa-0000-0000-0000-000000000003', 'cas', 1000, public.sprint_now());
+
+-- Aan tafel 1 zitten, zoals lobby_join dat doet. De echte my_lobby laat je alleen je
+-- tafel zien als je in lobby_members staat -- en pk_sit leest precies daaruit. En tafel 1
+-- moet er zijn: de echte lobby-functies ruimen een lege lobby op.
+insert into public.lobbies (id, code) values (1, 'TEST') on conflict (id) do nothing;
+delete from public.lobby_members;
+insert into public.lobby_members (lobby_id, player, username)
+     select 1, id, username from public.profiles;
 
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
@@ -369,9 +387,9 @@ select pg_temp.zegt('bijkopen terwijl je hand nog loopt mag niet', 'wait for the
 do $$ begin
   delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
   update public.profiles set balance = 1000;
-  insert into public.lobby_members (lobby_id, user_id) values
-    (1, 'aaaaaaaa-0000-0000-0000-000000000002') on conflict do nothing;
-  delete from public.lobby_members where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  insert into public.lobby_members (lobby_id, player, username) values
+    (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob') on conflict do nothing;
+  delete from public.lobby_members where player = 'aaaaaaaa-0000-0000-0000-000000000001';
   insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
     (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 175),
     (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 200);
@@ -394,6 +412,10 @@ do $$ begin
     return;
   end if;
   delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  -- Ann moet aan tafel zitten om te kunnen inkopen; de toets hierboven had haar er juist
+  -- uitgehaald om het opruimen te laten zien.
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles on conflict do nothing;
   alter table public.profiles disable trigger sprint_guard;
   update public.profiles set balance = 8000, reset_sprint = public.sprint_now() - 1
    where username = 'ann';
@@ -418,8 +440,8 @@ do $$ begin
   update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
   -- De toets hierboven haalde er een lid uit om het opruimen te laten zien; hier hoort
   -- iedereen er weer bij, anders veegt pk_tick ze meteen van tafel.
-  insert into public.lobby_members (lobby_id, user_id)
-       select 1, id from public.profiles on conflict do nothing;
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles on conflict do nothing;
 end $$;
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
@@ -450,8 +472,8 @@ do $$ begin
   -- anders toetst de som aan het eind niets.
   update public.profiles set balance = 900, reset_sprint = public.sprint_now()
    where username in ('ann', 'bob');
-  insert into public.lobby_members (lobby_id, user_id)
-       select 1, id from public.profiles on conflict do nothing;
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles on conflict do nothing;
   -- Een hand waarin ann all-in staat en bob gepast heeft: ann hoort alles te krijgen.
   -- Allebei hebben hun hele stapel van 100 ingezet, dus voor de stoelen ligt er niets meer.
   insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
@@ -516,8 +538,8 @@ do $$ begin
   delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
   delete from poker.hole; delete from poker.deck;
   update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
-  insert into public.lobby_members (lobby_id, user_id)
-       select 1, id from public.profiles on conflict do nothing;
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles on conflict do nothing;
   -- bob en cas zitten op tafelstoel 1 en 2; stoel 0 is nog vrij.
   insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
     (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 200),
@@ -573,8 +595,8 @@ do $$ begin
   delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
   delete from poker.hole; delete from poker.deck;
   update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
-  insert into public.lobby_members (lobby_id, user_id)
-       select 1, id from public.profiles on conflict do nothing;
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles on conflict do nothing;
 end $$;
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
@@ -639,7 +661,7 @@ do $$ begin
   insert into public.pk_players (lobby_id, user_id, username, seat_no, stack) values
     (1, 'aaaaaaaa-0000-0000-0000-000000000001', 'ann', 0, 500),
     (1, 'aaaaaaaa-0000-0000-0000-000000000002', 'bob', 1, 200);
-  delete from public.lobby_members where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  delete from public.lobby_members where player = 'aaaaaaaa-0000-0000-0000-000000000001';
 end $$;
 select public.pk_tick(1);
 select pg_temp.zegt('het opruimen betaalt een keer uit', '1000',
@@ -655,8 +677,8 @@ do $$ begin
   delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
   delete from poker.hole; delete from poker.deck;
   update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
-  insert into public.lobby_members (lobby_id, user_id)
-       select 1, id from public.profiles on conflict do nothing;
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles on conflict do nothing;
 end $$;
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
 select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
@@ -702,3 +724,101 @@ select pg_temp.zegt('en bob houdt zijn inzet plus zijn stapel', '100',
   coalesce((select stack::text from public.pk_players where username = 'bob'), 'weg'));
 select pg_temp.zegt('er blijft niets op de verlaten stoel staan', '0',
   (select stack::text from public.pk_seats where round_id = 9991 and seat_no = 0));
+
+-- ---------- aan tafel via de echte lobby ----------
+-- De fout die in productie elke poging om te gaan zitten liet klappen: pk_sit las
+-- my_lobby.lobby_id, maar in de echte view heet die kolom `id`. Alle toetsen hierboven
+-- zetten de spelers zelf in lobby_members; deze gaat door de lobby-functies zelf naar
+-- binnen, precies zoals de knop QUICK PLAY en een uitnodigingscode dat doen.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from public.lobby_members;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+end $$;
+set test.uid = 'aaaaaaaa-0000-0000-0000-000000000001';
+select pg_temp.zegt('quick play zet ann aan een tafel', 'true',
+  (select (public.lobby_quick() ? 'lobby')::text));
+select pg_temp.zegt('en ze kan meteen gaan zitten', 'true',
+  (select (public.pk_sit(200)->>'ok')));
+select pg_temp.zegt('ze zit aan de pokertafel van haar eigen lobby', '1',
+  (select count(*)::text from public.pk_players pl join public.my_lobby l on l.id = pl.lobby_id
+    where pl.username = 'ann'));
+
+-- Een vriend komt erbij met de code van de tafel.
+select set_config('pk.code', (select code from public.my_lobby), false);
+set test.uid = 'aaaaaaaa-0000-0000-0000-000000000002';
+select pg_temp.zegt('bob komt binnen met de code', 'true',
+  (select (public.lobby_join(current_setting('pk.code')) ? 'lobby')::text));
+select pg_temp.zegt('en gaat ook zitten', 'true', (select (public.pk_sit(200)->>'ok')));
+select pg_temp.zegt('ze zitten samen aan dezelfde tafel', '2',
+  (select count(*)::text from public.pk_players
+    where lobby_id = (select id from public.my_lobby)));
+select pg_temp.zegt('en er wordt gedeeld', 'true',
+  (select (public.pk_tick((select id from public.my_lobby))->>'dealt')));
+
+-- ---------- iedereen staat op midden in een hand ----------
+-- In de browser-toets gevonden. Ann stond op, daarna bob, en de hand bleef open staan met
+-- beider blinds in de pot. Omdat een lege lobby wordt opgeruimd, kwam er nooit meer iemand
+-- die de tafel porde: die fiches waren weg. Wie als laatste overblijft hoort de pot te
+-- winnen, meteen, zoals aan elke tafel.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck; delete from public.lobby_members;
+  -- lobby_quick hierboven ruimt lege lobby's op, net als in het echt; tafel 1 weer neerzetten.
+  insert into public.lobbies (id, code) values (1, 'TEST') on conflict (id) do nothing;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles where username in ('ann', 'bob');
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+select public.pk_tick(1);
+select pg_temp.zegt('er loopt een hand met twee blinds in de pot', '15',
+  (select sum(total_bet)::text from public.pk_seats where round_id = pg_temp.ronde()));
+
+-- Wie is NIET aan de beurt? Die staat op: de ander mag zijn beurt niet kwijtraken.
+select set_config('pk.wacht', (select s.user_id::text from public.pk_seats s
+  join public.pk_rounds r on r.id = s.round_id
+ where r.id = pg_temp.ronde() and s.seat_no <> r.to_act_seat), false);
+select pg_temp.mislukt(current_setting('pk.wacht')::uuid, 'select public.pk_leave()');
+select pg_temp.zegt('wie als laatste overblijft wint meteen', 'true',
+  (select (settled_at is not null)::text from public.pk_rounds where id = pg_temp.ronde()));
+-- De small blind (5) wint, want de big blind (10) stond op. Het deel van de big blind dat
+-- niemand callde gaat terug naar hem: dat is gewone poker. De winnaar krijgt zijn eigen 5
+-- plus de 5 die gecalld waren; de vertrekker krijgt zijn ongecallde 5 op zijn saldo.
+select pg_temp.zegt('en krijgt wat er om gespeeld werd', '10',
+  (select payout::text from public.pk_seats
+    where round_id = pg_temp.ronde() and not folded));
+select pg_temp.zegt('en de vertrekker krijgt zijn ongecallde deel terug', '5',
+  (select payout::text from public.pk_seats
+    where round_id = pg_temp.ronde() and left_table));
+select pg_temp.mislukt(pg_temp.beurt_uid_of_iemand(), 'select public.pk_leave()');
+select pg_temp.zegt('als ook de ander opstaat, staat er niets meer open', '0',
+  (select count(*)::text from public.pk_rounds where settled_at is null));
+select pg_temp.zegt('en elke fiche staat weer op een saldo', '2000',
+  (select sum(balance)::int::text from public.profiles where username in ('ann', 'bob')));
+
+-- En met drie spelers: wie opstaat terwijl een ander aan de beurt is, neemt die ander zijn
+-- beurt niet af.
+do $$ begin
+  delete from public.pk_players; delete from public.pk_rounds; delete from public.pk_seats;
+  delete from poker.hole; delete from poker.deck; delete from public.lobby_members;
+  -- lobby_quick hierboven ruimt lege lobby's op, net als in het echt; tafel 1 weer neerzetten.
+  insert into public.lobbies (id, code) values (1, 'TEST') on conflict (id) do nothing;
+  update public.profiles set balance = 1000, reset_sprint = public.sprint_now();
+  insert into public.lobby_members (lobby_id, player, username)
+       select 1, id, username from public.profiles;
+end $$;
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000001', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000002', 'select public.pk_sit(200)');
+select pg_temp.mislukt('aaaaaaaa-0000-0000-0000-000000000003', 'select public.pk_sit(200)');
+select public.pk_tick(1);
+select set_config('pk.beurt', (select to_act_seat::text from public.pk_rounds where id = pg_temp.ronde()), false);
+select set_config('pk.ander', (select s.user_id::text from public.pk_seats s
+  join public.pk_rounds r on r.id = s.round_id
+ where r.id = pg_temp.ronde() and s.seat_no <> r.to_act_seat order by s.seat_no limit 1), false);
+select pg_temp.mislukt(current_setting('pk.ander')::uuid, 'select public.pk_leave()');
+select pg_temp.zegt('wie aan de beurt was, is dat nog steeds', current_setting('pk.beurt'),
+  (select to_act_seat::text from public.pk_rounds where id = pg_temp.ronde()));
+select pg_temp.zegt('en de hand loopt gewoon door', 'false',
+  (select (settled_at is not null)::text from public.pk_rounds where id = pg_temp.ronde()));

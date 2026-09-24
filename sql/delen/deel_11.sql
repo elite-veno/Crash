@@ -80,21 +80,21 @@ begin
   -- niet, of ziet die er anders uit dan hier verwacht, dan slaat het over. Een tafel die
   -- vastloopt omdat het opruimen struikelt is erger dan een rij die blijft staan.
   begin
+    -- De speler heet in lobby_members `player`, niet `user_id`. Hier stond eerst
+    -- user_id, en de controle hieronder vond die kolom dus nooit: het opruimen werd
+    -- stilletjes overgeslagen. Er ging niets kapot, maar het deed ook nooit iets.
     if (select count(*) from information_schema.columns
          where table_schema = 'public' and table_name = 'lobby_members'
-           and column_name in ('lobby_id', 'user_id')) = 2 then
+           and column_name in ('lobby_id', 'player')) = 2 then
       for w in
-        -- En één grendel erbij: alleen opruimen als er voor DEZE lobby uberhaupt leden
-        -- in die tabel staan. Staat hij leeg, dan wordt het lidmaatschap ergens anders
-        -- bijgehouden en betekent "staat er niet in" niet "hoort er niet bij" -- dan zou
-        -- dit de hele tafel leegvegen in plaats van één achterblijver.
+        -- lobby_prune haalt wie een minuut niets van zich liet horen uit de lobby; wie
+        -- daarna nog aan deze tafel zit, hoort er niet meer bij. Dezelfde regel als voor
+        -- blackjack, dus een tafel voelt overal hetzelfde aan.
         execute 'select pl.user_id, pl.stack from public.pk_players pl'
              || ' where pl.lobby_id = $1'
-             || '   and exists (select 1 from public.lobby_members m2'
-             || '                where m2.lobby_id = pl.lobby_id)'
              || '   and not exists ('
              || '   select 1 from public.lobby_members m'
-             || '    where m.lobby_id = pl.lobby_id and m.user_id = pl.user_id)'
+             || '    where m.lobby_id = pl.lobby_id and m.player = pl.user_id)'
         using p_lobby
       loop
         -- Eerst weghalen, dan pas uitbetalen, en alleen wat de delete echt heeft

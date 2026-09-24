@@ -6400,7 +6400,16 @@ async function pokCall(path, body, msg) {
 // iemand je dat vertelde. Hier wordt het rechtgezet voor het verstuurd wordt, en dan zie
 // je in het vak wat er echt gebeurt.
 const POK_MIN_KOOP = 100, POK_MAX_KOOP = 500;
-const pokSit = () => {
+const pokSit = async () => {
+  // Nog aan geen enkele tafel? Dan eerst eentje zoeken. De knop stond eerst uit zolang je
+  // niet in een lobby zat, zonder te zeggen waarom -- je drukte en er gebeurde niets. Wie
+  // met vrienden wil spelen opent eerst een PRIVATE TABLE in de balk erboven; wie gewoon
+  // wil spelen hoeft nu maar één keer te drukken.
+  if (!LOBBY.id) {
+    if (LOBBY.busy || POK.acting) return null;
+    await lobbyQuick();
+    if (!LOBBY.id) return null;          // lobbyCall heeft de fout al in beeld gezet
+  }
   const el = $('pokerBuyin');
   const gevraagd = Math.round(Number(el && el.value) || 200);
   const v = Math.max(POK_MIN_KOOP, Math.min(POK_MAX_KOOP, gevraagd));
@@ -6563,8 +6572,11 @@ function pokRender() {
   const zit = !!ik;
   const blut = zit && Number(ik.stack) <= 0;
   $('pkSitBtn').hidden = zit && !blut;
-  $('pkSitBtn').textContent = blut ? 'BUY MORE CHIPS' : 'TAKE A SEAT';
-  $('pkSitBtn').disabled = POK.acting || !LOBBY.id || !online();
+  // Zonder account kan het echt niet: poker gaat tegen andere spelers, en die vind je
+  // alleen online. Dan zegt de knop dat ook, in plaats van alleen grijs te worden.
+  $('pkSitBtn').textContent = !online() || !AUTH.session ? 'SIGN IN TO PLAY'
+    : blut ? 'BUY MORE CHIPS' : 'TAKE A SEAT';
+  $('pkSitBtn').disabled = POK.acting || LOBBY.busy || !online() || !AUTH.session;
   $('pkLeaveBtn').hidden = !zit;
   $('pkLeaveBtn').disabled = POK.acting;
   $('pkLeaveBtn').textContent = zit && me && r && !r.settled_at && !me.folded
