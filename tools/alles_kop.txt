@@ -1,0 +1,35 @@
+-- ============================================================================
+--  CRASH CASINO -- alles wat er in Supabase moet, in een bestand
+-- ============================================================================
+--
+--  Plak dit hele bestand in de SQL-editor van Supabase en druk op RUN. Het is
+--  veilig om twee keer te draaien: alles staat als `create or replace`, of met
+--  `if not exists`.
+--
+--  Dit bestand is samengesteld uit de vier losse bestanden in sql/, in de
+--  volgorde waarin ze moeten draaien. Wil je ze apart houden, gebruik dan die.
+--  De losse bestanden blijven de bron; dit is een afdruk ervan.
+--
+--    1. poker.sql         de tabellen en views van poker
+--    2. poker_rpc.sql     de functies: delen, inzetten, afrekenen, de klok
+--    3. sprint_reset.sql  iedereen na elke sprint terug op $1000
+--    4. poker_ledger.sql  wat poker met een saldo doet, zodat de ranglijst klopt
+--
+--  ER STAAT HIER GEEN ENKELE SLEUTEL IN, en die hoort er ook niet in. De pagina
+--  gebruikt alleen de publieke (anon/publishable) sleutel. De service_role-sleutel
+--  hoort nergens anders dan in het dashboard van Supabase -- niet in dit bestand,
+--  niet in crash.html, nergens.
+--
+--  NA HET DRAAIEN, EEN DING OM TE CONTROLEEREN:
+--  Ga naar Settings -> API -> Exposed schemas en zorg dat daar ALLEEN `public`
+--  staat. Het schema `poker` mag daar NOOIT bij. Daar liggen de holekaarten en de
+--  zaadjes van de schudbeurt; komt dat schema in die lijst, dan kan iedereen met
+--  de publieke sleutel de kaarten van zijn tegenstanders opvragen.
+--
+--  pgcrypto is nodig (voor sha256). Op Supabase staat die standaard aan, in het
+--  schema `extensions`; het stuk hieronder zoekt hem zelf op. Zegt de editor toch
+--  dat pgcrypto ontbreekt, draai dan eerst:
+--      create extension if not exists pgcrypto with schema extensions;
+--
+-- ============================================================================
+

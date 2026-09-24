@@ -11,9 +11,22 @@ echo "=== sourcemap ==="
 python3 tools/sourcemap.py
 
 echo
+echo "=== serverbestanden inpakken voor de tests ==="
+python3 tools/bundle_server.py || fails=$((fails+1))
+
+echo
+echo "=== model voor Studio bouwen ==="
+python3 tools/build_rbxmx.py || fails=$((fails+1))
+
+echo
+echo "=== kanalen tussen client en server ==="
+python3 tools/check_channels.py || fails=$((fails+1))
+
+echo
 echo "=== typecheck tegen de Roblox-API ==="
 if out=$("$LSP" analyze --definitions=tools/globalTypes.d.luau --sourcemap=sourcemap.json \
-          --ignore='tools/**' $(find src tests -name '*.luau' | sort) 2>&1); then
+          --ignore='tools/**' --ignore='tests/server_sources.luau' \
+          $(find src tests -name '*.luau' ! -name 'server_sources.luau' | sort) 2>&1); then
   echo "$out" | grep -v '^\[INFO\]' | grep -v '^$' || true
   echo "alle bestanden typechecken"
 else

@@ -13,6 +13,9 @@ markup. 252 functies, 16 schermen, 5 canvassen, 11 spellen, 13 systeemobjecten.
 | spellen | crash, roulette, tower, mines, plinko, blackjack, horse, scratch, wheel, 777, ride the bus | zelfde elf |
 | tekenwerk | `<canvas>` | Frames met rotatie en UIGradient; geen canvas in Roblox |
 | account | eigen inlogscherm op Supabase GoTrue | vervalt: Roblox kent de speler al |
+| vrienden | eigen lijst met uitnodigingen en RLS | vervalt: Roblox kent de vrienden al |
+| privélobby | eigen tabel met codes | Roblox' eigen privéservers (ReserveServer) |
+| eerlijk spel | `sha256()` in Postgres | met de hand in Luau, tegen de testvectoren |
 | opslag | PostgreSQL met RLS | DataStore, ranglijst via OrderedDataStore |
 | serverlogica | SECURITY DEFINER-functies | ServerScriptService; de client kan er niet bij |
 | gedeelde ronde | polling op een view | RemoteEvents, de server duwt |
@@ -39,6 +42,13 @@ ServerScriptService en kan de client er per definitie niet bij. Dat gat sluit va
    blackjacktafel.
 8. **Review** — een workflow met review agents over het geheel, en de bevindingen die
    standhouden repareren.
+
+## Waar het staat
+
+Alle acht stappen zijn af. Zestien schermen, elf spellen, alles afgerekend op de server.
+Wat er nog niet is: echte parts in de wereld (bewust: de opdracht was de UI en de systemen),
+en de gedeelde blackjacktafel, die nu per speler loopt in plaats van als één tafel voor
+iedereen -- crash is dat wel.
 
 ## Wat er per stap bewijsbaar is
 

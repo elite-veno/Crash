@@ -1597,6 +1597,46 @@
   .bj-message.push { color: var(--gold); }
   .bj-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 
+  /* ---------- poker ---------- */
+  .pk-table { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 22px; }
+  .pk-seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .pk-seat {
+    background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+    transition: border-color 0.2s, opacity 0.2s;
+  }
+  /* Wie aan de beurt is licht op, zodat je in één oogopslag ziet op wie er gewacht wordt. */
+  .pk-seat.acting { border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon-glow); }
+  .pk-seat.folded { opacity: 0.4; }
+  .pk-seat.mine .pk-seat-name { color: var(--neon); }
+  .pk-seat-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .pk-seat-name { font-size: 11px; letter-spacing: 0.6px; color: var(--text); }
+  .pk-seat-stack { font-family: var(--font-num); font-size: 12px; color: var(--gold); }
+  .pk-seat-bet { font-family: var(--font-num); font-size: 10px; color: var(--muted); min-height: 13px; }
+  .pk-seat-tag { font-size: 9px; letter-spacing: 1px; color: var(--muted); min-height: 11px; }
+  .pk-seat-tag.allin { color: var(--red); }
+  .pk-seat .cards { min-height: 0; gap: 4px; }
+  /* Aan tafel zijn de kaarten kleiner dan bij blackjack: er liggen er zes paar naast elkaar. */
+  .pk-seat .card { width: 34px; height: 48px; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.45); }
+  .pk-seat .card .corner { font-size: 10px; }
+  .pk-seat .card .pip { font-size: 15px; }
+  /* Een dichte kaart: dezelfde maat, maar de rug naar boven. */
+  .pk-seat .card.down {
+    background: linear-gradient(135deg, #1d3a63 0%, #14283f 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .pk-middle { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .pk-pot {
+    font-family: var(--font-num); font-size: 26px; color: var(--gold);
+  }
+  .pk-board { justify-content: center; min-height: 100px; }
+  .pk-phase { font-size: 11px; letter-spacing: 1px; color: var(--muted); text-align: center; }
+  .pk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .pk-raise { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .pk-raise input[type="range"] { flex: 1; accent-color: var(--neon); }
+  .pk-raise input[type="number"] { width: 92px; margin: 0; }
+  .pk-buyin-note { margin-top: 6px; }
+
   @media (max-width: 900px) {
     .content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .game-view.active { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow: visible; height: auto; min-height: 100vh; }
@@ -1791,6 +1831,18 @@
     <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
   </div>
 
+  <div class="nav-item" data-route="poker">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="3" y="3" width="18" height="18" rx="3"/>
+        <path d="M12 7l3.2 3.6c1.1 1.3.2 3.4-1.6 3.4-.7 0-1.2-.3-1.6-.8-.4.5-.9.8-1.6.8-1.8 0-2.7-2.1-1.6-3.4L12 7z"/>
+        <path d="M12 14.6V17"/>
+      </svg>
+    </div>
+    <div class="nav-label">POKER</div>
+    <div class="nav-badge" style="background: rgba(62,207,142,0.12); color: var(--neon); border-color: rgba(0,255,102,0.3);">LIVE</div>
+  </div>
+
   <div class="nav-item" data-route="scratch">
     <div class="nav-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -1910,7 +1962,7 @@
 
     <div class="section-heading">
       <h2>AVAILABLE GAMES</h2>
-      <span class="count">9 LIVE</span>
+      <span class="count">10 LIVE</span>
       <div class="divider"></div>
     </div>
 
@@ -2107,6 +2159,36 @@
           </div>
         </div>
       </div>
+      <!-- POKER -->
+      <div class="game-card available" data-route="poker">
+        <div class="game-card-preview" style="background: linear-gradient(180deg, #14281c 0%, #0e1a13 100%);">
+          <svg viewBox="0 0 280 160" style="width: 100%; height: 100%;">
+            <ellipse cx="140" cy="86" rx="104" ry="52" fill="#1c4028" stroke="#2f6b42" stroke-width="2"/>
+            <ellipse cx="140" cy="86" rx="90" ry="42" fill="none" stroke="#2a5c39" stroke-width="1"/>
+            <g>
+              <rect x="96" y="66" width="30" height="42" rx="3" fill="#fdfdf5" stroke="#aaa"/>
+              <text x="111" y="86" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="bold">A</text>
+              <text x="111" y="99" text-anchor="middle" fill="#e0616e" font-size="10">♦</text>
+              <rect x="132" y="66" width="30" height="42" rx="3" fill="#fdfdf5" stroke="#aaa"/>
+              <text x="147" y="86" text-anchor="middle" fill="#1a1a1a" font-size="13" font-weight="bold">K</text>
+              <text x="147" y="99" text-anchor="middle" fill="#1a1a1a" font-size="10">♠</text>
+              <rect x="168" y="66" width="30" height="42" rx="3" fill="#1d3a63" stroke="#2c5286"/>
+            </g>
+            <circle cx="72" cy="110" r="7" fill="#e0b555" stroke="#a8811f"/>
+            <circle cx="84" cy="106" r="7" fill="#e0616e" stroke="#9c3b45"/>
+            <circle cx="206" cy="108" r="7" fill="#3ecf8e" stroke="#237a54"/>
+            <text x="140" y="146" text-anchor="middle" fill="#e0b555" font-size="11" font-family="monospace" letter-spacing="2">TEXAS HOLD'EM</text>
+          </svg>
+        </div>
+        <div class="game-card-body">
+          <div class="game-card-title">POKER</div>
+          <div class="game-card-desc">Against the other players, not the house. Bring friends to your table.</div>
+          <div class="game-card-footer">
+            <span class="game-card-tag">NO HOUSE EDGE</span>
+            <span class="game-card-arrow">→</span>
+          </div>
+        </div>
+      </div>
       <!-- PAARDENRACE -->
       <div class="game-card available" data-route="horse">
         <div class="game-card-preview" style="background: linear-gradient(180deg, #7ec8ff 0%, #b8e4ff 55%, #4a8a2a 55%, #3d7a1f 100%);">
@@ -2226,6 +2308,7 @@
         <tr><td>SAFETY NET</td><td class="rtp">—</td><td>—</td><td class="note">No stake. Only available when you are broke: stop the marker near the middle and get $10 to $40 to play on.</td></tr>
         <tr><td>HORSE RACE</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every horse has a fixed win chance; payout = 0.97 / that chance. The finishing order is drawn before the start and the animation follows it.</td></tr>
         <tr><td>BLACKJACK</td><td class="rtp">~99%</td><td>~1%</td><td class="note">6 decks, continuously shuffled, dealer stands on all 17s, blackjack 3:2, double on any two cards, no split.</td></tr>
+        <tr><td>POKER</td><td class="rtp">—</td><td>0%</td><td class="note">Texas Hold'em against the other players at your table. The house takes nothing out of the pot, so there is no edge and no RTP to quote: what one player wins, another lost. The deck is fixed before the deal and the seed is published when the hand is over.</td></tr>
         <tr><td>WHEEL</td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Twenty equal segments paying 19.4x between them: 19.4 / 20 = 0.97.</td></tr>
         <tr><td>777 <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Three reels. Three of a kind pay 3x to 40x, two cherries 1.5x. 17% of spins pay.</td></tr>
         <tr><td>RIDE THE BUS <span style="color: var(--gold);">· VIP</span></td><td class="rtp">97.0%</td><td>3.0%</td><td class="note">Every multiplier is 0.97 divided by the chance of getting that far, counted off the cards still in the deck. So stopping after any call returns 97%.</td></tr>
@@ -2698,6 +2781,7 @@
             <button data-v="10" class="on">10</button>
             <button data-v="25">25</button>
             <button data-v="100">100</button>
+            <button data-v="max">MAX</button>
           </div>
         </div>
         <div class="payout-line"><span>TOTAL STAKE</span><span class="v" id="rlTotal">$0.00</span></div>
@@ -2995,6 +3079,69 @@
     </main>
   </div>
 
+  <!-- =================== POKER VIEW =================== -->
+  <div class="view game-view" id="pokerView">
+    <aside class="game-aside">
+      <div class="crash-header">
+        <button class="back-btn" data-route="home">← LOBBY</button>
+        <div class="crash-header-title">POKER</div>
+      </div>
+
+      <div class="panel balance">
+        <div class="balance-label">BALANCE</div>
+        <div class="balance-amount js-balance">1000.00</div>
+        <button class="btn-secondary js-broke" hidden>💸 BROKE? PLAY THE SAFETY NET</button>
+        <div class="account-bar"><span class="who js-acct-name">—</span><span class="logout js-acct-switch"></span><span class="logout js-acct-logout">SIGN OUT ↪</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="field-group">
+          <div class="field-label"><span>BUY IN</span><span class="hint">$</span></div>
+          <input type="number" inputmode="decimal" enterkeyhint="done" id="pokerBuyin" value="200" min="100" max="500" step="10">
+          <div class="pk-buyin-note odds-note">$100 to $500. Your chips go back to your balance when you leave.</div>
+        </div>
+        <button class="btn-primary btn-bet" id="pkSitBtn">TAKE A SEAT</button>
+        <button class="btn-secondary" id="pkLeaveBtn" hidden>LEAVE THE TABLE</button>
+
+        <div class="pk-actions" id="pkActions" hidden>
+          <button class="btn-secondary" id="pkFoldBtn">FOLD</button>
+          <button class="btn-secondary" id="pkCheckBtn">CHECK</button>
+          <button class="btn-primary btn-bet" id="pkRaiseBtn" style="grid-column: 1 / 3;">RAISE</button>
+          <div class="pk-raise" style="grid-column: 1 / 3;">
+            <input type="range" id="pkRaiseSlider" min="0" max="100" value="0">
+            <input type="number" inputmode="decimal" id="pkRaiseAmount" value="0" min="0" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="font-size: 10px;">
+        <div class="panel-title">► STATISTICS</div>
+        <div class="stats-grid" data-stats="poker"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">► HOW IT WORKS</div>
+        <div class="odds-note">Texas Hold'em against the other players at your table, not against the house — so there is no edge here and nothing is taken out of the pot. Blinds <b>$5/$10</b>, up to six seats. Invite friends from the <b>FRIENDS</b> page or share your table code. You have <b>25 seconds</b> to act; run out and you check if it is free, fold if it is not.</div>
+      </div>
+    </aside>
+
+    <main class="game-main">
+      <div class="panel board">
+        <div class="toast-host" id="pokerToasts"></div>
+        <div class="lobby-bar" id="pokerLobbyBar"></div>
+        <div class="pk-table" id="pkTable">
+          <div class="pk-seats" id="pkSeats"></div>
+          <div class="pk-middle">
+            <div class="pk-pot" id="pkPot">—</div>
+            <div class="cards pk-board" id="pkBoard"></div>
+            <div class="pk-phase" id="pkPhase">SIT DOWN TO PLAY</div>
+          </div>
+        </div>
+        <div class="odds-note" id="pkFair" hidden></div>
+      </div>
+    </main>
+  </div>
+
   <!-- =================== PAARDENRACE VIEW =================== -->
   <div class="view game-view" id="horseView">
     <aside class="game-aside">
@@ -3078,7 +3225,7 @@ const MIN_BET = 1;
 const randInt = n => Math.floor(Math.random() * n);
 // De basisspellen staan voor iedereen open; de VIP-spellen alleen voor de winnaar van het
 // vorige seizoen. GAMES is alles wat statistieken bijhoudt.
-const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'horse', 'scratch', 'wheel'];
+const BASE_GAMES = ['crash', 'roulette', 'tower', 'mines', 'plinko', 'blackjack', 'poker', 'horse', 'scratch', 'wheel'];
 const VIP_GAMES = ['slots', 'bus'];
 const GAMES = [...BASE_GAMES, ...VIP_GAMES];
 
@@ -3349,6 +3496,287 @@ const ODDS = {
   busMultiplier(prob) { return prob > 0 ? Math.floor((1 - this.HOUSE_EDGE) / prob * 100) / 100 : 0; },
 
   // Blackjack
+
+  // Texas Hold'em: de beste hand van vijf uit zeven kaarten, als één getal waarmee twee
+  // handen tegen elkaar te leggen zijn. Poker is speler tegen speler, dus hier wint het
+  // huis niets -- het huisvoordeel hierboven geldt voor deze functies niet.
+  //
+  // De score is `categorie` gevolgd door de tiebreakers, elk in een eigen positie van
+  // vijftien. Hoger is beter, gelijk is echt gelijk (gedeelde pot). Vijftien omdat de
+  // hoogste kaart 14 is (aas) en nul betekent "geen".
+  POKER_RANKS: ['2','3','4','5','6','7','8','9','10','J','Q','K','A'],
+  POKER_CATS: ['high card', 'pair', 'two pair', 'three of a kind', 'straight',
+               'flush', 'full house', 'four of a kind', 'straight flush'],
+  pokerRank(card) { return this.POKER_RANKS.indexOf(card.r) + 2; },
+
+  // De hoogste straat in een verzameling rangen, of 0. Het aas telt aan beide kanten: als
+  // hoogste kaart in 10-J-Q-K-A en als laagste in A-2-3-4-5 (het wiel), en dan is de
+  // straat er een van vijf, niet van veertien.
+  pokerStraight(rangen) {
+    const heeft = new Set(rangen);
+    if (heeft.has(14)) heeft.add(1);
+    for (let hoog = 14; hoog >= 5; hoog--) {
+      let alle = true;
+      for (let i = 0; i < 5; i++) if (!heeft.has(hoog - i)) { alle = false; break; }
+      if (alle) return hoog;
+    }
+    return 0;
+  },
+
+  // Zeven kaarten naar één score. Geeft ook de categorie terug, om te laten zien wat het
+  // geworden is ("FULL HOUSE"), en de vijf kaarten die tellen.
+  pokerScore(kaarten) {
+    const rangen = kaarten.map(c => this.pokerRank(c));
+    const perRang = new Map();
+    const perKleur = new Map();
+    for (let i = 0; i < kaarten.length; i++) {
+      perRang.set(rangen[i], (perRang.get(rangen[i]) || 0) + 1);
+      const k = kaarten[i].s;
+      if (!perKleur.has(k)) perKleur.set(k, []);
+      perKleur.get(k).push(rangen[i]);
+    }
+
+    // Kleur: vijf of meer van één soort. De straight flush wordt binnen die soort gezocht,
+    // want een straat over twee soorten telt daar niet.
+    let kleurRangen = null;
+    for (const [, rs] of perKleur) if (rs.length >= 5) kleurRangen = rs.slice().sort((a, b) => b - a);
+
+    if (kleurRangen) {
+      const sf = this.pokerStraight(kleurRangen);
+      if (sf) return { cat: 8, sleutels: [sf, 0, 0, 0, 0] };
+    }
+
+    // De rangen op aantal, en bij gelijk aantal op hoogte: [[rang, aantal], ...]
+    const groepen = [...perRang.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+    const aantal = groepen.map(g => g[1]);
+
+    if (aantal[0] === 4) {
+      const kicker = groepen.slice(1).map(g => g[0]).sort((a, b) => b - a)[0] || 0;
+      return { cat: 7, sleutels: [groepen[0][0], kicker, 0, 0, 0] };
+    }
+    if (aantal[0] === 3 && aantal[1] >= 2) {
+      return { cat: 6, sleutels: [groepen[0][0], groepen[1][0], 0, 0, 0] };
+    }
+    if (kleurRangen) return { cat: 5, sleutels: kleurRangen.slice(0, 5) };
+
+    const st = this.pokerStraight(rangen);
+    if (st) return { cat: 4, sleutels: [st, 0, 0, 0, 0] };
+
+    if (aantal[0] === 3) {
+      const rest = groepen.slice(1).map(g => g[0]).sort((a, b) => b - a).slice(0, 2);
+      return { cat: 3, sleutels: [groepen[0][0], rest[0] || 0, rest[1] || 0, 0, 0] };
+    }
+    if (aantal[0] === 2 && aantal[1] === 2) {
+      const paren = groepen.filter(g => g[1] === 2).map(g => g[0]).sort((a, b) => b - a);
+      const rest = groepen.filter(g => g[1] === 1).map(g => g[0]).sort((a, b) => b - a);
+      // Drie paren kan met zeven kaarten: het laagste paar telt dan niet mee, maar de
+      // hoogste kaart ervan kan wel de kicker zijn.
+      const kickers = [...rest, ...paren.slice(2)].sort((a, b) => b - a);
+      return { cat: 2, sleutels: [paren[0], paren[1], kickers[0] || 0, 0, 0] };
+    }
+    if (aantal[0] === 2) {
+      const rest = groepen.slice(1).map(g => g[0]).sort((a, b) => b - a).slice(0, 3);
+      return { cat: 1, sleutels: [groepen[0][0], rest[0] || 0, rest[1] || 0, rest[2] || 0, 0] };
+    }
+    const hoog = rangen.slice().sort((a, b) => b - a).slice(0, 5);
+    return { cat: 0, sleutels: hoog };
+  },
+
+  // Eén getal, zodat twee handen met > en === te vergelijken zijn.
+  pokerValue(kaarten) {
+    const s = this.pokerScore(kaarten);
+    let v = s.cat;
+    for (const k of s.sleutels) v = v * 15 + k;
+    return v;
+  },
+  pokerName(kaarten) { return this.POKER_CATS[this.pokerScore(kaarten).cat]; },
+
+  // De pot verdelen als er all-ins zijn geweest. Iedereen speelt alleen mee om het geld
+  // dat hij zelf heeft kunnen matchen: wie voor 20 all-in gaat, kan niet meer dan 20 van
+  // elke andere speler winnen. Wat daarboven is ingezet, vormt een zijpot waar hij buiten
+  // staat.
+  //
+  // `spelers` is een lijst in stoelvolgorde: { id, ingezet, gefold, waarde }. `ingezet` is
+  // wat die speler deze hand in totaal in de pot heeft gedaan -- ook als hij gefold is,
+  // want dat geld blijft in de pot. `waarde` is de uitkomst van pokerValue, en telt alleen
+  // voor wie niet gefold is.
+  //
+  // `eersteNaKnop` is de stoel links van de knop: als een pot niet rond deelt, gaat de
+  // laatste cent daarheen, zoals aan een echte tafel de oneven fiche naar links gaat.
+  // Zonder die regel zou er geld blijven liggen of uit het niets bij komen.
+  pokerPots(spelers, eersteNaKnop = 0) {
+    const uit = new Map();
+    for (const s of spelers) uit.set(s.id, 0);
+
+    // De hoogtes waarop een pot afgesplitst wordt: elk verschillend inzetbedrag.
+    const niveaus = [...new Set(spelers.map(s => Math.round(s.ingezet * 100))
+                                        .filter(c => c > 0))].sort((a, b) => a - b);
+    let vorig = 0;
+    const potten = [];
+    for (const niveau of niveaus) {
+      let bedrag = 0;
+      for (const s of spelers) {
+        const c = Math.round(s.ingezet * 100);
+        bedrag += Math.min(c, niveau) - Math.min(c, vorig);
+      }
+      // Wie erom speelt: niet gefold, en zelf tot dit niveau meegegaan.
+      const kandidaten = spelers.filter(s => !s.gefold && Math.round(s.ingezet * 100) >= niveau);
+      potten.push({ centen: bedrag, kandidaten, niveau, vorigNiveau: vorig });
+      vorig = niveau;
+    }
+
+    // De stoelen op volgorde vanaf links van de knop, zodat een oneven cent altijd bij
+    // dezelfde speler uitkomt en niet bij wie toevallig vooraan in de lijst stond.
+    const volgorde = [];
+    for (let i = 0; i < spelers.length; i++) volgorde.push(spelers[(eersteNaKnop + i) % spelers.length]);
+
+    for (const pot of potten) {
+      if (pot.centen <= 0) continue;
+      const niveau = pot.niveau, vorigNiveau = pot.vorigNiveau;
+      if (!pot.kandidaten.length) {
+        // Iedereen die om deze pot speelde is gefold. Dan gaat hij terug naar wie hem
+        // volstortte, NAAR RATO -- en niet in zijn geheel naar één van hen, want dan komt
+        // er geld bij iemand terecht dat van een ander was.
+        for (const s of spelers) {
+          const c = Math.round(s.ingezet * 100);
+          const deel = Math.min(c, niveau) - Math.min(c, vorigNiveau);
+          if (deel > 0) uit.set(s.id, uit.get(s.id) + deel);
+        }
+        continue;
+      }
+      let beste = -1;
+      for (const s of pot.kandidaten) if (s.waarde > beste) beste = s.waarde;
+      const winnaars = volgorde.filter(s => pot.kandidaten.includes(s) && s.waarde === beste);
+      const ieder = Math.floor(pot.centen / winnaars.length);
+      let rest = pot.centen - ieder * winnaars.length;
+      for (const w of winnaars) {
+        let deel = ieder;
+        if (rest > 0) { deel++; rest--; }   // de oneven centen naar links van de knop
+        uit.set(w.id, uit.get(w.id) + deel);
+      }
+    }
+
+    const terug = {};
+    for (const [id, centen] of uit) terug[id] = centen / 100;
+    return terug;
+  },
+
+  // De inzetronde. Dit is wat de server gebruikt om te bepalen of een zet mag: de browser
+  // stuurt hooguit "raise" met een bedrag, en als dat bedrag niet klopt gaat de zet niet
+  // door. Zonder dit stukje is elke andere grendel zinloos.
+  //
+  // `stand` is de tafel zoals hij nu staat:
+  //   stoelen: [{ stack, inzet, gefold, allin, gezet }]  -- inzet is wat deze speler DEZE
+  //            straat in de pot heeft gedaan; gezet zegt of hij al aan de beurt is geweest
+  //            sinds de laatste verhoging.
+  //   hoogste: de hoogste inzet van deze straat
+  //   minVerhoging: hoe groot de laatste volle verhoging was (in het begin de grote blind)
+  //
+  // Alle bedragen in centen, zodat er niets wegvalt in de afronding.
+  pokerLegal(stand, i) {
+    const s = stand.stoelen[i];
+    const leeg = { fold: false, check: false, call: 0, minRaise: 0, maxRaise: 0 };
+    if (!s || s.gefold || s.allin || s.stack <= 0) return leeg;
+    const teGaan = Math.max(0, stand.hoogste - s.inzet);
+    const call = Math.min(teGaan, s.stack);
+    // Verhogen kan tot alles wat je hebt. De ondergrens is de vorige verhoging erbovenop,
+    // maar wie daar niet aan komt mag nog steeds all-in -- alleen heropent dat de ronde
+    // niet voor wie al gezet had.
+    const maxRaise = s.inzet + s.stack;
+    let minRaise = stand.hoogste + stand.minVerhoging;
+    if (minRaise > maxRaise) minRaise = maxRaise;
+    // En dan is er nog de korte all-in. Wie minder dan een volle verhoging all-in gaat,
+    // heropent de inzet niet: wie al had gehandeld mag daarna alleen nog callen of passen.
+    // De server houdt dat per stoel bij; ontbreekt het (een oudere server, of een stand
+    // die het niet meelevert), dan mag verhogen -- dat is hoe het hiervoor altijd ging.
+    const magVerhogen = s.magVerhogen !== false;
+    return {
+      fold: true,
+      check: teGaan === 0,
+      call: teGaan > 0 ? call : 0,
+      // Verhogen kan alleen als je boven de hoogste inzet uit komt.
+      minRaise: magVerhogen && maxRaise > stand.hoogste ? minRaise : 0,
+      maxRaise: magVerhogen && maxRaise > stand.hoogste ? maxRaise : 0,
+    };
+  },
+
+  // Een zet uitvoeren. Geeft { ok, fout } terug en past `stand` aan. `naar` is bij een
+  // verhoging het bedrag waar je NAAR gaat, niet wat je erbij legt -- zo staat het ook op
+  // de knop ("RAISE TO $40"), en zo kan er geen verwarring over ontstaan.
+  pokerAct(stand, i, zet, naar) {
+    const mag = this.pokerLegal(stand, i);
+    const s = stand.stoelen[i];
+    if (!s || (!mag.fold && !mag.check && !mag.call)) return { ok: false, fout: 'not your turn' };
+    if (stand.beurt !== i) return { ok: false, fout: 'not your turn' };
+
+    if (zet === 'fold') {
+      s.gefold = true; s.gezet = true;
+      return { ok: true };
+    }
+    if (zet === 'check') {
+      if (!mag.check) return { ok: false, fout: 'cannot check' };
+      s.gezet = true;
+      return { ok: true };
+    }
+    if (zet === 'call') {
+      if (mag.call <= 0) return { ok: false, fout: 'nothing to call' };
+      s.stack -= mag.call; s.inzet += mag.call; s.gezet = true;
+      if (s.stack === 0) s.allin = true;
+      return { ok: true };
+    }
+    if (zet === 'raise') {
+      const doel = Math.round(Number(naar));
+      if (!Number.isFinite(doel)) return { ok: false, fout: 'bad amount' };
+      if (!mag.maxRaise) return { ok: false, fout: 'cannot raise' };
+      if (doel > mag.maxRaise) return { ok: false, fout: 'more than you have' };
+      // Onder de minimumverhoging mag alleen als het je hele stapel is.
+      const alles = doel === mag.maxRaise;
+      if (doel < mag.minRaise && !alles) return { ok: false, fout: 'raise too small' };
+      const bij = doel - s.inzet;
+      if (bij <= 0) return { ok: false, fout: 'raise too small' };
+      const vol = doel - stand.hoogste >= stand.minVerhoging;
+      s.stack -= bij; s.inzet = doel; s.gezet = true;
+      if (s.stack === 0) s.allin = true;
+      if (vol) {
+        stand.minVerhoging = doel - stand.hoogste;
+        // Een volle verhoging heropent de ronde: iedereen mag weer reageren.
+        for (const a of stand.stoelen) if (a !== s && !a.gefold && !a.allin) a.gezet = false;
+      }
+      // Een all-in die te klein is om te heropenen verhoogt de hoogste inzet wel, maar
+      // laat wie al gezet had met rust. Dat is de regel die mensen het vaakst verrast.
+      if (doel > stand.hoogste) stand.hoogste = doel;
+      return { ok: true };
+    }
+    return { ok: false, fout: 'unknown move' };
+  },
+
+  // Is deze inzetronde klaar? Ja als er niemand meer is die nog mag en moet reageren.
+  pokerRondeKlaar(stand) {
+    const levend = stand.stoelen.filter(s => !s.gefold);
+    if (levend.length <= 1) return true;
+    const kunnen = levend.filter(s => !s.allin && s.stack > 0);
+    if (kunnen.length === 0) return true;
+    // Eén speler over die nog kan handelen, en hij heeft al gezet: klaar. Anders moet
+    // iedereen gezet hebben én op de hoogste inzet staan.
+    for (const s of kunnen) {
+      if (!s.gezet) return false;
+      if (s.inzet !== stand.hoogste) return false;
+    }
+    return true;
+  },
+
+  // Wie is er hierna aan de beurt? Geeft -1 als er niemand meer hoeft.
+  pokerVolgende(stand, vanaf) {
+    const n = stand.stoelen.length;
+    for (let d = 1; d <= n; d++) {
+      const i = (vanaf + d) % n;
+      const s = stand.stoelen[i];
+      if (s.gefold || s.allin || s.stack <= 0) continue;
+      if (!s.gezet || s.inzet !== stand.hoogste) return i;
+    }
+    return -1;
+  },
+
   bjNewShoe(decks = 6) {
     const shoe = [];
     for (let d = 0; d < decks; d++)
@@ -3723,6 +4151,7 @@ function navigate(route) {
     if (route === 'bus') buRender();
     if (route === 'vip') { vipRender(); seasonRender(); }
     if (route === 'blackjack') mbjStart(); else if (MBJ.timer) clearTimeout(MBJ.timer);
+    if (route === 'poker') pokStart(); else pokStop();
     if (route === 'friends') { friendsRender(); friendsPull(); }
     if (route === 'profile') { if (PROF.user === null) profOpen(profMine()); else profRender(); }
     if (route === 'home') seasonRender();
@@ -4293,7 +4722,11 @@ function rlRenderBets() {
 
 function rlPlace(key) {
   if (RL.spinning) return;
-  const amt = takeBet(RL.chip, 'rouletteToasts');
+  // MAX is geen vast bedrag maar "alles wat je nu hebt", op het moment van de klik. Een
+  // getal dat bij het kiezen van de fiche werd vastgelegd, klopt niet meer zodra er al
+  // een fiche op het bord ligt of er net iets is uitbetaald.
+  const inzet = RL.chip === 'max' ? state.balance : RL.chip;
+  const amt = takeBet(inzet, 'rouletteToasts');
   if (!amt) return;
   RL.bets[key] = round2((RL.bets[key] || 0) + amt);
   rlRenderBets();
@@ -4471,7 +4904,7 @@ function rlDraw() {
 }
 
 $('rlChipSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-  RL.chip = parseFloat(b.dataset.v);
+  RL.chip = b.dataset.v === 'max' ? 'max' : parseFloat(b.dataset.v);
   $('rlChipSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
 }));
 $('rlSpinBtn').addEventListener('click', rlSpin);
@@ -5167,7 +5600,9 @@ function friendsRender() {
     name.appendChild(frText('span', 'sub', 'table ' + i.code + ' · ' + i.players +
       (Number(i.players) === 1 ? ' player' : ' players')));
     row.appendChild(name);
-    row.appendChild(frButton('JOIN', '', () => lobbyJoin(i.code, true)));
+    // Aan dezelfde tafel kun je allebei spelen, dus je kiest waar je binnenkomt.
+    row.appendChild(frButton('BLACKJACK', '', () => lobbyJoin(i.code, 'blackjack')));
+    row.appendChild(frButton('POKER', '', () => lobbyJoin(i.code, 'poker')));
     invEl.appendChild(row);
   }
 }
@@ -5207,33 +5642,46 @@ async function lobbyCall(path, body, msg) {
     // opslag het saldo van voor de terugbetaling er weer overheen, en is het geld alsnog weg.
     await mpSyncBalance();
     await lobbyPull();
-    if (msg) flash(msg, 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    if (msg) flash(msg, 'green', lobbyToasts());
     // Een andere tafel betekent een andere ronde: alles van de vorige moet weg.
     MBJ.round = null; MBJ.seats = []; MBJ.settled = 0;
+    POK.round = null; POK.seats = []; POK.players = []; POK.hole = []; POK.seen = 0;
     if (currentRoute === 'blackjack') await mbjPull();
+    if (currentRoute === 'poker') await pokPull();
     return d;
   } catch (e) {
-    flash(String(e.message || 'FAILED').toUpperCase(), 'red',
-          currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    flash(String(e.message || 'FAILED').toUpperCase(), 'red', lobbyToasts());
     return null;
   } finally { LOBBY.busy = false; lobbyRender(); }
 }
 
 const lobbyQuick   = () => lobbyCall('lobby_quick', {}, 'JOINED A PUBLIC TABLE');
 const lobbyPrivate = () => lobbyCall('lobby_create', { p_private: true }, 'PRIVATE TABLE OPENED');
-const lobbyLeave   = () => lobbyCall('lobby_leave', {}, 'LEFT THE TABLE');
+// Eerst van de pokertafel af, dan pas de lobby uit. Fiches aan een pokertafel staan op
+// pk_players en niet op je saldo; verdwijn je uit de lobby zonder op te staan, dan blijft
+// die rij achter aan een tafel waar je niet meer bij hoort en staat je stapel daar vast.
+// pk_leave doet niets als je niet zat, en een oudere server die de functie niet heeft
+// geeft hier hooguit een fout die we inslikken -- weglopen moet altijd lukken.
+const lobbyLeave = async () => {
+  if (online() && AUTH.session) {
+    try { await api('/rest/v1/rpc/pk_leave', { method: 'POST', body: {} }); } catch {}
+  }
+  return lobbyCall('lobby_leave', {}, 'LEFT THE TABLE');
+};
+// `goThere` is het scherm waar je heen wilt nadat je aan tafel zit. Aan één tafel kun je
+// blackjack of poker spelen, dus een uitnodiging brengt je naar het spel dat erbij staat --
+// niet altijd naar blackjack, wat het eerst was.
 async function lobbyJoin(code, goThere) {
   const d = await lobbyCall('lobby_join', { p_code: String(code || '').trim().toUpperCase() }, 'JOINED THE TABLE');
-  if (d && goThere) navigate('blackjack');
+  if (d && goThere) navigate(typeof goThere === 'string' ? goThere : 'blackjack');
   return d;
 }
 async function lobbyInvite(username) {
   try {
     await api('/rest/v1/rpc/lobby_invite', { method: 'POST', body: { p_username: username } });
-    flash('INVITED ' + String(username).toUpperCase(), 'green', currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    flash('INVITED ' + String(username).toUpperCase(), 'green', lobbyToasts());
   } catch (e) {
-    flash(String(e.message || 'COULD NOT INVITE').toUpperCase(), 'red',
-          currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts');
+    flash(String(e.message || 'COULD NOT INVITE').toUpperCase(), 'red', lobbyToasts());
   }
 }
 
@@ -5245,8 +5693,20 @@ async function lobbyBeat() {
   try { await api('/rest/v1/rpc/lobby_heartbeat', { method: 'POST', body: {} }); } catch {}
 }
 
+// De balk staat op twee schermen: bij blackjack en bij poker. Het is dezelfde tafel en
+// dezelfde knoppen, dus wordt hij twee keer getekend in plaats van twee keer geschreven.
 function lobbyRender() {
-  const bar = $('lobbyBar');
+  for (const id of ['lobbyBar', 'pokerLobbyBar']) lobbyRenderIn(id);
+}
+
+// Waar een melding over de tafel heen moet: op het scherm waar je nu staat.
+function lobbyToasts() {
+  return currentRoute === 'poker' ? 'pokerToasts'
+       : currentRoute === 'friends' ? 'friendsToasts' : 'blackjackToasts';
+}
+
+function lobbyRenderIn(barId) {
+  const bar = $(barId);
   if (!bar) return;
   bar.innerHTML = '';
   if (!online() || !AUTH.session) { bar.hidden = true; return; }
@@ -5257,7 +5717,7 @@ function lobbyRender() {
     const quick = frButton('QUICK PLAY', '', lobbyQuick);
     const priv  = frButton('PRIVATE TABLE', '', lobbyPrivate);
     const codeIn = document.createElement('input');
-    codeIn.type = 'text'; codeIn.id = 'lobbyCode'; codeIn.placeholder = 'CODE';
+    codeIn.type = 'text'; codeIn.placeholder = 'CODE';
     codeIn.maxLength = 6;
     codeIn.style.cssText = 'width: 90px; text-transform: uppercase; font-family: var(--font-num);';
     const joinBtn = frButton('JOIN', '', () => lobbyJoin(codeIn.value, false));
@@ -5271,10 +5731,13 @@ function lobbyRender() {
   bar.appendChild(frText('span', 'code', LOBBY.code));
   if (LOBBY.host) bar.appendChild(frText('span', 'tag', 'HOST'));
   const copy = frButton('COPY CODE', '', async () => {
-    try { await navigator.clipboard.writeText(LOBBY.code); flash('CODE COPIED', 'green', 'blackjackToasts'); }
-    catch { flash('CODE: ' + LOBBY.code, 'gold', 'blackjackToasts'); }
+    try { await navigator.clipboard.writeText(LOBBY.code); flash('CODE COPIED', 'green', lobbyToasts()); }
+    catch { flash('CODE: ' + LOBBY.code, 'gold', lobbyToasts()); }
   });
   bar.appendChild(copy);
+  // Naar het andere spel aan dezelfde tafel: je hoeft er niet voor op te staan.
+  bar.appendChild(frButton(currentRoute === 'poker' ? 'BLACKJACK' : 'POKER', '',
+    () => navigate(currentRoute === 'poker' ? 'blackjack' : 'poker')));
   bar.appendChild(frButton('FRIENDS', '', () => navigate('friends')));
   const leave = frButton('LEAVE', 'danger', lobbyLeave);
   leave.disabled = LOBBY.busy;
@@ -5641,6 +6104,570 @@ $('frName').addEventListener('keydown', e => { if (e.key === 'Enter') friendAdd(
 $('bjHitBtn').addEventListener('click', () => MBJ.on ? mbjAct('hit') : bjHit());
 $('bjStandBtn').addEventListener('click', () => MBJ.on ? mbjAct('stand') : bjStand());
 $('bjDoubleBtn').addEventListener('click', () => MBJ.on ? mbjAct('double') : bjDouble());
+
+// =================== GEDEELDE POKERTAFEL ===================
+// Texas Hold'em aan de tafel waar je met je vrienden al zit. Dezelfde lobby als bij
+// blackjack -- er is geen tweede soort gezelschap -- maar hier hangt een pokerronde aan.
+//
+// Wat deze kant doet: laten zien en doorgeven. De server deelt, houdt de beurt bij en
+// rekent af. De browser stuurt één getal in het hele spel: het totaal waar je deze straat
+// naartoe verhoogt. Zie sql/poker.sql en sql/poker_rpc.sql.
+//
+// De kaarten van een ander komen hier niet binnen. De view op de server geeft ze pas als
+// ze bij de showdown open liggen, dus er valt aan deze kant niets te verbergen: wat
+// binnenkomt is wat je mag zien.
+const POK = {
+  on: false,
+  round: null,      // de lopende hand, of null
+  seats: [],
+  players: [],      // wie er aan tafel zit tussen de handen door
+  hole: [],         // je eigen twee kaarten
+  zout: null,       // het zout bij je eigen hand, om de hash mee na te rekenen
+  bewijs: '',       // 'ok' als die hash klopt, 'mis' als hij dat niet doet, '' = niet gekeken
+  bewijsVan: 0,     // voor welke ronde die uitslag geldt, zodat hij niet blijft plakken
+  bewijsRonde: 0,   // de ronde waarvoor pokEerlijk het laatst gerekend heeft
+  bord: '',         // hetzelfde voor de bordkaarten: ok, mis, laat, leeg of kan niet
+  vast: null,       // de hashes zoals we ze voor het eerst zagen -- daar wordt tegen gerekend
+  offset: 0,        // klok van de server min die van deze browser, in ms
+  timer: null,
+  ticking: false,
+  tickAt: 0,
+  acting: false,
+  error: '',
+  seen: 0,          // de laatste hand die in de statistieken staat
+};
+
+const POK_KLEUR = { s: '♠', h: '♥', d: '♦', c: '♣' };
+function pokNow() { return Date.now() + POK.offset; }
+
+// 'Th' -> { r: '10', s: '♥' }, dezelfde vorm als de kaarten bij blackjack.
+function pokCard(t) {
+  const txt = String(t || '');
+  const r = txt.slice(0, -1);
+  return { r: r === 'T' ? '10' : r, s: POK_KLEUR[txt.slice(-1)] || txt.slice(-1) };
+}
+function pokMine() {
+  return AUTH.session ? POK.seats.find(s => s.user_id === AUTH.session.userId) || null : null;
+}
+function pokAtTable() {
+  return AUTH.session ? POK.players.find(p => p.user_id === AUTH.session.userId) || null : null;
+}
+
+async function pokTick() {
+  if (POK.ticking || !LOBBY.id || Date.now() - POK.tickAt < 1000) return;
+  POK.ticking = true;
+  POK.tickAt = Date.now();
+  try { await api('/rest/v1/rpc/pk_tick', { method: 'POST', body: { p_lobby: LOBBY.id } }); }
+  catch (e) { POK.error = e.message || 'geen verbinding'; }
+  finally { POK.ticking = false; }
+}
+
+async function pokPull() {
+  if (!online() || !LOBBY.id) { POK.round = null; POK.seats = []; POK.players = []; pokRender(); return; }
+  try {
+    const [spelers, rondes] = await Promise.all([
+      api('/rest/v1/pk_table?select=*&lobby_id=eq.' + LOBBY.id + '&order=seat_no.asc', { auth: false }),
+      api('/rest/v1/pk_live?select=*&lobby_id=eq.' + LOBBY.id + '&order=id.desc&limit=1', { auth: false }),
+    ]);
+    POK.players = Array.isArray(spelers) ? spelers : [];
+    const r = Array.isArray(rondes) ? rondes[0] : null;
+    // Nieuwe hand: de uitslag van de vorige hoort hier niet meer te staan. Dit moet vóór
+    // de volgende await, want klapt het ophalen van de stoelen, dan komt pokEerlijk nooit
+    // aan de beurt en bleef de oude uitslag onder de hashes van de nieuwe hand hangen.
+    if (!r || !POK.round || POK.round.id !== r.id) {
+      POK.bewijs = ''; POK.bord = ''; POK.bewijsVan = 0; POK.bewijsRonde = r ? r.id : 0;
+    }
+    const srv = r ? Date.parse(r.server_now) : NaN;
+    if (Number.isFinite(srv)) POK.offset = srv - Date.now();
+
+    if (!r || r.settled_at) {
+      // Geen hand of net afgerekend: de uitslag nog één keer laten staan, dan opnieuw.
+      POK.round = r || null;
+      POK.seats = r ? await pokSeats(r.id) : [];
+      if (r) pokRecord(r);
+      POK.hole = [];
+      POK.zout = null;
+      // POK.bewijs blijft staan: de hand is net om, en dat is precies het moment waarop je
+      // de uitslag van de controle wilt zien. Het bord wordt hier pas controleerbaar.
+      await pokEerlijk();
+      POK.error = '';
+      await pokTick();
+    } else {
+      POK.round = r;
+      POK.seats = await pokSeats(r.id);
+      // Je eigen kaarten komen achter je eigen token vandaan, niet uit de openbare view.
+      POK.hole = AUTH.session ? await pokHole(r.id) : [];
+      await pokEerlijk();
+      POK.error = '';
+      // Denkt iemand te lang na, dan port deze browser de server om door te gaan.
+      if (r.act_deadline && pokNow() > Date.parse(r.act_deadline) + 500) await pokTick();
+    }
+  } catch (e) {
+    POK.error = e.message || 'geen verbinding';
+    // Half opgehaald is niet gecontroleerd. Een uitslag die hier blijft staan hoort bij
+    // gegevens die we niet compleet hebben.
+    POK.bewijsRonde = 0;
+    if (/404|does not exist|relation|schema cache/i.test(POK.error)) { POK.round = null; POK.seats = []; }
+  }
+  pokRender();
+}
+
+async function pokSeats(roundId) {
+  const rows = await api('/rest/v1/pk_seats_public?select=*&round_id=eq.' + roundId +
+    '&order=seat_no.asc', { auth: false });
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function pokHole(roundId) {
+  try {
+    const rows = await api('/rest/v1/pk_my_hole?select=cards,salt,seat_no&round_id=eq.' + roundId + '&limit=1');
+    const r = Array.isArray(rows) ? rows[0] : null;
+    POK.zout = r && r.salt ? { salt: r.salt, seat: Number(r.seat_no), kaarten: r.cards } : null;
+    return r && Array.isArray(r.cards) ? r.cards : [];
+  } catch { POK.zout = null; return []; }
+}
+
+// Het eerlijkheidsbewijs, en waarom het er zo uitziet.
+//
+// Bij crash en roulette staat er vooraf een hash en achteraf het zaadje: je rekent de
+// uitslag na en klaar. Bij poker kan dat niet. Het zaadje stuurt de hele schudbeurt, dus
+// wie het krijgt rekent ook de twee kaarten uit van iemand die heeft gepast en ze nooit
+// heeft laten zien. Gemuckte kaarten horen nooit bekend te worden -- niet aan tafel, en
+// niet achteraf.
+//
+// Dus loopt het bewijs per stoel. Voor het delen staat van elke hand een gezouten hash in
+// de openbare stoelenview; jij krijgt na het delen je eigen zout, en dan reken je hier na
+// dat die hash bij jouw twee kaarten hoort. Klopt hij, dan stond jouw hand vast voordat er
+// een kaart viel -- net zo hard als vroeger, en zonder iets over die van een ander.
+// ---------- de hashes vastpinnen ----------
+//
+// Hier zat de fout waar deze hele constructie voor bedoeld was. Het bord wordt bij het
+// delen vastgelegd met een hash per kaart, en bij het afrekenen komen de zouten vrij. De
+// controle vergeleek die drie dingen -- bord, hash en zout -- alle drie uit HETZELFDE
+// antwoord. Dat is één momentopname tegen zichzelf: een server die bij het afrekenen het
+// bord vervangt en de hashes meteen opnieuw uitrekent, komt er met een groen vinkje
+// doorheen. Precies de aanval die het zou tegenhouden.
+//
+// Een belofte over "voor de flop" is alleen iets waard als er iets van vóór de flop
+// bewaard is. Dus: zodra deze browser een ronde voor het eerst ziet, legt hij de hashes
+// vast -- in localStorage, zodat een verversing ze niet wist -- samen met de straat waarop
+// hij binnenkwam. Bij het afrekenen wordt daar tegenaan gerekend, niet tegen wat er in
+// hetzelfde antwoord meekwam.
+//
+// Kwam je pas binnen ná de flop, dan is er niets om op te pinnen en zegt het scherm dat
+// ook. Een vinkje dat niets betekent is erger dan geen vinkje.
+const POK_VAST = 'crash_pk_vast';
+
+function pokVastLees() {
+  try { return JSON.parse(localStorage.getItem(POK_VAST) || 'null'); } catch { return null; }
+}
+
+function pokVastZet(r) {
+  if (!r || !r.id) return null;
+  let v = POK.vast && POK.vast.round === r.id ? POK.vast : null;
+  if (!v) {
+    const opgeslagen = pokVastLees();
+    v = opgeslagen && opgeslagen.round === r.id ? opgeslagen : null;
+  }
+  if (v) { POK.vast = v; return v; }
+  // Eerste keer dat we deze ronde zien. `straat` en `bord` leggen vast hoe ver de hand al
+  // was: alleen wie er vanaf straat 0 met een leeg bord bij was, kan "voor de flop" claimen.
+  v = {
+    round: r.id,
+    board_commit: Array.isArray(r.board_commit) ? r.board_commit.slice() : null,
+    deck_commit: r.deck_commit || null,
+    straat: Number(r.street) || 0,
+    kaarten: Array.isArray(r.board) ? r.board.length : 0,
+  };
+  POK.vast = v;
+  try { localStorage.setItem(POK_VAST, JSON.stringify(v)); } catch {}
+  return v;
+}
+
+// Byte voor byte, want een hash die "bijna" klopt is een hash die niet klopt.
+function zelfdeLijst(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+async function sha256hex(tekst) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(tekst));
+  return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Twee controles, en allebei zeggen ze alleen wat ze echt hebben gezien.
+//
+// Je eigen hand: de gezouten hash stond er zodra er gedeeld werd, het zout komt erbij als
+// je je kaarten ophaalt. Het bord: per kaart een hash bij het delen, de zouten bij het
+// afrekenen. Die tweede is de belangrijkste, want het bord is het enige dat na het delen
+// nog valt -- en zonder die hashes hield niets de flop, turn en river vast.
+//
+// Wat dit NIET is: een bewijs dat de server de kaarten niet heeft gekozen. Alles wordt in
+// één keer weggeschreven, dus wie de server draait kan de hash meteen kloppend maken. Wat
+// het wel is: de server kan na het delen niets meer omgooien zonder dat jij het ziet, want
+// jouw browser heeft de hashes van voor de flop al binnen. Daarom staat er hieronder ook
+// "not checked" als er niets gecontroleerd is, en niet iets geruststellends.
+async function pokEerlijk() {
+  const r = POK.round;
+  // De uitslag hangt aan een rondenummer. Zonder dat bleef een uitslag van de vorige hand
+  // staan zodra een ophaalactie mislukte, onder de hashes van de nieuwe.
+  POK.bewijsRonde = r ? r.id : 0;
+  const vast = pokVastZet(r);
+  if (!window.crypto || !crypto.subtle) { POK.bewijs = 'kan niet'; POK.bord = 'kan niet'; return; }
+
+  // ---- je eigen hand ----
+  const z = POK.zout;
+  const stoel = z ? POK.seats.find(x => Number(x.seat_no) === z.seat) : null;
+  if (!z || !Array.isArray(z.kaarten) || z.kaarten.length < 2) {
+    // Geen zout betekent dat we je kaarten nu niet hebben. Is er eerder deze hand wel
+    // gecontroleerd, dan blijft die uitslag staan -- vooral een 'mis' mag niet stilletjes
+    // verdwijnen op het moment dat de hand wordt afgerekend.
+    if (POK.bewijsVan !== (r ? r.id : 0)) POK.bewijs = '';
+  } else if (!stoel) {
+    POK.bewijs = '';
+  } else if (!stoel.card_commit) {
+    POK.bewijs = 'mis';                      // kaarten zonder hash is geen belofte
+    POK.bewijsVan = r ? r.id : 0;
+  } else {
+    try {
+      POK.bewijs = await sha256hex(z.salt + ':' + z.kaarten[0] + z.kaarten[1]) === stoel.card_commit
+        ? 'ok' : 'mis';
+      POK.bewijsVan = r ? r.id : 0;
+    } catch { POK.bewijs = ''; }
+  }
+
+  // ---- het bord ----
+  const bord = r && Array.isArray(r.board) ? r.board : [];
+  const hashes = r && Array.isArray(r.board_commit) ? r.board_commit : null;
+  const zouten = r && Array.isArray(r.board_salt) ? r.board_salt : null;
+
+  if (!r || !r.settled_at) { POK.bord = ''; return; }   // nog niet te controleren
+  if (!bord.length) { POK.bord = 'leeg'; return; }      // niemand heeft een kaart gezien
+
+  // Zijn de hashes dezelfde als die we voor de flop binnenkregen? Dit is de controle die
+  // er niet was. Wijkt er iets af, dan is dat 'mis' en niet "niet gekeken".
+  if (!vast || !vast.board_commit) { POK.bord = 'mis'; return; }
+  if (!hashes || !zelfdeLijst(hashes, vast.board_commit)) { POK.bord = 'mis'; return; }
+  if (!zouten || zouten.length < bord.length) { POK.bord = 'mis'; return; }
+
+  try {
+    for (let i = 0; i < bord.length; i++) {
+      if (zouten[i] == null || vast.board_commit[i] == null) { POK.bord = 'mis'; return; }
+      if (await sha256hex(zouten[i] + ':' + bord[i]) !== vast.board_commit[i]) { POK.bord = 'mis'; return; }
+    }
+  } catch { POK.bord = ''; return; }
+
+  // Klopt allemaal -- maar "voor de flop" mogen we alleen zeggen als we er toen bij waren.
+  POK.bord = (vast.straat === 0 && vast.kaarten === 0) ? 'ok' : 'laat';
+}
+
+
+// Een afgerekende hand telt één keer mee in de statistieken.
+function pokRecord(r) {
+  const id = Number(r.id);
+  if (!r.settled_at || POK.seen >= id) return;
+  POK.seen = id;
+  const me = pokMine();
+  if (!me) return;
+  const inzet = Number(me.total_bet) || 0;
+  const uit = Number(me.payout) || 0;
+  if (inzet <= 0) return;
+  // Poker is speler tegen speler: winst hier is andermans verlies, niet die van het huis.
+  recordRound('poker', inzet, uit, uit > 0 ? round2(uit / inzet) : 0);
+}
+
+async function pokCall(path, body, msg) {
+  if (POK.acting) return null;
+  POK.acting = true;
+  pokRender();
+  try {
+    await mpFlush();
+    const d = await api('/rest/v1/rpc/' + path, { method: 'POST', body: body || {} });
+    await mpSyncBalance();
+    await pokPull();
+    if (msg) flash(msg, 'green', 'pokerToasts');
+    return d;
+  } catch (e) {
+    flash(String(e.message || 'FAILED').toUpperCase(), 'red', 'pokerToasts');
+    await pokPull();
+    return null;
+  } finally { POK.acting = false; pokRender(); }
+}
+
+// De inkoop ligt tussen 100 en 500 -- dat staat onder het invulvak en de server houdt het
+// ook aan. Maar de server deed dat STIL: tik je 20 in, dan kocht je voor 100 in zonder dat
+// iemand je dat vertelde. Hier wordt het rechtgezet voor het verstuurd wordt, en dan zie
+// je in het vak wat er echt gebeurt.
+const POK_MIN_KOOP = 100, POK_MAX_KOOP = 500;
+const pokSit = () => {
+  const el = $('pokerBuyin');
+  const gevraagd = Math.round(Number(el && el.value) || 200);
+  const v = Math.max(POK_MIN_KOOP, Math.min(POK_MAX_KOOP, gevraagd));
+  if (v !== gevraagd) {
+    if (el) el.value = v;
+    flash('BUY IN IS $' + POK_MIN_KOOP + ' TO $' + POK_MAX_KOOP + ' — USING $' + v, 'red', 'pokerToasts');
+  }
+  const ik = pokAtTable();
+  return pokCall('pk_sit', { p_buyin: v }, ik && Number(ik.stack) <= 0 ? 'CHIPS ADDED' : 'YOU ARE IN');
+};
+const pokLeave = () => pokCall('pk_leave', {}, 'CHIPS BACK IN YOUR BALANCE');
+
+function pokAct(move, to) {
+  const r = POK.round;
+  if (!r) return null;
+  return pokCall('pk_act', {
+    p_round: Number(r.id), p_seq: Number(r.act_seq), p_move: move,
+    p_to: to == null ? null : Math.round(to),
+  });
+}
+
+// Wat mag er nu? Dit zet alleen de knoppen goed -- de server rekent het zelf nog een keer
+// en die beslist. Maar het rekent wel met dezelfde functie als de rest: ODDS.pokerLegal,
+// die in tools/poker_test.js is vastgepind. Een tweede, eenvoudiger versie hier zou een
+// tweede kans op een ander antwoord zijn, en dan staat er CALL $12 op een knop die $14
+// gaat kosten.
+function pokLegal() {
+  const r = POK.round, me = pokMine();
+  if (!r || r.settled_at || !me || me.folded || me.allin) return null;
+  if (Number(r.to_act_seat) !== Number(me.seat_no)) return null;
+  const stand = {
+    stoelen: POK.seats.map(s => ({
+      stack: Number(s.stack) || 0,
+      inzet: Number(s.bet) || 0,
+      gefold: !!s.folded,
+      allin: !!s.allin,
+      gezet: !!s.acted,
+      // Ontbreekt de kolom (server van voor deze stap), dan blijft het undefined en leest
+      // pokerLegal dat als "mag verhogen" -- precies zoals het daarvoor werkte.
+      magVerhogen: s.may_raise,
+    })),
+    hoogste: Number(r.high_bet) || 0,
+    minVerhoging: Number(r.min_raise) || 0,
+    beurt: Number(r.to_act_seat),
+  };
+  const i = POK.seats.findIndex(s => Number(s.seat_no) === Number(me.seat_no));
+  if (i < 0) return null;
+  const mag = ODDS.pokerLegal(stand, i);
+  // pokerLegal geeft een leeg antwoord terug voor een stoel die niets mag, en `null` is
+  // wat de rest van dit scherm daarvoor leest.
+  return mag && mag.fold ? mag : null;
+}
+
+// ---------- tekenen ----------
+function pokRender() {
+  const tafel = $('pkSeats');
+  if (!tafel) return;
+  const r = POK.round;
+  const ik = pokAtTable();
+  const me = pokMine();
+  const mag = pokLegal();
+
+  // De stoelen. Tussen de handen door staan de spelers uit pk_table er; tijdens een hand
+  // de stoelen van die hand, want daar staan de inzetten en de kaarten bij.
+  const rijen = (r && !r.settled_at) || (r && POK.seats.length) ? POK.seats : POK.players;
+  tafel.innerHTML = '';
+  if (!rijen.length) {
+    const leeg = document.createElement('div');
+    leeg.className = 'odds-note';
+    leeg.textContent = !online()
+      ? 'Every other game here works on your own. This one does not: poker is against the other players, so it needs an account and a table. Sign in from the balance panel on the left.'
+      : LOBBY.id
+        ? 'Nobody at this table yet. Take a seat, and invite a friend from the FRIENDS page.'
+        : 'Join or open a table first — the bar above does that.';
+    tafel.appendChild(leeg);
+  }
+  for (const s of rijen) {
+    const el = document.createElement('div');
+    const mijn = AUTH.session && s.user_id === AUTH.session.userId;
+    el.className = 'pk-seat' + (mijn ? ' mine' : '')
+      + (s.folded ? ' folded' : '')
+      + (r && !r.settled_at && Number(r.to_act_seat) === Number(s.seat_no) ? ' acting' : '');
+
+    const top = document.createElement('div');
+    top.className = 'pk-seat-top';
+    const naam = document.createElement('span');
+    naam.className = 'pk-seat-name';
+    naam.textContent = String(s.username || '?').slice(0, 14);
+    const stapel = document.createElement('span');
+    stapel.className = 'pk-seat-stack';
+    stapel.textContent = '$' + (Number(s.stack) || 0);
+    top.appendChild(naam); top.appendChild(stapel);
+    el.appendChild(top);
+
+    const kaarten = document.createElement('div');
+    kaarten.className = 'cards';
+    // Je eigen kaarten ken je; die van een ander pas als ze open liggen. Wat hier niet
+    // binnenkomt kan ook niet getoond worden -- de server stuurt ze simpelweg niet.
+    const open = mijn && POK.hole.length ? POK.hole
+               : (Array.isArray(s.hole) && s.hole.length ? s.hole : null);
+    if (r && !r.settled_at && !s.folded) {
+      if (open) for (const c of open) kaarten.appendChild(bjCardEl(pokCard(c), false));
+      else for (let i = 0; i < 2; i++) {
+        const d = document.createElement('div'); d.className = 'card down'; kaarten.appendChild(d);
+      }
+    } else if (open) {
+      for (const c of open) kaarten.appendChild(bjCardEl(pokCard(c), false));
+    }
+    el.appendChild(kaarten);
+
+    const inzet = document.createElement('div');
+    inzet.className = 'pk-seat-bet';
+    const b = Number(s.bet) || 0;
+    inzet.textContent = b > 0 ? 'BET $' + b : (Number(s.payout) > 0 ? '+$' + s.payout : '');
+    el.appendChild(inzet);
+
+    const tag = document.createElement('div');
+    tag.className = 'pk-seat-tag' + (s.allin ? ' allin' : '');
+    tag.textContent = s.folded ? 'FOLDED' : (s.allin ? 'ALL IN' : '');
+    el.appendChild(tag);
+
+    tafel.appendChild(el);
+  }
+
+  // Het midden: de pot, het bord en waar we zijn.
+  const pot = POK.seats.reduce((a, s) => a + (Number(s.total_bet) || 0), 0);
+  $('pkPot').textContent = pot > 0 ? '$' + pot : '—';
+  const bord = $('pkBoard');
+  bord.innerHTML = '';
+  const kaarten = (r && Array.isArray(r.board)) ? r.board : [];
+  for (const c of kaarten) bord.appendChild(bjCardEl(pokCard(c), false));
+
+  const STRAAT = ['PRE-FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN', 'HAND OVER'];
+  let fase;
+  // Poker is het enige spel hier dat niet alleen kan: je speelt tegen andere mensen, dus
+  // zonder verbinding valt er niets terug te vallen op een solo-versie. Dat staat er dan
+  // ook zo, in plaats van een tafel te beloven die er niet komt.
+  if (!online()) fase = 'POKER NEEDS AN ACCOUNT — SIGN IN TO PLAY AGAINST OTHERS';
+  else if (POK.error) fase = POK.error.toUpperCase();
+  else if (!LOBBY.id) fase = 'JOIN A TABLE TO PLAY';
+  else if (!ik) fase = POK.players.length ? 'TAKE A SEAT TO JOIN THE NEXT HAND' : 'SIT DOWN TO PLAY';
+  else if (!r || r.settled_at) fase = POK.players.filter(p => Number(p.stack) > 0).length < 2
+      ? 'WAITING FOR ONE MORE PLAYER' : 'NEXT HAND COMING UP';
+  else {
+    fase = STRAAT[Number(r.street)] || '';
+    if (Number(r.to_act_seat) >= 0 && r.act_deadline) {
+      const over = Math.max(0, Math.ceil((Date.parse(r.act_deadline) - pokNow()) / 1000));
+      const wie = POK.seats.find(s => Number(s.seat_no) === Number(r.to_act_seat));
+      fase += ' · ' + (mag ? 'YOUR MOVE' : String((wie && wie.username) || '?').toUpperCase())
+           + ' · ' + over + 's';
+    }
+  }
+  $('pkPhase').textContent = fase;
+
+  // De knoppen links.
+  //
+  // Blut is niet hetzelfde als weg: wie zijn stapel kwijt is heeft nog een stoel, maar
+  // krijgt geen kaarten meer. Dan hoort er BIJKOPEN te staan en niet OPSTAAN -- anders
+  // moet je van tafel en weer terug om verder te kunnen, en ben je je plek kwijt.
+  const zit = !!ik;
+  const blut = zit && Number(ik.stack) <= 0;
+  $('pkSitBtn').hidden = zit && !blut;
+  $('pkSitBtn').textContent = blut ? 'BUY MORE CHIPS' : 'TAKE A SEAT';
+  $('pkSitBtn').disabled = POK.acting || !LOBBY.id || !online();
+  $('pkLeaveBtn').hidden = !zit;
+  $('pkLeaveBtn').disabled = POK.acting;
+  $('pkLeaveBtn').textContent = zit && me && r && !r.settled_at && !me.folded
+    ? 'FOLD AND LEAVE' : 'LEAVE THE TABLE';
+
+  const acties = $('pkActions');
+  acties.hidden = !mag;
+  if (mag) {
+    $('pkFoldBtn').disabled = POK.acting;
+    $('pkCheckBtn').disabled = POK.acting || (!mag.check && mag.call <= 0);
+    $('pkCheckBtn').textContent = mag.check ? 'CHECK' : 'CALL $' + mag.call;
+    const schuif = $('pkRaiseSlider'), vak = $('pkRaiseAmount'), knop = $('pkRaiseBtn');
+    if (mag.maxRaise > 0) {
+      knop.disabled = POK.acting;
+      schuif.min = mag.minRaise; schuif.max = mag.maxRaise;
+      vak.min = mag.minRaise; vak.max = mag.maxRaise;
+      if (Number(vak.value) < mag.minRaise || Number(vak.value) > mag.maxRaise) {
+        vak.value = mag.minRaise; schuif.value = mag.minRaise;
+      }
+      const naar = Math.round(Number(vak.value) || mag.minRaise);
+      knop.textContent = naar >= mag.maxRaise ? 'ALL IN $' + mag.maxRaise : 'RAISE TO $' + naar;
+    } else {
+      knop.disabled = true;
+      knop.textContent = 'RAISE';
+    }
+  }
+
+  // Het eerlijkheidsbewijs: de hash vooraf, het zaadje als de hand om is.
+  const eerlijk = $('pkFair');
+  if (r && r.deck_commit) {
+    eerlijk.hidden = false;
+    eerlijk.title = 'Poker never releases the shuffle seed: it would also reveal the cards ' +
+      'of everyone who folded. Instead each hand and each board card is hashed when the ' +
+      'hand is dealt. This browser stores those hashes the moment it first sees the hand, ' +
+      'and checks the cards against the stored copy — not against whatever the server ' +
+      'sends later. If you joined after the flop there is nothing stored, and it says so.';
+
+    // Elk geval zijn eigen zin. Eén zin voor alles betekende dat er iets geruststellends
+    // stond op het moment dat er juist niets was gecontroleerd -- en dat is waar het
+    // eerder misging.
+    const uitslag = POK.bewijsRonde === r.id ? POK : { bewijs: '', bord: '' };
+    const regel =
+      uitslag.bord === 'mis' || uitslag.bewijs === 'mis'
+        ? '⚠ does NOT match the hashes stored when this hand was dealt'
+      : uitslag.bewijs === 'kan niet' || uitslag.bord === 'kan niet'
+        ? 'this browser cannot check (no SubtleCrypto — needs https)'
+      : uitslag.bord === 'ok' && uitslag.bewijs === 'ok'
+        ? '✓ your hand and the board match the hashes stored before the flop'
+      : uitslag.bord === 'ok' ? '✓ the board matches the hashes stored before the flop'
+      : uitslag.bord === 'laat'
+        ? '✓ board matches — but this browser joined after the flop, so it only proves the server kept its word from then on'
+      : uitslag.bord === 'leeg'
+        ? (uitslag.bewijs === 'ok'
+            ? '✓ your hand matched — no board card was ever dealt, so there is nothing else to check'
+            : 'nothing to check — no board card was ever dealt')
+      : uitslag.bewijs === 'ok' ? '✓ your hand matches its hash — the board is checked once the hand is over'
+      : 'not checked';
+    eerlijk.innerHTML = '<b>Shuffle ' + String(r.deck_commit).slice(0, 16) + '…</b> · ' + regel;
+  } else eerlijk.hidden = true;
+}
+
+function pokStart() {
+  if (!online()) { pokRender(); return; }
+  POK.on = true;
+  const lus = async () => {
+    if (!POK.on || currentRoute !== 'poker') return;
+    await lobbyBeat();
+    await pokPull();
+    POK.timer = setTimeout(lus, POK.round && !POK.round.settled_at ? 1500 : 2500);
+  };
+  if (POK.timer) clearTimeout(POK.timer);
+  lus();
+}
+
+function pokStop() {
+  POK.on = false;
+  if (POK.timer) { clearTimeout(POK.timer); POK.timer = null; }
+}
+
+// ---------- de knoppen van poker ----------
+$('pkSitBtn').addEventListener('click', pokSit);
+$('pkLeaveBtn').addEventListener('click', pokLeave);
+$('pkFoldBtn').addEventListener('click', () => pokAct('fold'));
+$('pkCheckBtn').addEventListener('click', () => {
+  const mag = pokLegal();
+  if (!mag) return;
+  pokAct(mag.check ? 'check' : 'call');
+});
+$('pkRaiseBtn').addEventListener('click', () => {
+  const mag = pokLegal();
+  if (!mag || !mag.maxRaise) return;
+  const naar = Math.round(Number($('pkRaiseAmount').value) || mag.minRaise);
+  pokAct('raise', Math.max(mag.minRaise, Math.min(mag.maxRaise, naar)));
+});
+// De schuif en het vakje wijzen naar hetzelfde bedrag.
+$('pkRaiseSlider').addEventListener('input', () => {
+  $('pkRaiseAmount').value = $('pkRaiseSlider').value;
+  pokRender();
+});
+$('pkRaiseAmount').addEventListener('input', () => {
+  $('pkRaiseSlider').value = $('pkRaiseAmount').value;
+  pokRender();
+});
 
 // =================== PAARDENRACE ===================
 const HR = { horses: [], bets: {}, racing: false, generation: 0, order: [], finish: [], t0: 0, lastPodium: [], history: [], pendingPayout: 0 };
@@ -6731,7 +7758,9 @@ function mpPlayers() {
 // Blok 4 voegt de kolom `featured` toe. Zolang die er niet is, mag het spel er niet op
 // stukgaan: elke opslag en de ranglijst zouden dan falen. De eerste keer dat de server hem
 // niet kent, gaat deze vlag uit en werkt alles verder als voorheen.
-const NET = { token: null, refresh: null, busy: false, hasFeatured: true };
+// hasSprintReset staat aan tot blijkt dat sql/sprint_reset.sql nog niet gedraaid is; dan
+// valt de pagina terug op de oude afrekening per seizoen in plaats van stil te vallen.
+const NET = { token: null, refresh: null, busy: false, hasFeatured: true, hasSprintReset: true };
 const missingFeatured = e => /featured/i.test(String(e && e.message || '')) &&
   /does not exist|column|schema cache|42703|PGRST204|PGRST100/i.test(String(e && e.message || ''));
 
@@ -6911,22 +7940,26 @@ async function profileWrite() {
 // dan komt er een ander saldo terug dan wat we stuurden; dat nemen we over. Zonder dit zou
 // de volgende opslag het oude saldo er weer overheen zetten.
 let knownResetSeason = null;
+let knownResetSprint = null;
 function adoptServerRow(row, sent) {
   if (!row) return;
   const bal = Number(row.balance);
   if (!Number.isFinite(bal)) return;
   const rs = Number(row.reset_season);
-  const rolled = Number.isFinite(rs) && knownResetSeason !== null && rs > knownResetSeason;
+  const rp = Number(row.reset_sprint);
+  const rolled = (Number.isFinite(rs) && knownResetSeason !== null && rs > knownResetSeason)
+              || (Number.isFinite(rp) && knownResetSprint !== null && rp > knownResetSprint);
   // De server corrigeerde ons: overnemen, wat de aanleiding ook was.
   if (Number.isFinite(Number(sent)) && Math.abs(bal - Number(sent)) > 0.005) {
     const before = state.balance;
     state.balance = round2(bal);
     renderBalance();
     saveLocalOnly();
-    if (bal < before) flash(`NEW SEASON · $${fmt(before)} → $${fmt(state.balance)} (you keep 10% above $1000)`, 'gold', toastHost());
-    else if (rolled) flash('SEASON SETTLED BY THE SERVER', 'gold', toastHost());
+    if (bal < before) flash(`NEW SPRINT · $${fmt(before)} → $${fmt(state.balance)} · everyone starts level`, 'gold', toastHost());
+    else if (rolled) flash('SPRINT SETTLED BY THE SERVER', 'gold', toastHost());
   }
   if (Number.isFinite(rs)) knownResetSeason = rs;
+  if (Number.isFinite(rp)) knownResetSprint = rp;
 }
 
 // Een tab die door een seizoensgrens heen open blijft staan, draagt nog het oude saldo.
@@ -6935,13 +7968,38 @@ function adoptServerRow(row, sent) {
 // wegschrijven. Vandaar: eerst laten afrekenen, dan pas opslaan. De server antwoordt ook
 // als er niets te resetten viel, en dat antwoord is leidend.
 async function seasonCatchUp() {
-  if (!online() || !AUTH.session || knownResetSeason === null) return;
-  if (seasonId() <= knownResetSeason) return;
+  if (!online() || !AUTH.session) return;
+  // Per SPRINT terug naar 1000, en plat. Een sprint is waar de ranglijst en de titels al
+  // op lopen, dus loopt het saldo nu met dezelfde klok mee.
+  if (NET.hasSprintReset) {
+    if (knownResetSprint === null || sprintId() <= knownResetSprint) return;
+    let d = null;
+    try { d = await api('/rest/v1/rpc/sprint_reset', { method: 'POST', body: {} }); }
+    catch (e) {
+      // Staat sql/sprint_reset.sql nog niet in de database, dan valt de pagina terug op de
+      // oude afrekening per seizoen in plaats van helemaal niets te doen.
+      if (!missingRpc(e)) return;
+      NET.hasSprintReset = false;
+      return seasonCatchUp();
+    }
+    if (!d) return;
+    adoptServerRow({ balance: d.balance, reset_sprint: d.sprint }, state.balance);
+    return;
+  }
+  if (knownResetSeason === null || seasonId() <= knownResetSeason) return;
   let d = null;
   try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
   catch { return; }
   if (!d) return;
   adoptServerRow({ balance: d.balance, reset_season: d.season }, state.balance);
+}
+
+// Een RPC die de database nog niet kent geeft een 404 met "Could not find the function" of
+// een klacht over de schemacache. Dat is iets anders dan "de verbinding is weg", en alleen
+// in dat eerste geval mag de pagina terugvallen op de oude weg.
+function missingRpc(e) {
+  const m = String((e && e.message) || '');
+  return /404|could not find the function|schema cache|does not exist/i.test(m);
 }
 
 // Het saldo lokaal bijwerken zonder meteen weer naar de server te schrijven: dat zou de
@@ -6993,6 +8051,8 @@ async function profilePull() {
   // Onthouden voor welk seizoen de server al heeft afgerekend, zodat een latere afrekening
   // herkend wordt in plaats van teruggeschreven.
   if (row.reset_season != null && Number.isFinite(Number(row.reset_season))) knownResetSeason = Number(row.reset_season);
+  if (row.reset_sprint != null && Number.isFinite(Number(row.reset_sprint))) knownResetSprint = Number(row.reset_sprint);
+  else if (row.reset_sprint === undefined) NET.hasSprintReset = false;
   return true;
 }
 
@@ -7562,7 +8622,11 @@ const ACHIEVEMENTS = [
   { id: 'first_win',   icon: '💵', tier: 'bronze', title: 'First win',          desc: 'Win a round',                               test: (c, s) => s.won >= 1 },
   { id: 'rounds_50',   icon: '🕐', tier: 'bronze', title: 'Regular',            desc: 'Play 50 rounds',                             test: (c, s) => s.rounds >= 50 },
   { id: 'rounds_250',  icon: '🏛', tier: 'silver', title: 'Fixture',            desc: 'Play 250 rounds',                            test: (c, s) => s.rounds >= 250 },
-  { id: 'all_games',   icon: '🎠', tier: 'silver', title: 'Allrounder',         desc: 'Play every mode at least once',           test: (c, s) => BASE_GAMES.every(g => s.stats[g].rounds > 0) },
+  // Poker staat hier met opzet NIET in. Voor poker heb je een tweede speler aan tafel
+  // nodig, en die is er niet altijd; zou hij meetellen, dan was Allrounder niet te halen
+  // door wie in zijn eentje speelt. Poker heeft hieronder zijn eigen penning.
+  { id: 'all_games',   icon: '🎠', tier: 'silver', title: 'Allrounder',         desc: 'Play every mode at least once',           test: (c, s) => BASE_GAMES.filter(g => g !== 'poker').every(g => s.stats[g].rounds > 0) },
+  { id: 'poker_seat',  icon: '🃏', tier: 'silver', title: 'Took a Seat',        desc: 'Play a hand of poker against someone',     test: (c, s) => s.stats.poker.rounds > 0 },
   { id: 'streak_5',    icon: '📈', tier: 'bronze', title: 'On a roll',          desc: 'Win five rounds in a row',                      test: (c, s) => s.extra.bestStreak >= 5 },
   { id: 'streak_10',   icon: '🚀', tier: 'gold',  title: 'Untouchable',        desc: 'Win ten rounds in a row',                      test: (c, s) => s.extra.bestStreak >= 10 },
   { id: 'balance_2500',icon: '💰', tier: 'bronze', title: 'Well off',           desc: 'Reach a balance of $2,500',                 test: (c, s) => s.balance >= 2500 },
@@ -7710,17 +8774,31 @@ const SEASON = { awards: [], closed: false, error: '', scores: [] };
 // Een plek op de ranglijst levert geen geld meer op: de uitslag bepaalt alleen de titel
 // en wie de VIP-zone in mag.
 
-// De rekensom van de server, hier nagerekend: $1000 plus een tiende van alles daarboven.
+// De rekensom van de server, hier nagerekend. Sinds de omslag naar sprints is dat geen
+// rekensom meer: iedereen begint plat op $1000. Zonder pas draaide dit per seizoen en hield
+// je $1000 plus een tiende van alles daarboven; die vorm staat er nog voor een database
+// waar sql/sprint_reset.sql nog niet in zit.
 function seasonBalanceAfter(b) {
+  if (NET.hasSprintReset) return 1000;
   return round2(1000 + Math.floor(Math.max(0, round2(b) - 1000) * 0.10 * 100) / 100);
 }
 
-// A season is over: everyone starts again on $1000 plus a tenth of whatever they held
-// above it. The server decides whether it has already happened, so asking twice is safe.
-// Awaited before the profile is pulled, so the pull already carries the new balance.
+// Een sprint is om: iedereen begint weer op $1000, plat. De server beslist of het al
+// gebeurd is, dus twee keer vragen kan geen kwaad. Wordt afgewacht voordat het profiel
+// opgehaald wordt, zodat die ophaal het nieuwe saldo al meeneemt.
 async function seasonReset() {
   if (!online()) return null;
   let d = null;
+  if (NET.hasSprintReset) {
+    try { d = await api('/rest/v1/rpc/sprint_reset', { method: 'POST', body: {} }); }
+    catch (e) { if (!missingRpc(e)) return null; NET.hasSprintReset = false; }
+    if (d) {
+      if (Number.isFinite(Number(d.sprint))) knownResetSprint = Number(d.sprint);
+      if (!d.reset) return d;
+      MP.resetNotice = { before: round2(Number(d.before) || 0), after: round2(Number(d.balance) || 0) };
+      return d;
+    }
+  }
   try { d = await api('/rest/v1/rpc/season_reset', { method: 'POST', body: {} }); }
   catch { return null; }
   if (d && Number.isFinite(Number(d.season))) knownResetSeason = Number(d.season);
@@ -7754,14 +8832,43 @@ async function seasonClose() {
 }
 
 // What each player earned this season: the ranking the bonus is actually decided on.
+// De ranglijst rekent winst als saldo-nu min saldo-aan-het-begin. Bij elk ander spel klopt
+// dat: je speelt tegen het huis, dus wat erbij komt is gewonnen. Bij poker niet. Daar komt
+// het geld van een ANDERE SPELER, en aan een privétafel kunnen twee vrienden de fiches van
+// de een naar de ander schuiven tot die ander bovenaan staat en de VIP-pas pakt -- zonder
+// dat er iets gewonnen is.
+//
+// `sprint_scores` trekt daarom af wat poker deze sprint met je saldo heeft gedaan. Die view
+// wordt alleen aangemaakt als sql/poker_ledger.sql gedraaid is; bestaat hij niet, dan valt
+// dit terug op de oude berekening en staat er in elk geval iets.
+let seasonScoresView = 'sprint_scores';
 async function seasonScoresPull() {
   if (!online()) { SEASON.scores = []; return; }
-  try {
-    const rows = await api('/rest/v1/season_scores?select=username,start_balance,end_balance,start_rounds,end_rounds&season=eq.' +
+  const lees = async (view) => {
+    const kolommen = view === 'sprint_scores'
+      ? 'username,start_rounds,end_rounds,gain_no_poker'
+      : 'username,start_balance,end_balance,start_rounds,end_rounds';
+    return api('/rest/v1/' + view + '?select=' + kolommen + '&season=eq.' +
       sprintId() + '&limit=200', { auth: false });
+  };
+  try {
+    let rows;
+    try {
+      rows = await lees(seasonScoresView);
+    } catch (e) {
+      // Geen sprint_scores in deze Supabase: één keer terugvallen en dat onthouden.
+      if (seasonScoresView !== 'sprint_scores' || !missingRpc(e)) throw e;
+      seasonScoresView = 'season_scores';
+      rows = await lees(seasonScoresView);
+    }
     SEASON.scores = (Array.isArray(rows) ? rows : [])
       .filter(r => Number(r.end_rounds) > Number(r.start_rounds))
-      .map(r => ({ username: String(r.username || '?').slice(0, 16), gain: round2(Number(r.end_balance) - Number(r.start_balance)) }))
+      .map(r => ({
+        username: String(r.username || '?').slice(0, 16),
+        gain: round2(r.gain_no_poker != null
+          ? Number(r.gain_no_poker)
+          : Number(r.end_balance) - Number(r.start_balance)),
+      }))
       .sort((a, b) => b.gain - a.gain);
   } catch { SEASON.scores = []; }
 }
@@ -7834,7 +8941,7 @@ function renderSeasonStrip(strip) {
   t2.textContent = sprintCountdown();
   const t3 = document.createElement('div');
   t3.className = 'season-sub';
-  t3.textContent = 'until the standings reset to zero · whoever gains the most takes the title and a VIP pass';
+  t3.textContent = 'until everyone goes back to $1000 · whoever gains the most takes the title and a VIP pass';
   const t4 = document.createElement('div');
   t4.className = 'season-sub';
   const n = sprintsLeft();
@@ -8248,7 +9355,10 @@ function bootGame() {
         if (MP.resetNotice) {
           const n = MP.resetNotice;
           MP.resetNotice = null;
-          flash(`NEW SEASON · $${fmt(n.before)} → $${fmt(n.after)} (you keep 10% above $1000)`, 'gold', 'homeToasts');
+          flash(NET.hasSprintReset
+            ? `NEW SPRINT · $${fmt(n.before)} → $${fmt(n.after)} · everyone starts level`
+            : `NEW SEASON · $${fmt(n.before)} → $${fmt(n.after)} (you keep 10% above $1000)`,
+            'gold', 'homeToasts');
         }
         if (AUTH.profileAt) profilePush();
         liveStart();

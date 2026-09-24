@@ -18,6 +18,9 @@ Net.FUNCTIONS = {
 	"Leaderboard",  -- () -> de ranglijst
 	"Friends",      -- (actie, naam) -> de vriendenlijst
 	"Lobby",        -- (actie, gegevens) -> de lobby
+	"RoundState",   -- (spel) -> de stand van een gedeelde ronde, voor wie net binnenkomt
+	"NewOdds",      -- (spel) -> een nieuw paardenveld, voordat er wordt ingezet
+	"SetAuto",      -- (doel) -> automatisch uitstappen bijstellen tijdens een crashronde
 }
 
 Net.EVENTS = {
@@ -54,8 +57,27 @@ local function ensure(): Folder
 end
 
 -- Maakt de kanalen aan. Alleen de server roept dit aan, bij het opstarten.
+-- Twee kanalen met dezelfde naam kunnen niet: dan pakt de een de ander af en blijft er
+-- eentje stilletjes ongebruikt. Deze controle draait ook in de test.
+function Net.conflicts(): { string }
+	local gezien: { [string]: string } = {}
+	local dubbel: { string } = {}
+	for _, naam in Net.FUNCTIONS do
+		if gezien[naam] then table.insert(dubbel, naam) end
+		gezien[naam] = "function"
+	end
+	for _, naam in Net.EVENTS do
+		if gezien[naam] then table.insert(dubbel, naam) end
+		gezien[naam] = "event"
+	end
+	return dubbel
+end
+
 function Net.build(): ()
 	assert(RunService:IsServer(), "alleen de server maakt de kanalen")
+	local dubbel = Net.conflicts()
+	assert(#dubbel == 0, "kanaalnaam dubbel gebruikt: " .. table.concat(dubbel, ", "))
+
 	local f = ensure()
 	for _, naam in Net.FUNCTIONS do
 		if not f:FindFirstChild(naam) then
@@ -73,7 +95,19 @@ function Net.build(): ()
 	end
 end
 
+-- De namen als verzameling, zodat een tikfout meteen opvalt in plaats van na dertig
+-- seconden wachten. Zonder deze controle wacht WaitForChild op een kanaal dat niet bestaat,
+-- geeft nil terug, en meldt het scherm alleen dat de server niet antwoordt -- terwijl er
+-- niets mis is met de server.
+local BEKEND: { [string]: boolean } = {}
+for _, naam in Net.FUNCTIONS do
+	BEKEND[naam] = true
+end
+
 function Net.fn(naam: string): RemoteFunction
+	if not BEKEND[naam] then
+		error("onbekend kanaal: " .. naam, 2)
+	end
 	return ensure():WaitForChild(naam, 30) :: RemoteFunction
 end
 
