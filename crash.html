@@ -2781,6 +2781,7 @@
             <button data-v="10" class="on">10</button>
             <button data-v="25">25</button>
             <button data-v="100">100</button>
+            <button data-v="max">MAX</button>
           </div>
         </div>
         <div class="payout-line"><span>TOTAL STAKE</span><span class="v" id="rlTotal">$0.00</span></div>
@@ -4721,7 +4722,11 @@ function rlRenderBets() {
 
 function rlPlace(key) {
   if (RL.spinning) return;
-  const amt = takeBet(RL.chip, 'rouletteToasts');
+  // MAX is geen vast bedrag maar "alles wat je nu hebt", op het moment van de klik. Een
+  // getal dat bij het kiezen van de fiche werd vastgelegd, klopt niet meer zodra er al
+  // een fiche op het bord ligt of er net iets is uitbetaald.
+  const inzet = RL.chip === 'max' ? state.balance : RL.chip;
+  const amt = takeBet(inzet, 'rouletteToasts');
   if (!amt) return;
   RL.bets[key] = round2((RL.bets[key] || 0) + amt);
   rlRenderBets();
@@ -4899,7 +4904,7 @@ function rlDraw() {
 }
 
 $('rlChipSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-  RL.chip = parseFloat(b.dataset.v);
+  RL.chip = b.dataset.v === 'max' ? 'max' : parseFloat(b.dataset.v);
   $('rlChipSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
 }));
 $('rlSpinBtn').addEventListener('click', rlSpin);
