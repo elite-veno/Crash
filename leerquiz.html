@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aardrijkskunde Leerquiz</title>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#ffffff; --text:#1c2333; --muted:#63708a; --line:#dde3ef;
+  --accent:#2f6fed; --accent-2:#1f4fb8; --ok:#1f9d55; --ok-bg:#e3f6ea; --bad:#d63b3b; --bad-bg:#fde8e8;
+  --shadow:0 2px 10px rgba(30,45,90,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f1420; --card:#181f30; --text:#e8ecf6; --muted:#95a0ba; --line:#2a3452;
+    --accent:#5b8dff; --accent-2:#8aa9ff; --ok:#3ecf7e; --ok-bg:#12301f; --bad:#ff6b6b; --bad-bg:#3a1a1e; --shadow:none}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:820px;margin:0 auto;padding:16px}
+h1{font-size:1.6rem;margin:8px 0 4px}
+h2{font-size:1.25rem;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.cat{cursor:pointer;text-align:left;font:inherit;color:inherit;transition:transform .12s,border-color .12s}
+.cat:hover,.cat:focus-visible{transform:translateY(-2px);border-color:var(--accent);outline:none}
+.cat .ico{font-size:1.9rem}
+.cat b{display:block;margin-top:4px}
+.cat small{color:var(--muted);display:block}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px}
+.bar>i{display:block;height:100%;background:var(--ok);width:0}
+.meta{font-size:.82rem;color:var(--muted);margin-top:4px}
+.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:10px 16px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-2)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
+.seg button{font:inherit;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.label{font-weight:600;font-size:.9rem}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
+.q{font-size:1.2rem;margin:6px 0 4px;font-weight:600}
+.prompt{color:var(--muted);font-size:.9rem;text-transform:uppercase;letter-spacing:.04em}
+.opts{display:grid;gap:8px;margin-top:14px}
+.opt{font:inherit;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;display:flex;gap:10px}
+.opt kbd{color:var(--muted);font:inherit;font-size:.8rem;min-width:1em}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.ok{background:var(--ok-bg);border-color:var(--ok)}
+.opt.bad{background:var(--bad-bg);border-color:var(--bad)}
+.opt:disabled{cursor:default;color:var(--text)}
+input[type=text]{width:100%;font:inherit;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);margin-top:14px}
+input[type=text]:focus{outline:2px solid var(--accent);border-color:transparent}
+.fb{margin-top:14px;padding:12px 14px;border-radius:10px}
+.fb.ok{background:var(--ok-bg);border:1px solid var(--ok)}
+.fb.bad{background:var(--bad-bg);border:1px solid var(--bad)}
+.fb .info{color:var(--muted);font-size:.9rem;margin-top:4px}
+.flip{min-height:190px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;cursor:pointer;user-select:none}
+.flip .big{font-size:1.35rem;font-weight:600}
+.score{font-size:3rem;font-weight:700;color:var(--accent)}
+.center{text-align:center}
+.list{list-style:none;padding:0;margin:8px 0 0}
+.list li{padding:10px 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.tag{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:99px;background:var(--line);color:var(--muted);margin-left:6px}
+footer{color:var(--muted);font-size:.8rem;text-align:center;margin:24px 0 8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ DATA
+   Elk item: q = vraag/omschrijving, a = juist antwoord, alt = ook goed (typen), info = extra weetje.
+   dirs 'both' = ook omgekeerd te vragen (antwoord -> vraag). */
+const CATS = [
+{
+  id:"be-rivieren", icon:"🌊", title:"Rivieren van België", sub:"De 15 grootste rivieren",
+  ask:"Welke Belgische rivier is dit?", dirs:"one",
+  items:[
+   {q:"Ontspringt in Noord-Frankrijk, stroomt door Doornik, Gent en Antwerpen en mondt via de Westerschelde uit in de Noordzee.",a:"Schelde",info:"Ongeveer 355 km lang; haven van Antwerpen."},
+   {q:"Komt uit Frankrijk, stroomt door Dinant, Namen en Luik en gaat verder naar Maastricht en Rotterdam.",a:"Maas",info:"Belangrijkste Waalse rivier; ± 925 km lang."},
+   {q:"Ontspringt in Frankrijk, stroomt door Kortrijk en Deinze en mondt in Gent uit in de Schelde.",a:"Leie",info:"Bekend van de Guldensporenslag (Kortrijk) en de vlasindustrie."},
+   {q:"Stroomt door Geraardsbergen, Ninove en Aalst en mondt in Dendermonde uit in de Schelde.",a:"Dender"},
+   {q:"Korte, brede rivier bij Boom en Rumst, ontstaan uit de samenvloeiing van Dijle en Nete; mondt uit in de Schelde.",a:"Rupel"},
+   {q:"Ontspringt in Waals-Brabant, stroomt door Leuven en Mechelen en vormt met de Nete de Rupel.",a:"Dijle"},
+   {q:"Stroomt door Hasselt, Diest en Aarschot en mondt bij Werchter uit in de Dijle.",a:"Demer"},
+   {q:"Ontstaat bij Lier uit de Grote en Kleine ...; vormt samen met de Dijle de Rupel.",a:"Nete"},
+   {q:"Stroomt door Halle en Brussel (deels overwelfd) en mondt bij Mechelen uit in de Dijle.",a:"Zenne"},
+   {q:"Ontspringt in Frankrijk, stroomt langs Diksmuide en mondt bij Nieuwpoort uit in de Noordzee.",a:"IJzer",info:"Bekend van de Slag aan de IJzer in de Eerste Wereldoorlog."},
+   {q:"Komt uit Frankrijk, stroomt door Charleroi en mondt in Namen uit in de Maas.",a:"Samber",alt:["Sambre"]},
+   {q:"Ardense rivier door La Roche-en-Ardenne en Durbuy; mondt in Luik uit in de Maas.",a:"Ourthe"},
+   {q:"Ardense rivier door Bouillon; mondt in Frankrijk uit in de Maas.",a:"Semois",alt:["Semoy"]},
+   {q:"Stroomt langs Stavelot en Remouchamps (grotten) en mondt uit in de Ourthe.",a:"Amblève",alt:["Amel","Ambleve"]},
+   {q:"Stroomt door Eupen en Verviers en mondt uit in de Ourthe.",a:"Vesder",alt:["Vesdre"]},
+  ]
+},
+{
+  id:"be-snelwegen", icon:"🛣️", title:"Autosnelwegen van België", sub:"15 belangrijkste snelwegen",
+  ask:"Welke weg volgt deze route?", askRev:"Welke route volgt deze weg?", dirs:"both",
+  items:[
+   {q:"E40",a:"Oostende – Brugge – Gent – Brussel – Leuven – Luik – Duitsland",alt:["E 40"],info:"Langste snelweg van België (A10/A3)."},
+   {q:"E19",a:"Nederland – Antwerpen – Mechelen – Brussel – Halle – Bergen – Frankrijk",alt:["E 19"]},
+   {q:"E17",a:"Antwerpen – Gent – Kortrijk – Rijsel (Frankrijk)",alt:["E 17"]},
+   {q:"E313",a:"Antwerpen – Geel – Hasselt – Luik",alt:["E 313"]},
+   {q:"E314",a:"Leuven – Diest – Genk – Aken (Duitsland)",alt:["E 314"]},
+   {q:"E411",a:"Brussel – Namen – Aarlen – Luxemburg",alt:["E 411"]},
+   {q:"E42",a:"Bergen – Charleroi – Namen – Luik – Verviers – Duitsland",alt:["E 42"]},
+   {q:"E25",a:"Luik – Bastenaken – Luxemburg",alt:["E 25"]},
+   {q:"E34",a:"Zeebrugge – Antwerpen – Turnhout – Nederland",alt:["E 34"]},
+   {q:"E403",a:"Brugge – Kortrijk – Doornik",alt:["E 403"]},
+   {q:"E429",a:"Halle – Ronse/Doornik – Frankrijk",alt:["E 429","A8"]},
+   {q:"A12",a:"Brussel – Vilvoorde – Boom – Antwerpen",alt:["A 12"]},
+   {q:"A11",a:"Brugge – Knokke-Heist",alt:["A 11"]},
+   {q:"R0",a:"Brusselse Ring",alt:["R 0","Ring van Brussel"],info:"Ring rond Brussel; de drukste ring van het land."},
+   {q:"R1",a:"Ring van Antwerpen",alt:["R 1","Antwerpse Ring"],info:"Ring rond Antwerpen met de Kennedytunnel en Waaslandtunnel."},
+  ]
+},
+{
+  id:"eu-landen", icon:"🇪🇺", title:"Europa: landen & hoofdsteden", sub:"Alle landen van Europa",
+  ask:"Wat is de hoofdstad van", askRev:"Van welk land is dit de hoofdstad?", dirs:"both", ends:"?",
+  items:[
+   ["Albanië","Tirana"],["Andorra","Andorra la Vella"],["Armenië","Jerevan"],["Azerbeidzjan","Bakoe"],["België","Brussel"],
+   ["Bosnië en Herzegovina","Sarajevo"],["Bulgarije","Sofia"],["Cyprus","Nicosia"],["Denemarken","Kopenhagen"],["Duitsland","Berlijn"],
+   ["Estland","Tallinn"],["Finland","Helsinki"],["Frankrijk","Parijs"],["Georgië","Tbilisi"],["Griekenland","Athene"],
+   ["Hongarije","Boedapest"],["Ierland","Dublin"],["IJsland","Reykjavik"],["Italië","Rome"],["Kosovo","Pristina"],
+   ["Kroatië","Zagreb"],["Letland","Riga"],["Liechtenstein","Vaduz"],["Litouwen","Vilnius"],["Luxemburg","Luxemburg"],
+   ["Malta","Valletta"],["Moldavië","Chisinau"],["Monaco","Monaco"],["Montenegro","Podgorica"],["Nederland","Amsterdam"],
+   ["Noord-Macedonië","Skopje"],["Noorwegen","Oslo"],["Oekraïne","Kiev",["Kyiv"]],["Oostenrijk","Wenen"],["Polen","Warschau"],
+   ["Portugal","Lissabon"],["Roemenië","Boekarest"],["Rusland","Moskou"],["San Marino","San Marino"],["Servië","Belgrado"],
+   ["Slovenië","Ljubljana"],["Slowakije","Bratislava"],["Spanje","Madrid"],["Tsjechië","Praag"],["Turkije","Ankara"],
+   ["Vaticaanstad","Vaticaanstad"],["Verenigd Koninkrijk","Londen"],["Wit-Rusland","Minsk"],["Zweden","Stockholm"],["Zwitserland","Bern"]
+  ].map(x=>({q:x[0],a:x[1],alt:x[2]}))
+},
+{
+  id:"wereld-gebergtes", icon:"🏔️", title:"Gebergtes in de wereld", sub:"De grote bergketens",
+  ask:"Welk gebergte is dit?", dirs:"one",
+  items:[
+   {q:"Azië – bevat de Mount Everest, het hoogste punt op aarde (8849 m).",a:"Himalaya"},
+   {q:"Azië – bevat de K2, de tweede hoogste berg ter wereld, op de grens van Pakistan en China.",a:"Karakoram"},
+   {q:"Azië – in Afghanistan en Pakistan; loopt door tot aan de Pamir.",a:"Hindoekoesj",alt:["Hindu Kush","Hindoekush"]},
+   {q:"Centraal-Azië – 'dak van de wereld', in Tadzjikistan, Kirgizië en China.",a:"Pamir"},
+   {q:"Centraal-Azië – 'Hemelgebergte', op de grens van Kirgizië, Kazachstan en China.",a:"Tiensjan",alt:["Tian Shan","Tien Shan"]},
+   {q:"Azië – grenst Rusland, Kazachstan, Mongolië en China; 'Gouden Bergen'.",a:"Altaj",alt:["Altai"]},
+   {q:"Grens tussen Europa en Azië in Rusland, loopt van noord naar zuid.",a:"Oeral",alt:["Ural"]},
+   {q:"Tussen de Zwarte en de Kaspische Zee; bevat de Elbroes (5642 m), de hoogste berg van Europa.",a:"Kaukasus"},
+   {q:"Europa – Mont Blanc (4806 m); Zwitserland, Oostenrijk, Frankrijk en Italië.",a:"Alpen"},
+   {q:"Grens tussen Frankrijk en Spanje; Andorra ligt hierin.",a:"Pyreneeën",alt:["Pyreneeen","Pyrenees"]},
+   {q:"Boogvormig gebergte in Oost-Europa: Slowakije, Polen, Oekraïne en Roemenië (Dracula!).",a:"Karpaten"},
+   {q:"De ruggengraat van Italië, loopt van noord naar zuid.",a:"Apennijnen",alt:["Apennijnen","Apenijnen"]},
+   {q:"Noorwegen en Zweden – ook wel de Scandes.",a:"Scandinavisch gebergte",alt:["Scandes","Scandinavische bergen","Kjølen","Kjolen"]},
+   {q:"Zuid-Amerika – langste bergketen ter wereld (± 7000 km), met Aconcagua (6961 m).",a:"Andes"},
+   {q:"Noord-Amerika – westelijk gebergte van Canada tot New Mexico, o.a. Colorado.",a:"Rocky Mountains",alt:["Rockies","Rocky mountains","Rotsgebergte"]},
+   {q:"Noord-Amerika – oostelijk oud gebergte in de VS en Canada.",a:"Appalachen",alt:["Appalachians"]},
+   {q:"Noord-Amerika – Californië; bevat Yosemite en Mount Whitney.",a:"Sierra Nevada"},
+   {q:"Noord-Afrika – Marokko, Algerije en Tunesië.",a:"Atlasgebergte",alt:["Atlas"]},
+   {q:"Zuid-Afrika, Lesotho en Swaziland – 'Drakenbergen'.",a:"Drakensbergen",alt:["Drakensberg"]},
+   {q:"Oost-Australië – langste gebergte van Australië.",a:"Great Dividing Range",alt:["Grote Scheidingsketen","Australische Alpen"]},
+   {q:"Nieuw-Zeeland – op het Zuidereiland, met Mount Cook.",a:"Zuidelijke Alpen",alt:["Southern Alps"]},
+  ]
+},
+{
+  id:"wereld-rivieren", icon:"🌍", title:"Rivieren in de wereld", sub:"De grootste rivieren op aarde",
+  ask:"Welke rivier is dit?", dirs:"one",
+  items:[
+   {q:"Afrika – vaak als langste rivier gezien (± 6650 km); door Soedan en Egypte naar de Middellandse Zee.",a:"Nijl"},
+   {q:"Zuid-Amerika – grootste waterafvoer ter wereld; door Brazilië naar de Atlantische Oceaan.",a:"Amazone"},
+   {q:"Azië – langste rivier van Azië; door China naar de Oost-Chinese Zee (Shanghai).",a:"Jangtsekiang",alt:["Yangtze","Jangtse","Chang Jiang"]},
+   {q:"Noord-Amerika – stroomt via Minnesota en New Orleans naar de Golf van Mexico.",a:"Mississippi"},
+   {q:"Noord-Amerika – belangrijkste zijrivier van de Mississippi; stroomt vanuit de Rocky Mountains.",a:"Missouri"},
+   {q:"Azië – 'Gele Rivier' in China, wieg van de Chinese beschaving.",a:"Gele Rivier",alt:["Huang He","Hoang Ho","Gele rivier"]},
+   {q:"Azië – stroomt van Mongolië en Rusland naar de Noordelijke IJszee, o.a. via Krasnojarsk.",a:"Jenisej",alt:["Yenisei","Jenisei"]},
+   {q:"Azië – Siberië; mondt uit in de Golf van Ob en de Noordelijke IJszee.",a:"Ob"},
+   {q:"Afrika – tweede langste rivier van Afrika, kruist de evenaar tweemaal; mondt uit bij Kinshasa/Brazzaville en de Atlantische Oceaan.",a:"Congo",alt:["Kongo"]},
+   {q:"Azië – grens tussen Rusland en China; mondt uit in de Zee van Ochotsk.",a:"Amoer",alt:["Amur","Heilong Jiang"]},
+   {q:"Azië – Siberië; mondt uit in de Laptevzee en heeft een enorme delta.",a:"Lena"},
+   {q:"Azië – Zuidoost-Azië; door China, Laos, Cambodja en Vietnam naar de Zuid-Chinese Zee.",a:"Mekong"},
+   {q:"Afrika – West-Afrika; boog door Mali, Niger en Nigeria; Niger-delta.",a:"Niger"},
+   {q:"Zuid-Amerika – stroomt door Brazilië, Paraguay en Argentinië en mondt uit in de Río de la Plata.",a:"Parana",alt:["Paraná"]},
+   {q:"Europa – langste rivier van Europa; mondt uit in de Kaspische Zee.",a:"Wolga",alt:["Volga"]},
+   {q:"Europa – stroomt door tien landen, van het Zwarte Woud naar de Zwarte Zee; door Wenen, Boedapest en Belgrado.",a:"Donau"},
+   {q:"Europa – ontspringt in Zwitserland, stroomt door Duitsland en Nederland naar de Noordzee.",a:"Rijn"},
+   {q:"Azië – India; heilige rivier met Varanasi; mondt uit in de Golf van Bengalen.",a:"Ganges"},
+   {q:"Azië – Pakistan; ontspringt in Tibet en mondt uit in de Arabische Zee; Indus-cultuur.",a:"Indus"},
+   {q:"Azië – Midden-Oosten; samen met de Tigris omsluit ze Mesopotamië.",a:"Eufraat",alt:["Euphraat","Euphrates"]},
+   {q:"Afrika – Victoriawatervallen; mondt uit in de Indische Oceaan (Mozambique).",a:"Zambezi",alt:["Zambesi"]},
+   {q:"Zuid-Amerika – Venezuela; kent een uitgebreide delta.",a:"Orinoco"},
+   {q:"Noord-Amerika – grens tussen de VS en Mexico; mondt uit in de Golf van Mexico.",a:"Rio Grande"},
+   {q:"Australië – langste rivier van Australië, in het zuidoosten.",a:"Murray"},
+   {q:"Noord-Amerika – verbindt de Grote Meren met de Atlantische Oceaan; stroomt door Montréal en Québec.",a:"Sint-Laurens",alt:["Saint Lawrence","St. Lawrence","Sint Laurens"]},
+  ]
+},
+{
+  id:"wereld-hoofdsteden", icon:"🏛️", title:"Hoofdsteden van grote landen", sub:"De grootste landen ter wereld",
+  ask:"Wat is de hoofdstad van", askRev:"Van welk land is dit de hoofdstad?", dirs:"both", ends:"?",
+  items:[
+   ["Rusland","Moskou"],["Canada","Ottawa"],["Verenigde Staten","Washington D.C.",["Washington","Washington DC"]],["China","Peking",["Beijing"]],
+   ["Brazilië","Brasilia"],["Australië","Canberra"],["India","New Delhi",["Delhi","Nieuw Delhi"]],["Argentinië","Buenos Aires"],
+   ["Kazachstan","Astana"],["Algerije","Algiers"],["Democratische Republiek Congo","Kinshasa"],["Saoedi-Arabië","Riyad",["Riyadh"]],
+   ["Mexico","Mexico-Stad",["Mexico City","Mexico Stad","Mexico"]],["Indonesië","Jakarta"],["Soedan","Khartoem",["Khartoum"]],
+   ["Libië","Tripoli"],["Iran","Teheran",["Tehran"]],["Mongolië","Ulaanbaatar",["Ulan Bator"]],["Peru","Lima"],["Tsjaad","N'Djamena",["Ndjamena"]],
+   ["Niger","Niamey"],["Angola","Luanda"],["Mali","Bamako"],["Zuid-Afrika","Pretoria",["Kaapstad","Bloemfontein"]],
+   ["Colombia","Bogota",["Bogotá"]],["Ethiopië","Addis Abeba"],["Egypte","Caïro",["Cairo","Kairo"]],["Tanzania","Dodoma"],
+   ["Nigeria","Abuja"],["Venezuela","Caracas"],["Pakistan","Islamabad"],["Japan","Tokio",["Tokyo"]],["Turkije","Ankara"],
+   ["Bolivia","Sucre",["La Paz"]],["Zuid-Korea","Seoel",["Seoul"]],["Thailand","Bangkok"],["Vietnam","Hanoi"],["Chili","Santiago"]
+  ].map(x=>({q:x[0],a:x[1],alt:x[2]}))
+}
+];
+
+/* ------------------------------------------------------------------ HELPERS */
+const $app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,"");
+function lev(a,b){
+  const d=Array.from({length:a.length+1},(_,i)=>[i]); for(let j=1;j<=b.length;j++)d[0][j]=j;
+  for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[a.length][b.length];
+}
+
+/* ------------------------------------------------------------------ OPSLAG */
+let store = {stats:{},best:{}};
+try{ const s=JSON.parse(localStorage.getItem("leerquiz-v1")); if(s&&s.stats) store=s; }catch(e){}
+const save = () => { try{ localStorage.setItem("leerquiz-v1",JSON.stringify(store)); }catch(e){} };
+const stat = (cat,i) => (store.stats[cat.id] ||= {})[i] ||= {c:0,w:0};
+const learned = st => st.c>=2 && st.c>st.w;
+function progress(cat){
+  const s=store.stats[cat.id]||{};
+  return cat.items.filter((_,i)=>s[i]&&learned(s[i])).length;
+}
+
+/* ------------------------------------------------------------------ STATE */
+let cfg = {mode:"mc", dir:"fwd", count:10, focus:false};
+let run = null;
+
+/* ------------------------------------------------------------------ SCHERMEN */
+function home(){
+  run=null;
+  $app.innerHTML = `
+    <h1>🧭 Aardrijkskunde Leerquiz</h1>
+    <p class="sub">Kies een onderwerp en oefen met meerkeuze, intypen of flashcards. Je voortgang wordt op dit apparaat bewaard.</p>
+    <div class="grid">${CATS.map((c,i)=>{
+      const p=progress(c), n=c.items.length, best=store.best[c.id];
+      return `<button class="card cat" data-i="${i}">
+        <span class="ico">${c.icon}</span><b>${esc(c.title)}</b><small>${esc(c.sub)} · ${n} items</small>
+        <div class="bar"><i style="width:${p/n*100}%"></i></div>
+        <div class="meta">${p}/${n} geleerd${best!=null?` · beste score ${best}%`:""}</div>
+      </button>`;}).join("")}
+    </div>
+    <footer><button class="btn ghost" id="reset">Voortgang wissen</button></footer>`;
+  $app.querySelectorAll(".cat").forEach(b=>b.onclick=()=>setup(CATS[+b.dataset.i]));
+  document.getElementById("reset").onclick=()=>{ if(confirm("Alle voortgang wissen?")){store={stats:{},best:{}};save();home();} };
+}
+
+function setup(cat){
+  run=null;
+  const both = cat.dirs==="both";
+  const total = cat.items.length;
+  $app.innerHTML = `
+    <div class="top"><button class="btn ghost" id="back">← Terug</button></div>
+    <h1>${cat.icon} ${esc(cat.title)}</h1>
+    <p class="sub">${esc(cat.sub)}</p>
+    <div class="card">
+      <div class="label">Oefenvorm</div>
+      <div class="seg" data-k="mode">
+        <button data-v="mc">Meerkeuze</button><button data-v="type">Intypen</button><button data-v="flash">Flashcards</button>
+      </div>
+      ${both?`<div class="label">Richting</div>
+      <div class="seg" data-k="dir">
+        <button data-v="fwd">${esc(cat.id==="be-snelwegen"?"Weg → route":"Land → hoofdstad")}</button>
+        <button data-v="rev">${esc(cat.id==="be-snelwegen"?"Route → weg":"Hoofdstad → land")}</button>
+        <button data-v="mix">Door elkaar</button>
+      </div>`:""}
+      <div class="label">Aantal vragen</div>
+      <div class="seg" data-k="count">
+        ${[10,20].filter(n=>n<total).map(n=>`<button data-v="${n}">${n}</button>`).join("")}
+        <button data-v="${total}">Alles (${total})</button>
+      </div>
+      <div class="label">Slim oefenen</div>
+      <div class="seg" data-k="focus">
+        <button data-v="0">Willekeurig</button><button data-v="1">Zwakke punten eerst</button>
+      </div>
+      <button class="btn primary" id="go">Start</button>
+    </div>`;
+  const cur = {mode:cfg.mode, dir:cfg.dir, count:Math.min(cfg.count,total), focus:cfg.focus?1:0};
+  if(!both) cur.dir="fwd";
+  const sync = () => $app.querySelectorAll(".seg").forEach(g=>{
+    g.querySelectorAll("button").forEach(b=>b.classList.toggle("on", String(cur[g.dataset.k])===b.dataset.v));
+  });
+  if(![...$app.querySelectorAll('[data-k="count"] button')].some(b=>+b.dataset.v===cur.count)) cur.count=+$app.querySelector('[data-k="count"] button').dataset.v;
+  $app.querySelectorAll(".seg").forEach(g=>g.onclick=e=>{
+    const b=e.target.closest("button"); if(!b)return;
+    cur[g.dataset.k] = g.dataset.k==="mode"||g.dataset.k==="dir" ? b.dataset.v : +b.dataset.v; sync();
+  });
+  sync();
+  document.getElementById("back").onclick=home;
+  document.getElementById("go").onclick=()=>{
+    cfg={mode:cur.mode,dir:cur.dir,count:cur.count,focus:!!cur.focus};
+    start(cat);
+  };
+}
+
+function start(cat){
+  let idx = cat.items.map((_,i)=>i);
+  idx = cfg.focus
+    ? idx.map(i=>{const s=stat(cat,i);return [i, Math.random()*(1+Math.max(0,s.c-s.w)*2)];}).sort((a,b)=>a[1]-b[1]).map(x=>x[0])
+    : shuffle(idx);
+  idx = idx.slice(0,cfg.count);
+  const qs = idx.map(i=>({i, rev: cat.dirs==="both" && (cfg.dir==="rev"||(cfg.dir==="mix"&&Math.random()<.5))}));
+  run = {cat, qs, n:0, score:0, wrong:[], answered:false};
+  cfg.mode==="flash" ? flash() : question();
+}
+
+/* -- vraag tonen -- */
+const qText = (cat,it,rev) => rev ? it.a : it.q;
+const aText = (cat,it,rev) => rev ? it.q : it.a;
+
+function question(){
+  const {cat,qs,n} = run;
+  if(n>=qs.length) return results();
+  const {i,rev} = qs[n], it = cat.items[i];
+  const long = aText(cat,it,rev).length>30;
+  const typed = cfg.mode==="type" && !long;
+  const prompt = rev ? (cat.askRev||cat.ask) : cat.ask;
+  const showQ = qText(cat,it,rev);
+  run.answered=false;
+  let body="";
+  if(typed){
+    body = `<input type="text" id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Typ je antwoord…" autofocus>
+            <div class="row" style="margin-top:12px"><button class="btn primary" id="ok">Controleer</button><button class="btn ghost" id="skip">Weet ik niet</button></div>`;
+  }else{
+    const pool = shuffle(cat.items.filter((_,k)=>k!==i)).map(x=>aText(cat,x,rev)).filter((v,k,a)=>v!==aText(cat,it,rev)&&a.indexOf(v)===k).slice(0,3);
+    const opts = shuffle([aText(cat,it,rev),...pool]);
+    body = `<div class="opts">${opts.map((o,k)=>`<button class="opt" data-v="${esc(o)}"><kbd>${k+1}</kbd><span>${esc(o)}</span></button>`).join("")}</div>`;
+  }
+  $app.innerHTML = `
+    <div class="top"><button class="btn ghost" id="quit">✕ Stop</button><span class="meta">Vraag ${n+1} / ${qs.length} · ${run.score} goed</span></div>
+    <div class="bar" style="margin:0 0 14px"><i style="width:${n/qs.length*100}%;background:var(--accent)"></i></div>
+    <div class="card">
+      <div class="prompt">${esc(prompt)}</div>
+      <div class="q">${esc(showQ)}${cat.ends&&!rev?" ?":""}</div>
+      ${body}
+      <div id="fb"></div>
+    </div>`;
+  document.getElementById("quit").onclick=()=>{ if(confirm("Quiz stoppen?")) home(); };
+  if(typed){
+    const inp=document.getElementById("ans"); inp.focus();
+    document.getElementById("ok").onclick=()=>checkTyped(inp.value);
+    document.getElementById("skip").onclick=()=>finish(false,"");
+    inp.onkeydown=e=>{ if(e.key==="Enter") checkTyped(inp.value); };
+  }else{
+    $app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>finish(b.dataset.v===aText(cat,it,rev),b.dataset.v,b));
+  }
+}
+
+function checkTyped(val){
+  if(run.answered) return;
+  const {cat,qs,n}=run, {i,rev}=qs[n], it=cat.items[i];
+  const good = [it.a,...(it.alt||[])].map(norm);
+  const g = norm(val);
+  if(!g) return;
+  let ok = good.includes(g), close=false;
+  if(!ok && g.length>4 && good.some(t=>lev(t,g)<=1)){ ok=true; close=true; }
+  finish(ok,val,null,close);
+}
+
+function finish(ok,given,btn,close){
+  if(run.answered) return;
+  run.answered=true;
+  const {cat,qs,n}=run, {i,rev}=qs[n], it=cat.items[i];
+  const st = stat(cat,i);
+  ok ? (st.c++, run.score++) : (st.w++, run.wrong.push({it,rev,given}));
+  save();
+  const right = aText(cat,it,rev);
+  if(btn){
+    $app.querySelectorAll(".opt").forEach(b=>{ b.disabled=true; if(b.dataset.v===right)b.classList.add("ok"); });
+    if(!ok) btn.classList.add("bad");
+  }else{
+    document.querySelectorAll("#ans,#ok,#skip").forEach(e=>e.disabled=true);
+  }
+  const extra = it.info?`<div class="info">${esc(it.info)}</div>`:"";
+  document.getElementById("fb").innerHTML =
+    `<div class="fb ${ok?"ok":"bad"}"><b>${ok?(close?"Bijna goed — geteld als goed! ":"Goed! "):"Helaas. "}</b>${ok&&!close?"":`Het juiste antwoord: <b>${esc(right)}</b>`}${extra}</div>
+     <div class="row" style="margin-top:12px"><button class="btn primary" id="next">${n+1>=qs.length?"Resultaat":"Volgende"} ↵</button></div>`;
+  const next=()=>{ run.n++; question(); };
+  document.getElementById("next").onclick=next;
+}
+
+/* -- flashcards -- */
+function flash(){
+  const {cat,qs,n}=run;
+  if(n>=qs.length) return results();
+  const {i,rev}=qs[n], it=cat.items[i];
+  let shown=false;
+  $app.innerHTML = `
+    <div class="top"><button class="btn ghost" id="quit">✕ Stop</button><span class="meta">Kaart ${n+1} / ${qs.length}</span></div>
+    <div class="bar" style="margin:0 0 14px"><i style="width:${n/qs.length*100}%;background:var(--accent)"></i></div>
+    <div class="card flip" id="card" tabindex="0">
+      <div class="prompt">${esc(rev?(cat.askRev||cat.ask):cat.ask)}</div>
+      <div class="big">${esc(qText(cat,it,rev))}</div>
+      <div id="back" class="meta" style="margin-top:14px">Tik om te draaien (spatie)</div>
+    </div>
+    <div id="rate" class="row" style="margin-top:12px;visibility:hidden">
+      <button class="btn" id="no">✗ Nog niet</button><button class="btn primary" id="yes">✓ Wist ik</button>
+    </div>`;
+  const card=document.getElementById("card");
+  const reveal=()=>{ if(shown)return; shown=true;
+    document.getElementById("back").outerHTML=`<div style="margin-top:14px"><div class="big" style="color:var(--accent)">${esc(aText(cat,it,rev))}</div>${it.info?`<div class="meta">${esc(it.info)}</div>`:""}</div>`;
+    document.getElementById("rate").style.visibility="visible"; };
+  card.onclick=reveal;
+  const rate=ok=>{ if(!shown){reveal();return;} const st=stat(cat,i); ok?(st.c++,run.score++):(st.w++,run.wrong.push({it,rev,given:""})); save(); run.n++; flash(); };
+  document.getElementById("yes").onclick=()=>rate(true);
+  document.getElementById("no").onclick=()=>rate(false);
+  document.getElementById("quit").onclick=()=>{ if(confirm("Stoppen?")) home(); };
+  run.key = e=>{ if(e.key===" "){e.preventDefault();reveal();} else if(shown&&(e.key==="ArrowRight"||e.key==="1")) rate(true); else if(shown&&(e.key==="ArrowLeft"||e.key==="2")) rate(false); };
+}
+
+/* -- resultaat -- */
+function results(){
+  const {cat,qs,score,wrong}=run;
+  const pct=Math.round(score/qs.length*100);
+  store.best[cat.id]=Math.max(store.best[cat.id]||0,pct);
+  save();
+  const msg = pct===100?"Perfect! 🏆":pct>=80?"Sterk gedaan! 👏":pct>=60?"Goed bezig 👍":"Blijf oefenen 💪";
+  $app.innerHTML = `
+    <div class="card center">
+      <div class="score">${pct}%</div>
+      <h2>${msg}</h2>
+      <p class="sub">${score} van ${qs.length} goed</p>
+      <div class="row" style="justify-content:center">
+        ${wrong.length?`<button class="btn primary" id="redo">Fouten oefenen (${wrong.length})</button>`:""}
+        <button class="btn" id="again">Opnieuw</button>
+        <button class="btn" id="menu">Menu</button>
+      </div>
+    </div>
+    ${wrong.length?`<div class="card" style="margin-top:12px"><h2>Om te onthouden</h2><ul class="list">
+      ${wrong.map(w=>`<li><b>${esc(qText(cat,w.it,w.rev))}</b><br><span class="meta">→ ${esc(aText(cat,w.it,w.rev))}${w.given?` <span class="tag">jij: ${esc(w.given)}</span>`:""}</span></li>`).join("")}
+    </ul></div>`:""}`;
+  document.getElementById("again").onclick=()=>start(cat);
+  document.getElementById("menu").onclick=home;
+  const r=document.getElementById("redo");
+  if(r) r.onclick=()=>{
+    const qs2=shuffle(wrong.map(w=>({i:cat.items.indexOf(w.it),rev:w.rev})));
+    run={cat,qs:qs2,n:0,score:0,wrong:[],answered:false};
+    cfg.mode==="flash"?flash():question();
+  };
+}
+
+/* -- toetsenbord -- */
+document.addEventListener("keydown",e=>{
+  if(!run) return;
+  if(run.key && cfg.mode==="flash") return run.key(e);
+  if(cfg.mode==="flash"||e.target.tagName==="INPUT") return;
+  if(!run.answered){
+    const n=parseInt(e.key,10);
+    const opts=$app.querySelectorAll(".opt");
+    if(n>=1&&n<=opts.length) opts[n-1].click();
+  }else if(e.key==="Enter"){
+    const b=document.getElementById("next"); if(b&&document.activeElement!==b) b.click();
+  }
+});
+
+home();
+</script>
+</body>
+</html>
